@@ -32,6 +32,20 @@ function entryRow(title, value, placeholder, secret = false) {
     return row;
 }
 
+function rgbaFromHex(hex) {
+    const rgba = new Gdk.RGBA();
+    if (!rgba.parse(hex))
+        rgba.parse('#8ab4f8');
+    return rgba;
+}
+
+function hexFromRgba(rgba) {
+    const channel = value => Math.round(Math.max(0, Math.min(1, value)) * 255)
+        .toString(16)
+        .padStart(2, '0');
+    return `#${channel(rgba.red)}${channel(rgba.green)}${channel(rgba.blue)}`;
+}
+
 const GeneralPage = GObject.registerClass(
 class GeneralPage extends Adw.PreferencesPage {
     _init(settings) {
@@ -127,7 +141,7 @@ class GeneralPage extends Adw.PreferencesPage {
     _buildColorGroup() {
         const group = new Adw.PreferencesGroup({
             title: _('Colors'),
-            description: _('Use CSS hex colors such as #8ab4f8.'),
+            description: _('Pick a color or type a CSS hex value such as #8ab4f8.'),
         });
 
         for (const [key, title] of [
@@ -136,16 +150,52 @@ class GeneralPage extends Adw.PreferencesPage {
             ['danger-color', _('Danger')],
             ['neutral-color', _('Text and outline')],
         ]) {
-            const row = entryRow(title, this._settings.get_string(key), '#8ab4f8');
-            row._entry.connect('changed', () => {
-                const value = row._entry.get_text().trim();
-                if (/^#[0-9a-fA-F]{6}$/.test(value))
-                    this._settings.set_string(key, value);
-            });
+            const row = this._buildColorRow(key, title);
             group.add(row);
         }
 
         return group;
+    }
+
+    _buildColorRow(key, title) {
+        const row = new Adw.ActionRow({
+            title,
+            subtitle: this._settings.get_string(key),
+        });
+
+        const entry = new Gtk.Entry({
+            text: this._settings.get_string(key),
+            placeholder_text: '#8ab4f8',
+            width_chars: 9,
+            max_width_chars: 9,
+            valign: Gtk.Align.CENTER,
+        });
+
+        const colorButton = new Gtk.ColorDialogButton({
+            dialog: new Gtk.ColorDialog({with_alpha: false}),
+            rgba: rgbaFromHex(this._settings.get_string(key)),
+            valign: Gtk.Align.CENTER,
+        });
+
+        const applyHex = value => {
+            if (!/^#[0-9a-fA-F]{6}$/.test(value))
+                return;
+            const normalized = value.toLowerCase();
+            if (this._settings.get_string(key) !== normalized)
+                this._settings.set_string(key, normalized);
+            row.set_subtitle(normalized);
+            if (entry.get_text() !== normalized)
+                entry.set_text(normalized);
+            colorButton.set_rgba(rgbaFromHex(normalized));
+        };
+
+        entry.connect('changed', () => applyHex(entry.get_text().trim()));
+        colorButton.connect('notify::rgba', () => applyHex(hexFromRgba(colorButton.get_rgba())));
+
+        row.add_suffix(entry);
+        row.add_suffix(colorButton);
+        row.activatable_widget = colorButton;
+        return row;
     }
 });
 
