@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.ai-usage-bar" path="/org/gnome/shell/extensions/ai-usage-bar/">
+    <key name="refresh-interval" type="i">
+      <default>15</default>
+      <summary>Refresh interval in minutes</summary>
+    </key>
+    <key name="display-mode" type="s">
+      <default>'remaining'</default>
+      <summary>Whether meters show remaining or used quota</summary>
+    </key>
+    <key name="panel-position" type="s">
+      <default>'right'</default>
+      <summary>GNOME panel box for the indicator</summary>
+    </key>
+    <key name="panel-index" type="i">
+      <default>0</default>
+      <summary>Position inside the selected panel box</summary>
+    </key>
+    <key name="indicator-style" type="s">
+      <default>'meter'</default>
+      <summary>Panel indicator style</summary>
+    </key>
+    <key name="show-label" type="b">
+      <default>true</default>
+      <summary>Show provider or percent text in the panel</summary>
+    </key>
+    <key name="show-overview" type="b">
+      <default>true</default>
+      <summary>Show overview tab when multiple providers are enabled</summary>
+    </key>
+    <key name="accent-color" type="s">
+      <default>'#8ab4f8'</default>
+      <summary>Normal meter color</summary>
+    </key>
+    <key name="warning-color" type="s">
+      <default>'#f6d32d'</default>
+      <summary>Warning meter color</summary>
+    </key>
+    <key name="danger-color" type="s">
+      <default>'#ff5f57'</default>
+      <summary>Danger meter color</summary>
+    </key>
+    <key name="neutral-color" type="s">
+      <default>'#e6edf3'</default>
+      <summary>Panel text and meter outline color</summary>
+    </key>
+  </schema>
+</schemalist>
