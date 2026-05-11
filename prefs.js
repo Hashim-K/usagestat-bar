@@ -127,14 +127,6 @@ class GeneralPage extends Adw.PreferencesPage {
         this._settings.bind('show-label', labelRow, 'active', Gio.SettingsBindFlags.DEFAULT);
         group.add(labelRow);
 
-        const overviewRow = new Adw.SwitchRow({
-            title: _('Show overview tab'),
-            subtitle: _('Mirrors CodexBar merge-icons overview for multiple providers'),
-            active: this._settings.get_boolean('show-overview'),
-        });
-        this._settings.bind('show-overview', overviewRow, 'active', Gio.SettingsBindFlags.DEFAULT);
-        group.add(overviewRow);
-
         return group;
     }
 

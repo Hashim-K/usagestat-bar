@@ -9,6 +9,15 @@ import {fetchProviderUsage, findCodexbar} from './cli.js';
 import {enabledProviders, loadConfig, PROVIDER_NAMES, configPath} from './config.js';
 
 const TIERS = ['primary', 'secondary', 'tertiary', 'quaternary'];
+const EXTENSION_DIR = GLib.path_get_dirname(GLib.filename_from_uri(import.meta.url)[0]);
+const PROVIDER_ICON_FILES = {
+    codex: 'codex.svg',
+    claude: 'claude.svg',
+    cursor: 'cursor.svg',
+    factory: 'factory.svg',
+    gemini: 'gemini.svg',
+    copilot: 'copilot.svg',
+};
 
 export default class AIUsageBarExtension extends Extension {
     enable() {
@@ -49,7 +58,6 @@ export default class AIUsageBarExtension extends Extension {
             'panel-index',
             'indicator-style',
             'show-label',
-            'show-overview',
             'accent-color',
             'warning-color',
             'danger-color',
@@ -126,8 +134,8 @@ export default class AIUsageBarExtension extends Extension {
         }));
         this._indicator.menu.box.add_child(this._header);
 
-        this._tabs = new St.BoxLayout({style_class: 'ai-usage-tabs'});
-        this._indicator.menu.box.add_child(this._tabs);
+        this._switcher = new St.BoxLayout({style_class: 'ai-usage-provider-switcher'});
+        this._indicator.menu.box.add_child(this._switcher);
 
         this._content = new St.BoxLayout({
             vertical: true,
@@ -186,23 +194,28 @@ export default class AIUsageBarExtension extends Extension {
         this._title.set_text(_('Refreshing...'));
         this._render();
 
-        for (const provider of this._providers) {
-            if (!this._cancellable || this._cancellable.is_cancelled())
-                return;
-            try {
-                const data = await fetchProviderUsage(provider, this._cancellable);
-                this._usage.set(provider.id, data);
-                this._errors.delete(provider.id);
-            } catch (error) {
+        try {
+            for (const provider of this._providers) {
                 if (!this._cancellable || this._cancellable.is_cancelled())
-                    return;
-                this._errors.set(provider.id, error.message || String(error));
+                    break;
+                try {
+                    const data = await fetchProviderUsage(provider, this._cancellable);
+                    this._usage.set(provider.id, data);
+                    this._errors.delete(provider.id);
+                    this._render();
+                } catch (error) {
+                    if (!this._cancellable || this._cancellable.is_cancelled())
+                        break;
+                    this._errors.set(provider.id, error.message || String(error));
+                    this._render();
+                }
             }
+        } finally {
+            this._loading = false;
+            if (this._title)
+                this._title.set_text(_('AI Usage Bar'));
+            this._render();
         }
-
-        this._loading = false;
-        this._title.set_text(_('AI Usage Bar'));
-        this._render();
     }
 
     _render() {
@@ -210,19 +223,11 @@ export default class AIUsageBarExtension extends Extension {
             return;
 
         this._loadProviders();
-        this._tabs.destroy_all_children();
+        this._switcher.destroy_all_children();
         this._content.destroy_all_children();
 
         const active = this._activeSnapshot();
         this._renderPanel(active);
-
-        if (!findCodexbar()) {
-            this._renderMessage(
-                _('CodexBar CLI not found'),
-                _('Install it with `brew install steipete/tap/codexbar`, or set CODEXBAR_CLI to the binary path.'),
-            );
-            return;
-        }
 
         if (!this._providers.length) {
             this._renderMessage(
@@ -232,33 +237,63 @@ export default class AIUsageBarExtension extends Extension {
             return;
         }
 
-        if (this._settings.get_boolean('show-overview') && this._providers.length > 1)
-            this._addTab('overview', _('Overview'), this._activeId === 'overview' || !this._activeId);
         for (const provider of this._providers)
-            this._addTab(provider.id, this._providerName(provider.id), provider.id === this._activeId);
+            this._addProviderSwitch(provider);
 
-        if (this._activeId === 'overview' || !this._activeId)
-            this._renderOverview();
-        else
-            this._renderProvider(this._activeId);
+        if (!findCodexbar() && !this._canUseDirectFallback()) {
+            this._renderMessage(
+                _('CodexBar CLI not found'),
+                _('Install it with `brew install steipete/tap/codexbar`, or set CODEXBAR_CLI to the binary path.'),
+            );
+            return;
+        }
+
+        this._renderProvider(this._activeId);
     }
 
-    _addTab(id, label, active) {
+    _addProviderSwitch(provider) {
+        const id = provider.id;
+        const active = id === this._activeId;
+        const snapshot = this._usage.get(id);
+        const percent = this._snapshotUsedPercent(snapshot);
+        const color = this._colorForUsedPercent(percent);
+
+        const box = new St.BoxLayout({
+            vertical: true,
+            style_class: 'ai-usage-provider-tile-box',
+            x_align: Clutter.ActorAlign.CENTER,
+        });
+        box.add_child(this._providerIcon(id, 22));
+        box.add_child(new St.Label({
+            text: this._providerName(id),
+            style_class: 'ai-usage-provider-tile-label',
+            x_align: Clutter.ActorAlign.CENTER,
+        }));
+
+        const track = new St.BoxLayout({style_class: 'ai-usage-provider-mini-track'});
+        const waiting = this._loading && !snapshot && !this._errors.has(id);
+        const fill = new St.Widget({
+            style_class: waiting ? 'ai-usage-provider-mini-fill loading' : 'ai-usage-provider-mini-fill',
+            style: `background-color: ${this._errors.has(id) ? this._settings.get_string('danger-color') : color};`,
+        });
+        fill.set_width(waiting ? 18 : this._barFillWidth(this._errors.has(id) ? 100 : percent, 68));
+        track.add_child(fill);
+        box.add_child(track);
+
         const button = new St.Button({
-            label,
-            style_class: active ? 'ai-usage-tab active' : 'ai-usage-tab',
+            child: box,
+            style_class: active ? 'ai-usage-provider-tile active' : 'ai-usage-provider-tile',
             can_focus: true,
         });
         button.connect('clicked', () => {
-            this._activeId = id;
+            this._activeId = provider.id;
             this._render();
         });
-        this._tabs.add_child(button);
+        this._switcher.add_child(button);
     }
 
     _activeSnapshot() {
-        const id = this._activeId === 'overview' ? this._providers[0]?.id : this._activeId;
-        return id ? this._usage.get(id) : null;
+        return this._activeId ? this._usage.get(this._activeId) : null;
     }
 
     _renderPanel(snapshot) {
@@ -281,41 +316,9 @@ export default class AIUsageBarExtension extends Extension {
     }
 
     _panelName() {
-        if (this._activeId && this._activeId !== 'overview')
+        if (this._activeId)
             return this._providerName(this._activeId);
         return this._providers.length > 1 ? _('AI') : this._providerName(this._providers[0]?.id);
-    }
-
-    _renderOverview() {
-        for (const provider of this._providers) {
-            const snapshot = this._usage.get(provider.id);
-            const error = this._errors.get(provider.id);
-            const row = new St.BoxLayout({style_class: 'ai-usage-overview-row'});
-            row.add_child(new St.Label({
-                text: this._providerName(provider.id),
-                style_class: 'ai-usage-row-title',
-                x_expand: true,
-            }));
-
-            if (error) {
-                row.add_child(new St.Label({text: _('Error'), style_class: 'ai-usage-danger'}));
-            } else if (snapshot) {
-                row.add_child(new St.Label({
-                    text: this._formatPercent(this._snapshotPercent(snapshot)),
-                    style_class: 'ai-usage-row-value',
-                }));
-            } else {
-                row.add_child(new St.Label({text: this._loading ? _('Loading') : _('Waiting'), style_class: 'ai-usage-muted'}));
-            }
-
-            row.reactive = true;
-            row.connect('button-press-event', () => {
-                this._activeId = provider.id;
-                this._render();
-                return Clutter.EVENT_STOP;
-            });
-            this._content.add_child(row);
-        }
     }
 
     _renderProvider(providerId) {
@@ -326,25 +329,15 @@ export default class AIUsageBarExtension extends Extension {
             return;
         }
         if (!snapshot) {
-            this._renderMessage(this._providerName(providerId), this._loading ? _('Loading usage...') : _('No usage fetched yet.'));
+            if (this._loading)
+                this._renderLoadingProvider(providerId);
+            else
+                this._renderMessage(this._providerName(providerId), _('No usage fetched yet.'));
             return;
         }
 
         const usage = snapshot.usage || {};
-        this._content.add_child(new St.Label({
-            text: this._providerHeading(snapshot, providerId),
-            style_class: 'ai-usage-provider-heading',
-        }));
-
-        const detail = [
-            usage.accountEmail,
-            usage.accountOrganization,
-            usage.loginMethod,
-            snapshot.source,
-            snapshot.status?.description,
-        ].filter(Boolean).join('  |  ');
-        if (detail)
-            this._content.add_child(new St.Label({text: detail, style_class: 'ai-usage-muted'}));
+        this._renderProviderHeader(snapshot, providerId);
 
         for (const tier of TIERS) {
             const window = usage[tier];
@@ -367,6 +360,79 @@ export default class AIUsageBarExtension extends Extension {
         }
     }
 
+    _renderLoadingProvider(providerId) {
+        this._content.add_child(new St.Label({
+            text: this._providerName(providerId),
+            style_class: 'ai-usage-provider-heading',
+        }));
+
+        const meta = new St.BoxLayout({style_class: 'ai-usage-provider-meta'});
+        meta.add_child(new St.Label({
+            text: _('Fetching usage...'),
+            style_class: 'ai-usage-muted',
+            x_expand: true,
+        }));
+        meta.add_child(new St.Icon({
+            icon_name: 'process-working-symbolic',
+            icon_size: 14,
+            style_class: 'ai-usage-loading-icon',
+        }));
+        this._content.add_child(meta);
+        this._content.add_child(new St.Widget({style_class: 'ai-usage-separator'}));
+
+        for (const title of [_('Session'), _('Weekly'), _('Extra usage')])
+            this._renderLoadingWindow(title);
+    }
+
+    _renderLoadingWindow(title) {
+        const row = new St.BoxLayout({vertical: true, style_class: 'ai-usage-window'});
+        row.add_child(new St.Label({text: title, style_class: 'ai-usage-window-title'}));
+
+        const track = new St.BoxLayout({style_class: 'ai-usage-track loading'});
+        const fill = new St.Widget({style_class: 'ai-usage-track-fill loading'});
+        fill.set_width(54);
+        track.add_child(fill);
+        row.add_child(track);
+
+        row.add_child(new St.Label({
+            text: _('Loading...'),
+            style_class: 'ai-usage-muted',
+        }));
+        this._content.add_child(row);
+    }
+
+    _renderProviderHeader(snapshot, providerId) {
+        const usage = snapshot.usage || {};
+        this._content.add_child(new St.Label({
+            text: this._providerHeading(snapshot, providerId),
+            style_class: 'ai-usage-provider-heading',
+        }));
+
+        const meta = new St.BoxLayout({style_class: 'ai-usage-provider-meta'});
+        meta.add_child(new St.Label({
+            text: usage.updatedAt ? this._updatedText(usage.updatedAt) : _('Updated just now'),
+            style_class: 'ai-usage-muted',
+            x_expand: true,
+        }));
+        meta.add_child(new St.Label({
+            text: this._settings.get_string('display-mode') === 'used' ? _('Max') : _('Left'),
+            style_class: 'ai-usage-muted',
+        }));
+        this._content.add_child(meta);
+
+        const detail = [
+            usage.accountEmail,
+            usage.accountOrganization,
+            usage.loginMethod,
+            snapshot.source,
+            snapshot.status?.description,
+        ].filter(Boolean).join('  |  ');
+        if (detail)
+            this._content.add_child(new St.Label({text: detail, style_class: 'ai-usage-detail'}));
+
+        this._content.add_child(new St.Widget({style_class: 'ai-usage-separator'}));
+    }
+
     _renderUsageWindow(title, window) {
         const percent = this._displayPercent(window);
         const color = this._colorForPercent(percent);
@@ -378,7 +444,7 @@ export default class AIUsageBarExtension extends Extension {
             style_class: 'ai-usage-track-fill',
             style: `background-color: ${color};`,
         });
-        fill.set_width(Math.round(percent * 3.1));
+        fill.set_width(this._barFillWidth(percent, 390));
         track.add_child(fill);
         row.add_child(track);
 
@@ -420,6 +486,19 @@ export default class AIUsageBarExtension extends Extension {
         return values.reduce((sum, value) => sum + value, 0) / values.length;
     }
 
+    _snapshotUsedPercent(snapshot) {
+        const usage = snapshot?.usage;
+        if (!usage)
+            return 0;
+        const values = TIERS
+            .map(tier => usage[tier])
+            .filter(window => window && window.usedPercent !== undefined)
+            .map(window => Math.max(0, Math.min(100, Number(window.usedPercent) || 0)));
+        if (!values.length)
+            return 0;
+        return values.reduce((sum, value) => sum + value, 0) / values.length;
+    }
+
     _displayPercent(window) {
         const used = Math.max(0, Math.min(100, Number(window.usedPercent) || 0));
         return this._settings.get_string('display-mode') === 'used' ? used : 100 - used;
@@ -439,6 +518,21 @@ export default class AIUsageBarExtension extends Extension {
         if (warning)
             return this._settings.get_string('warning-color');
         return this._settings.get_string('accent-color');
+    }
+
+    _colorForUsedPercent(percent) {
+        if (percent >= 90)
+            return this._settings.get_string('danger-color');
+        if (percent >= 75)
+            return this._settings.get_string('warning-color');
+        return this._settings.get_string('accent-color');
+    }
+
+    _barFillWidth(percent, width) {
+        const clamped = Math.max(0, Math.min(100, Number(percent) || 0));
+        if (clamped <= 0)
+            return 0;
+        return Math.max(5, Math.round(width * clamped / 100));
     }
 
     _windowLabel(tier, window) {
@@ -471,7 +565,48 @@ export default class AIUsageBarExtension extends Extension {
     }
 
     _providerName(id) {
+        if (id === 'factory')
+            return _('Droid');
         return PROVIDER_NAMES[id] || id || _('AI');
+    }
+
+    _canUseDirectFallback() {
+        return this._providers.some(provider =>
+            provider.id === 'codex' && Boolean(provider.cookieHeader));
+    }
+
+    _providerIcon(providerId, size) {
+        const fileName = PROVIDER_ICON_FILES[providerId];
+        if (fileName) {
+            const file = Gio.File.new_for_path(GLib.build_filenamev([EXTENSION_DIR, 'assets', 'provider-icons', fileName]));
+            if (file.query_exists(null)) {
+                return new St.Icon({
+                    gicon: Gio.FileIcon.new(file),
+                    icon_size: size,
+                    style_class: 'ai-usage-provider-icon',
+                });
+            }
+        }
+
+        return new St.Icon({
+            icon_name: 'applications-science-symbolic',
+            icon_size: size,
+            style_class: 'ai-usage-provider-icon fallback',
+        });
+    }
+
+    _updatedText(value) {
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime()))
+            return _('Updated just now');
+        const seconds = Math.max(0, Math.floor((Date.now() - date.getTime()) / 1000));
+        if (seconds < 60)
+            return _('Updated just now');
+        if (seconds < 3600)
+            return _('Updated %sm ago').format(Math.round(seconds / 60));
+        if (seconds < 86400)
+            return _('Updated %sh ago').format(Math.round(seconds / 3600));
+        return _('Updated %sd ago').format(Math.round(seconds / 86400));
     }
 
     _openConfig() {
