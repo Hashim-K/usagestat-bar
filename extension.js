@@ -414,10 +414,6 @@ export default class AIUsageBarExtension extends Extension {
             style_class: 'ai-usage-muted',
             x_expand: true,
         }));
-        meta.add_child(new St.Label({
-            text: this._settings.get_string('display-mode') === 'used' ? _('Max') : _('Left'),
-            style_class: 'ai-usage-muted',
-        }));
         this._content.add_child(meta);
 
         const detail = [
