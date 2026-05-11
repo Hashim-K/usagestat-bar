@@ -10,6 +10,11 @@ import {enabledProviders, loadConfig, PROVIDER_NAMES} from './config.js';
 
 const TIERS = ['primary', 'secondary', 'tertiary', 'quaternary'];
 const PANEL_COMPONENTS = ['bar', 'percent', 'logo', 'text'];
+const DEFAULT_THRESHOLDS = [
+    {id: 'warning', label: 'Warning', percent: 75, color: '#f6d32d', notify: false},
+    {id: 'danger', label: 'Danger', percent: 90, color: '#ff5f57', notify: false},
+    {id: 'limit', label: 'Limit reached', percent: 100, color: '#ff2d55', notify: false},
+];
 const EXTENSION_DIR = GLib.path_get_dirname(GLib.filename_from_uri(import.meta.url)[0]);
 const PROVIDER_ICON_FILES = {
     codex: 'codex.svg',
@@ -66,12 +71,10 @@ export default class AIUsageBarExtension extends Extension {
             'panel-usage-tier',
             'panel-position',
             'panel-index',
-            'indicator-style',
-            'show-label',
+            'usage-thresholds',
             'warning-threshold',
             'danger-threshold',
             'limit-threshold',
-            'notify-threshold-crossing',
             'accent-color',
             'warning-color',
             'danger-color',
@@ -342,7 +345,7 @@ export default class AIUsageBarExtension extends Extension {
                 this._panelBox.add_child(this._panelPercent);
             else if (component === 'logo')
                 this._panelBox.add_child(icon);
-            else if (component === 'text' && this._settings.get_boolean('show-label'))
+            else if (component === 'text')
                 this._panelBox.add_child(this._panelLabel);
         }
     }
@@ -549,38 +552,23 @@ export default class AIUsageBarExtension extends Extension {
     }
 
     _colorForUsedPercent(percent) {
-        const state = this._stateForUsedPercent(percent);
-        if (state === 'limit')
-            return this._settings.get_string('limit-color');
-        if (state === 'danger')
-            return this._settings.get_string('danger-color');
-        if (state === 'warning')
-            return this._settings.get_string('warning-color');
-        return this._settings.get_string('accent-color');
+        return this._thresholdForUsedPercent(percent)?.color || this._settings.get_string('accent-color');
     }
 
-    _stateForUsedPercent(percent) {
+    _thresholdForUsedPercent(percent) {
         const used = Math.max(0, Math.min(100, Number(percent) || 0));
-        if (used >= this._thresholdValue('limit-threshold', 100))
-            return 'limit';
-        if (used >= this._thresholdValue('danger-threshold', 90))
-            return 'danger';
-        if (used >= this._thresholdValue('warning-threshold', 75))
-            return 'warning';
-        return 'normal';
-    }
-
-    _thresholdValue(key, fallback) {
-        const value = this._settings.get_int(key);
-        return Math.max(0, Math.min(100, Number.isFinite(value) ? value : fallback));
+        let current = null;
+        for (const threshold of this._thresholds()) {
+            if (used >= threshold.percent)
+                current = threshold;
+        }
+        return current;
     }
 
     _maybeNotifyThreshold(providerId, snapshot) {
-        if (!this._settings.get_boolean('notify-threshold-crossing'))
-            return;
-
         const percent = this._snapshotUsedPercent(snapshot);
-        const state = this._stateForUsedPercent(percent);
+        const threshold = this._thresholdForUsedPercent(percent);
+        const state = threshold?.id || 'normal';
         if (!this._thresholdStates.has(providerId)) {
             this._thresholdStates.set(providerId, state);
             return;
@@ -592,13 +580,15 @@ export default class AIUsageBarExtension extends Extension {
         if (state === previous || state === 'normal')
             return;
 
-        const ranks = {normal: 0, warning: 1, danger: 2, limit: 3};
-        if (ranks[state] <= ranks[previous])
+        const rank = this._thresholdRankMap();
+        if ((rank.get(state) || 0) <= (rank.get(previous) || 0))
+            return;
+        if (!threshold?.notify)
             return;
 
         Main.notify(
             _('AI usage threshold crossed'),
-            _('%s is now %s%% used (%s)').format(this._providerName(providerId), Math.round(percent), state),
+            _('%s is now %s%% used (%s)').format(this._providerName(providerId), Math.round(percent), threshold.label),
         );
     }
 
@@ -677,6 +667,51 @@ export default class AIUsageBarExtension extends Extension {
         if (!parts.length)
             return ['bar', 'percent', 'text'];
         return [...new Set(parts)];
+    }
+
+    _thresholds() {
+        try {
+            const parsed = JSON.parse(this._settings.get_string('usage-thresholds'));
+            if (Array.isArray(parsed)) {
+                const thresholds = parsed
+                    .map((threshold, index) => this._normalizeThreshold(threshold, index))
+                    .filter(Boolean)
+                    .sort((a, b) => a.percent - b.percent);
+                if (thresholds.length)
+                    return thresholds;
+            }
+        } catch {
+            // Fall through to defaults.
+        }
+
+        return DEFAULT_THRESHOLDS.map((threshold, index) => this._normalizeThreshold(threshold, index));
+    }
+
+    _normalizeThreshold(threshold, index) {
+        if (!threshold || typeof threshold !== 'object')
+            return null;
+
+        const percent = Math.max(0, Math.min(100, Number(threshold.percent)));
+        if (!Number.isFinite(percent))
+            return null;
+
+        const color = typeof threshold.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(threshold.color)
+            ? threshold.color.toLowerCase()
+            : this._settings.get_string('warning-color');
+
+        return {
+            id: String(threshold.id || `threshold-${index}`),
+            label: String(threshold.label || _('Threshold')),
+            percent,
+            color,
+            notify: Boolean(threshold.notify),
+        };
+    }
+
+    _thresholdRankMap() {
+        const map = new Map([['normal', 0]]);
+        this._thresholds().forEach((threshold, index) => map.set(threshold.id, index + 1));
+        return map;
     }
 
     _providerUpdatedText(value) {

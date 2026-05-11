@@ -9,6 +9,17 @@ import {loadConfig, PROVIDERS, saveConfig} from './config.js';
 
 const SOURCE_OPTIONS = ['auto', 'web', 'cli', 'oauth', 'api'];
 const EXTENSION_DIR = GLib.path_get_dirname(GLib.filename_from_uri(import.meta.url)[0]);
+const PANEL_COMPONENTS = [
+    ['bar', 'Usage bar'],
+    ['percent', 'Usage %'],
+    ['logo', 'Logo'],
+    ['text', 'Text'],
+];
+const DEFAULT_THRESHOLDS = [
+    {id: 'warning', label: 'Warning', percent: 75, color: '#f6d32d', notify: false},
+    {id: 'danger', label: 'Danger', percent: 90, color: '#ff5f57', notify: false},
+    {id: 'limit', label: 'Limit reached', percent: 100, color: '#ff2d55', notify: false},
+];
 
 function combo(strings, selectedValue) {
     const row = new Adw.ComboRow({
@@ -56,6 +67,7 @@ class GeneralPage extends Adw.PreferencesPage {
 
         this._settings = settings;
         this.add(this._buildPanelGroup());
+        this.add(this._buildPanelComponentsGroup());
         this.add(this._buildThresholdGroup());
         this.add(this._buildColorGroup());
     }
@@ -124,92 +136,347 @@ class GeneralPage extends Adw.PreferencesPage {
         });
         group.add(tierRow);
 
-        this._addPanelComponentRows(group);
-
-        const labelRow = new Adw.SwitchRow({
-            title: _('Show panel text'),
-            active: this._settings.get_boolean('show-label'),
-        });
-        this._settings.bind('show-label', labelRow, 'active', Gio.SettingsBindFlags.DEFAULT);
-        group.add(labelRow);
-
         return group;
     }
 
-    _addPanelComponentRows(group) {
-        const values = ['', 'bar', 'percent', 'logo', 'text'];
-        const labels = [_('Hidden'), _('Usage bar'), _('Usage %'), _('Logo'), _('Text')];
-        const valid = new Set(values);
-        const current = this._settings.get_string('panel-components')
+    _buildPanelComponentsGroup() {
+        const group = new Adw.PreferencesGroup({
+            title: _('Top Bar Components'),
+            description: _('Enable components and drag enabled items to set their order.'),
+        });
+
+        this._enabledComponentList = new Gtk.ListBox({selection_mode: Gtk.SelectionMode.NONE});
+        this._enabledComponentList.add_css_class('boxed-list');
+        this._disabledComponentList = new Gtk.ListBox({selection_mode: Gtk.SelectionMode.NONE});
+        this._disabledComponentList.add_css_class('boxed-list');
+
+        this._renderPanelComponentLists();
+
+        group.add(new Adw.PreferencesRow({child: this._enabledComponentList}));
+        const disabledGroup = new Adw.PreferencesGroup({title: _('Disabled Components')});
+        disabledGroup.add(new Adw.PreferencesRow({child: this._disabledComponentList}));
+
+        this.add(group);
+        return disabledGroup;
+    }
+
+    _panelComponentOrder() {
+        const valid = new Set(PANEL_COMPONENTS.map(([id]) => id));
+        const enabled = this._settings.get_string('panel-components')
             .split(',')
             .map(part => part.trim())
-            .filter(part => valid.has(part) && part);
-        const rows = [];
+            .filter(part => valid.has(part));
+        return [...new Set(enabled)];
+    }
 
-        const update = () => {
-            const next = rows
-                .map(row => values[row.selected] || '')
-                .filter(Boolean);
-            this._settings.set_string('panel-components', [...new Set(next)].join(',') || 'bar');
-        };
+    _renderPanelComponentLists() {
+        while (this._enabledComponentList.get_first_child())
+            this._enabledComponentList.remove(this._enabledComponentList.get_first_child());
+        while (this._disabledComponentList.get_first_child())
+            this._disabledComponentList.remove(this._disabledComponentList.get_first_child());
 
-        for (let index = 0; index < 4; index++) {
-            const selectedValue = current[index] || '';
-            const row = combo(labels, labels[Math.max(0, values.indexOf(selectedValue))]);
-            row.title = _('Panel slot %s').format(index + 1);
-            row.subtitle = _('Choose one component or hide this slot.');
-            row.connect('notify::selected', update);
-            rows.push(row);
-            group.add(row);
+        const enabled = this._panelComponentOrder();
+        const enabledSet = new Set(enabled);
+
+        for (const componentId of enabled)
+            this._enabledComponentList.append(this._buildPanelComponentRow(componentId, true));
+
+        for (const [componentId] of PANEL_COMPONENTS) {
+            if (!enabledSet.has(componentId))
+                this._disabledComponentList.append(this._buildPanelComponentRow(componentId, false));
         }
+    }
+
+    _buildPanelComponentRow(componentId, enabled) {
+        const listRow = new Gtk.ListBoxRow();
+        listRow._componentId = componentId;
+
+        const row = new Adw.ActionRow({
+            title: this._componentLabel(componentId),
+            subtitle: enabled ? _('Shown in the top bar') : _('Hidden'),
+        });
+
+        if (enabled) {
+            row.add_prefix(new Gtk.Image({
+                icon_name: 'list-drag-handle-symbolic',
+                tooltip_text: _('Drag to reorder'),
+            }));
+        }
+
+        const toggle = new Gtk.Switch({
+            active: enabled,
+            valign: Gtk.Align.CENTER,
+        });
+        toggle.connect('notify::active', () => this._setPanelComponentEnabled(componentId, toggle.active));
+        row.add_suffix(toggle);
+        listRow.set_child(row);
+
+        if (enabled)
+            this._setupPanelComponentDragAndDrop(listRow);
+
+        return listRow;
+    }
+
+    _componentLabel(componentId) {
+        return _(PANEL_COMPONENTS.find(([id]) => id === componentId)?.[1] || componentId);
+    }
+
+    _setPanelComponentEnabled(componentId, enabled) {
+        const order = this._panelComponentOrder().filter(id => id !== componentId);
+        if (enabled)
+            order.push(componentId);
+        this._settings.set_string('panel-components', order.join(',') || 'bar');
+        this._renderPanelComponentLists();
+    }
+
+    _setupPanelComponentDragAndDrop(listRow) {
+        const drag = new Gtk.DragSource({actions: Gdk.DragAction.MOVE});
+        drag.connect('prepare', () => {
+            const value = new GObject.Value();
+            value.init(GObject.TYPE_STRING);
+            value.set_string(listRow._componentId);
+            return Gdk.ContentProvider.new_for_value(value);
+        });
+        listRow.add_controller(drag);
+
+        const drop = Gtk.DropTarget.new(GObject.TYPE_STRING, Gdk.DragAction.MOVE);
+        drop.connect('drop', (target, sourceId) => {
+            this._movePanelComponent(String(sourceId), listRow._componentId);
+            return true;
+        });
+        listRow.add_controller(drop);
+    }
+
+    _movePanelComponent(sourceId, targetId) {
+        const order = this._panelComponentOrder();
+        const sourceIndex = order.indexOf(sourceId);
+        const targetIndex = order.indexOf(targetId);
+        if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex)
+            return;
+
+        const [component] = order.splice(sourceIndex, 1);
+        order.splice(targetIndex, 0, component);
+        this._settings.set_string('panel-components', order.join(',') || 'bar');
+        this._renderPanelComponentLists();
     }
 
     _buildThresholdGroup() {
         const group = new Adw.PreferencesGroup({
             title: _('Thresholds'),
-            description: _('Percent used where each state starts. Normal is below warning.'),
+            description: _('Expand a threshold to set percentage, color, and notifications.'),
         });
 
-        for (const [key, title] of [
-            ['warning-threshold', _('Warning starts at')],
-            ['danger-threshold', _('Danger starts at')],
-            ['limit-threshold', _('Limit reached at')],
-        ]) {
-            const row = new Adw.SpinRow({
-                title,
-                adjustment: new Gtk.Adjustment({
-                    lower: 0,
-                    upper: 100,
-                    step_increment: 1,
-                    value: this._settings.get_int(key),
-                }),
-            });
-            this._settings.bind(key, row.adjustment, 'value', Gio.SettingsBindFlags.DEFAULT);
-            group.add(row);
-        }
+        this._thresholdList = new Gtk.ListBox({selection_mode: Gtk.SelectionMode.NONE});
+        this._thresholdList.add_css_class('boxed-list');
+        this._renderThresholdRows();
+        group.add(new Adw.PreferencesRow({child: this._thresholdList}));
 
-        const notifyRow = new Adw.SwitchRow({
-            title: _('Notify when threshold is crossed'),
-            subtitle: _('Sends a notification when usage moves into warning, danger, or limit reached.'),
-            active: this._settings.get_boolean('notify-threshold-crossing'),
+        const addRow = new Adw.ActionRow({
+            title: _('Add threshold'),
+            subtitle: _('Create another usage state.'),
         });
-        this._settings.bind('notify-threshold-crossing', notifyRow, 'active', Gio.SettingsBindFlags.DEFAULT);
-        group.add(notifyRow);
+        const addButton = new Gtk.Button({
+            label: _('Add'),
+            valign: Gtk.Align.CENTER,
+        });
+        addButton.connect('clicked', () => this._addThreshold());
+        addRow.add_suffix(addButton);
+        group.add(addRow);
 
         return group;
     }
 
+    _thresholds() {
+        try {
+            const parsed = JSON.parse(this._settings.get_string('usage-thresholds'));
+            if (Array.isArray(parsed)) {
+                const thresholds = parsed.map((threshold, index) => this._normalizeThreshold(threshold, index)).filter(Boolean);
+                if (thresholds.length)
+                    return thresholds.sort((a, b) => a.percent - b.percent);
+            }
+        } catch {
+            // Fall through to defaults.
+        }
+        return DEFAULT_THRESHOLDS.map((threshold, index) => this._normalizeThreshold(threshold, index));
+    }
+
+    _normalizeThreshold(threshold, index) {
+        if (!threshold || typeof threshold !== 'object')
+            return null;
+
+        const percent = Math.max(0, Math.min(100, Number(threshold.percent)));
+        if (!Number.isFinite(percent))
+            return null;
+
+        const color = typeof threshold.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(threshold.color)
+            ? threshold.color.toLowerCase()
+            : '#8ab4f8';
+
+        return {
+            id: String(threshold.id || `threshold-${index}`),
+            label: String(threshold.label || _('Threshold')),
+            percent,
+            color,
+            notify: Boolean(threshold.notify),
+        };
+    }
+
+    _saveThresholds(thresholds) {
+        const normalized = thresholds
+            .map((threshold, index) => this._normalizeThreshold(threshold, index))
+            .filter(Boolean)
+            .sort((a, b) => a.percent - b.percent);
+        this._settings.set_string('usage-thresholds', JSON.stringify(normalized));
+    }
+
+    _renderThresholdRows() {
+        while (this._thresholdList.get_first_child())
+            this._thresholdList.remove(this._thresholdList.get_first_child());
+
+        for (const threshold of this._thresholds())
+            this._thresholdList.append(this._buildThresholdRow(threshold));
+    }
+
+    _buildThresholdRow(threshold) {
+        const listRow = new Gtk.ListBoxRow();
+        const row = new Adw.ExpanderRow({
+            title: threshold.label,
+            subtitle: _('%s%% used').format(Math.round(threshold.percent)),
+        });
+
+        const swatch = new Gtk.ColorDialogButton({
+            dialog: new Gtk.ColorDialog({with_alpha: false}),
+            rgba: rgbaFromHex(threshold.color),
+            valign: Gtk.Align.CENTER,
+        });
+        row.add_suffix(swatch);
+
+        const nameRow = entryRow(_('Name'), threshold.label, _('Threshold name'));
+        nameRow._entry.connect('changed', () => {
+            threshold.label = nameRow._entry.get_text().trim() || _('Threshold');
+            row.set_title(threshold.label);
+            this._updateThreshold(threshold);
+        });
+        row.add_row(nameRow);
+
+        const percentRow = new Adw.SpinRow({
+            title: _('Percent used'),
+            adjustment: new Gtk.Adjustment({
+                lower: 0,
+                upper: 100,
+                step_increment: 1,
+                value: threshold.percent,
+            }),
+        });
+        percentRow.adjustment.connect('notify::value', () => {
+            threshold.percent = Math.round(percentRow.adjustment.value);
+            row.set_subtitle(_('%s%% used').format(threshold.percent));
+            this._updateThreshold(threshold);
+        });
+        row.add_row(percentRow);
+
+        const colorRow = this._buildThresholdColorRow(threshold, swatch);
+        row.add_row(colorRow);
+
+        const notifyRow = new Adw.SwitchRow({
+            title: _('Notify when crossed'),
+            subtitle: _('Only notifies when usage moves upward into this threshold.'),
+            active: threshold.notify,
+        });
+        notifyRow.connect('notify::active', () => {
+            threshold.notify = notifyRow.active;
+            this._updateThreshold(threshold);
+        });
+        row.add_row(notifyRow);
+
+        const deleteRow = new Adw.ActionRow({title: _('Delete threshold')});
+        const deleteButton = new Gtk.Button({
+            label: _('Delete'),
+            valign: Gtk.Align.CENTER,
+            css_classes: ['destructive-action'],
+        });
+        deleteButton.connect('clicked', () => this._deleteThreshold(threshold.id));
+        deleteRow.add_suffix(deleteButton);
+        row.add_row(deleteRow);
+
+        listRow.set_child(row);
+        return listRow;
+    }
+
+    _buildThresholdColorRow(threshold, swatch) {
+        const row = new Adw.ActionRow({
+            title: _('Color'),
+            subtitle: threshold.color,
+        });
+
+        const entry = new Gtk.Entry({
+            text: threshold.color,
+            placeholder_text: '#8ab4f8',
+            width_chars: 9,
+            max_width_chars: 9,
+            valign: Gtk.Align.CENTER,
+        });
+
+        let applying = false;
+        const applyHex = (value, updateSwatch = true) => {
+            if (!/^#[0-9a-fA-F]{6}$/.test(value))
+                return;
+            if (applying)
+                return;
+
+            applying = true;
+            threshold.color = value.toLowerCase();
+            row.set_subtitle(threshold.color);
+            if (entry.get_text() !== threshold.color)
+                entry.set_text(threshold.color);
+            if (updateSwatch && swatch)
+                swatch.set_rgba(rgbaFromHex(threshold.color));
+            this._updateThreshold(threshold);
+            applying = false;
+        };
+
+        entry.connect('changed', () => applyHex(entry.get_text().trim()));
+        if (swatch)
+            swatch.connect('notify::rgba', () => applyHex(hexFromRgba(swatch.get_rgba()), false));
+        row.add_suffix(entry);
+        row.activatable_widget = entry;
+        return row;
+    }
+
+    _updateThreshold(nextThreshold) {
+        const thresholds = this._thresholds();
+        const index = thresholds.findIndex(threshold => threshold.id === nextThreshold.id);
+        if (index >= 0)
+            thresholds[index] = nextThreshold;
+        this._saveThresholds(thresholds);
+    }
+
+    _deleteThreshold(id) {
+        this._saveThresholds(this._thresholds().filter(threshold => threshold.id !== id));
+        this._renderThresholdRows();
+    }
+
+    _addThreshold() {
+        const thresholds = this._thresholds();
+        thresholds.push({
+            id: `threshold-${Date.now()}`,
+            label: _('Threshold'),
+            percent: 95,
+            color: '#8ab4f8',
+            notify: false,
+        });
+        this._saveThresholds(thresholds);
+        this._renderThresholdRows();
+    }
+
     _buildColorGroup() {
         const group = new Adw.PreferencesGroup({
-            title: _('Colors'),
-            description: _('Pick a color or type a CSS hex value such as #8ab4f8.'),
+            title: _('Appearance Colors'),
+            description: _('Threshold colors live in each threshold row. These colors cover normal state and panel text.'),
         });
 
         for (const [key, title] of [
             ['accent-color', _('Normal')],
-            ['warning-color', _('Warning')],
-            ['danger-color', _('Danger')],
-            ['limit-color', _('Limit reached')],
             ['neutral-color', _('Text and outline')],
         ]) {
             const row = this._buildColorRow(key, title);

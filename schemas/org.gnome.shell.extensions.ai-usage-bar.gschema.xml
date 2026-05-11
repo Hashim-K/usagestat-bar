@@ -49,6 +49,10 @@
       <default>false</default>
       <summary>Notify when a provider crosses a threshold</summary>
     </key>
+    <key name="usage-thresholds" type="s">
+      <default>'[{"id":"warning","label":"Warning","percent":75,"color":"#f6d32d","notify":false},{"id":"danger","label":"Danger","percent":90,"color":"#ff5f57","notify":false},{"id":"limit","label":"Limit reached","percent":100,"color":"#ff2d55","notify":false}]'</default>
+      <summary>JSON usage threshold definitions</summary>
+    </key>
     <key name="preferences-provider" type="s">
       <default>''</default>
       <summary>Provider to expand when opening preferences from popup</summary>
