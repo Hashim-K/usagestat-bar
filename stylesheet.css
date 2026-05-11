@@ -25,6 +25,10 @@
   font-weight: 600;
 }
 
+.ai-usage-panel-icon {
+  icon-shadow: none;
+}
+
 .ai-usage-menu {
   min-width: 420px;
 }

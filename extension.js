@@ -6,9 +6,10 @@ import {Extension, gettext as _} from 'resource:///org/gnome/shell/extensions/ex
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 import {fetchProviderUsage, findCodexbar} from './cli.js';
-import {enabledProviders, loadConfig, PROVIDER_NAMES, configPath} from './config.js';
+import {enabledProviders, loadConfig, PROVIDER_NAMES} from './config.js';
 
 const TIERS = ['primary', 'secondary', 'tertiary', 'quaternary'];
+const PANEL_COMPONENTS = ['bar', 'percent', 'logo', 'text'];
 const EXTENSION_DIR = GLib.path_get_dirname(GLib.filename_from_uri(import.meta.url)[0]);
 const PROVIDER_ICON_FILES = {
     codex: 'codex.svg',
@@ -25,8 +26,10 @@ export default class AIUsageBarExtension extends Extension {
         this._signals = [];
         this._usage = new Map();
         this._errors = new Map();
+        this._thresholdStates = new Map();
         this._activeId = null;
         this._loading = false;
+        this._lastRefreshAt = null;
         this._cancellable = new Gio.Cancellable();
 
         this._indicator = new PanelMenu.Button(0.0, _('AI Usage Bar'), false);
@@ -39,6 +42,11 @@ export default class AIUsageBarExtension extends Extension {
         this._meter = new St.BoxLayout({style_class: 'ai-usage-panel-meter'});
         this._meterFill = new St.Widget({style_class: 'ai-usage-panel-meter-fill'});
         this._meter.add_child(this._meterFill);
+        this._panelPercent = new St.Label({
+            text: _('0%'),
+            style_class: 'ai-usage-panel-label',
+            y_align: Clutter.ActorAlign.CENTER,
+        });
         this._panelLabel = new St.Label({
             text: _('AI'),
             style_class: 'ai-usage-panel-label',
@@ -54,13 +62,20 @@ export default class AIUsageBarExtension extends Extension {
         for (const key of [
             'refresh-interval',
             'display-mode',
+            'panel-components',
+            'panel-usage-tier',
             'panel-position',
             'panel-index',
             'indicator-style',
             'show-label',
+            'warning-threshold',
+            'danger-threshold',
+            'limit-threshold',
+            'notify-threshold-crossing',
             'accent-color',
             'warning-color',
             'danger-color',
+            'limit-color',
             'neutral-color',
         ]) {
             this._signals.push(this._settings.connect(`changed::${key}`, () => this._onSettingsChanged(key)));
@@ -92,6 +107,7 @@ export default class AIUsageBarExtension extends Extension {
         }
         this._usage = null;
         this._errors = null;
+        this._thresholdStates = null;
     }
 
     _attachIndicator(initial = false) {
@@ -127,7 +143,7 @@ export default class AIUsageBarExtension extends Extension {
         });
         this._header.add_child(this._title);
         this._header.add_child(this._iconButton('view-refresh-symbolic', () => this._refresh(true)));
-        this._header.add_child(this._iconButton('document-edit-symbolic', () => this._openConfig()));
+        this._header.add_child(this._iconButton('document-edit-symbolic', () => this._openProviderPreferences()));
         this._header.add_child(this._iconButton('preferences-system-symbolic', () => {
             this.openPreferences();
             this._indicator.menu.close();
@@ -202,6 +218,7 @@ export default class AIUsageBarExtension extends Extension {
                     const data = await fetchProviderUsage(provider, this._cancellable);
                     this._usage.set(provider.id, data);
                     this._errors.delete(provider.id);
+                    this._maybeNotifyThreshold(provider.id, data);
                     this._render();
                 } catch (error) {
                     if (!this._cancellable || this._cancellable.is_cancelled())
@@ -212,6 +229,7 @@ export default class AIUsageBarExtension extends Extension {
             }
         } finally {
             this._loading = false;
+            this._lastRefreshAt = new Date();
             if (this._title)
                 this._title.set_text(_('AI Usage Bar'));
             this._render();
@@ -297,22 +315,36 @@ export default class AIUsageBarExtension extends Extension {
     }
 
     _renderPanel(snapshot) {
-        const style = this._settings.get_string('indicator-style');
-        const showLabel = this._settings.get_boolean('show-label');
-        const percent = this._snapshotPercent(snapshot);
-        const color = this._colorForPercent(percent);
-        const displayMode = this._settings.get_string('display-mode');
+        const shownPercent = this._snapshotPercent(snapshot);
+        const usedPercent = this._snapshotUsedPercent(snapshot);
+        const color = this._colorForUsedPercent(usedPercent);
+        const components = this._panelComponents();
 
-        this._panelLabel.visible = showLabel;
-        this._meter.visible = style !== 'label';
-        this._panelLabel.set_text(style === 'percent' ? `${Math.round(percent)}%` : this._panelName());
+        let child;
+        while ((child = this._panelBox.get_first_child()))
+            this._panelBox.remove_child(child);
+
+        this._panelLabel.set_text(this._panelName());
+        this._panelPercent.set_text(`${Math.round(shownPercent)}%`);
         this._meter.set_style(`border-color: ${this._settings.get_string('neutral-color')};`);
-        this._meterFill.set_width(Math.round(percent * 0.18));
+        this._meterFill.set_width(Math.round(shownPercent * 0.18));
         this._meterFill.set_style(`background-color: ${color};`);
         this._panelLabel.set_style(`color: ${this._settings.get_string('neutral-color')};`);
+        this._panelPercent.set_style(`color: ${this._settings.get_string('neutral-color')};`);
 
-        if (displayMode === 'used' && style === 'percent')
-            this._panelLabel.set_text(`${Math.round(percent)}%`);
+        const icon = this._providerIcon(this._activeId, 16);
+        icon.add_style_class_name('ai-usage-panel-icon');
+
+        for (const component of components) {
+            if (component === 'bar')
+                this._panelBox.add_child(this._meter);
+            else if (component === 'percent')
+                this._panelBox.add_child(this._panelPercent);
+            else if (component === 'logo')
+                this._panelBox.add_child(icon);
+            else if (component === 'text' && this._settings.get_boolean('show-label'))
+                this._panelBox.add_child(this._panelLabel);
+        }
     }
 
     _panelName() {
@@ -410,7 +442,7 @@ export default class AIUsageBarExtension extends Extension {
 
         const meta = new St.BoxLayout({style_class: 'ai-usage-provider-meta'});
         meta.add_child(new St.Label({
-            text: usage.updatedAt ? this._updatedText(usage.updatedAt) : _('Updated just now'),
+            text: this._providerUpdatedText(usage.updatedAt),
             style_class: 'ai-usage-muted',
             x_expand: true,
         }));
@@ -473,6 +505,9 @@ export default class AIUsageBarExtension extends Extension {
         const usage = snapshot?.usage;
         if (!usage)
             return 0;
+        const tier = this._settings.get_string('panel-usage-tier');
+        if (TIERS.includes(tier) && usage[tier]?.usedPercent !== undefined)
+            return this._displayPercent(usage[tier]);
         const values = TIERS
             .map(tier => usage[tier])
             .filter(window => window && window.usedPercent !== undefined)
@@ -486,6 +521,9 @@ export default class AIUsageBarExtension extends Extension {
         const usage = snapshot?.usage;
         if (!usage)
             return 0;
+        const tier = this._settings.get_string('panel-usage-tier');
+        if (TIERS.includes(tier) && usage[tier]?.usedPercent !== undefined)
+            return Math.max(0, Math.min(100, Number(usage[tier].usedPercent) || 0));
         const values = TIERS
             .map(tier => usage[tier])
             .filter(window => window && window.usedPercent !== undefined)
@@ -506,22 +544,62 @@ export default class AIUsageBarExtension extends Extension {
     }
 
     _colorForPercent(percent) {
-        const usedMode = this._settings.get_string('display-mode') === 'used';
-        const danger = usedMode ? percent >= 90 : percent <= 10;
-        const warning = usedMode ? percent >= 75 : percent <= 30;
-        if (danger)
+        const used = this._settings.get_string('display-mode') === 'used' ? percent : 100 - percent;
+        return this._colorForUsedPercent(used);
+    }
+
+    _colorForUsedPercent(percent) {
+        const state = this._stateForUsedPercent(percent);
+        if (state === 'limit')
+            return this._settings.get_string('limit-color');
+        if (state === 'danger')
             return this._settings.get_string('danger-color');
-        if (warning)
+        if (state === 'warning')
             return this._settings.get_string('warning-color');
         return this._settings.get_string('accent-color');
     }
 
-    _colorForUsedPercent(percent) {
-        if (percent >= 90)
-            return this._settings.get_string('danger-color');
-        if (percent >= 75)
-            return this._settings.get_string('warning-color');
-        return this._settings.get_string('accent-color');
+    _stateForUsedPercent(percent) {
+        const used = Math.max(0, Math.min(100, Number(percent) || 0));
+        if (used >= this._thresholdValue('limit-threshold', 100))
+            return 'limit';
+        if (used >= this._thresholdValue('danger-threshold', 90))
+            return 'danger';
+        if (used >= this._thresholdValue('warning-threshold', 75))
+            return 'warning';
+        return 'normal';
+    }
+
+    _thresholdValue(key, fallback) {
+        const value = this._settings.get_int(key);
+        return Math.max(0, Math.min(100, Number.isFinite(value) ? value : fallback));
+    }
+
+    _maybeNotifyThreshold(providerId, snapshot) {
+        if (!this._settings.get_boolean('notify-threshold-crossing'))
+            return;
+
+        const percent = this._snapshotUsedPercent(snapshot);
+        const state = this._stateForUsedPercent(percent);
+        if (!this._thresholdStates.has(providerId)) {
+            this._thresholdStates.set(providerId, state);
+            return;
+        }
+
+        const previous = this._thresholdStates.get(providerId) || 'normal';
+        this._thresholdStates.set(providerId, state);
+
+        if (state === previous || state === 'normal')
+            return;
+
+        const ranks = {normal: 0, warning: 1, danger: 2, limit: 3};
+        if (ranks[state] <= ranks[previous])
+            return;
+
+        Main.notify(
+            _('AI usage threshold crossed'),
+            _('%s is now %s%% used (%s)').format(this._providerName(providerId), Math.round(percent), state),
+        );
     }
 
     _barFillWidth(percent, width) {
@@ -591,6 +669,23 @@ export default class AIUsageBarExtension extends Extension {
         });
     }
 
+    _panelComponents() {
+        const raw = this._settings.get_string('panel-components');
+        const parts = raw.split(',')
+            .map(part => part.trim())
+            .filter(part => PANEL_COMPONENTS.includes(part));
+        if (!parts.length)
+            return ['bar', 'percent', 'text'];
+        return [...new Set(parts)];
+    }
+
+    _providerUpdatedText(value) {
+        const usageText = value ? this._updatedText(value) : _('Updated just now');
+        if (!this._lastRefreshAt)
+            return usageText;
+        return _('%s · Refreshed %s').format(usageText, this._lastRefreshAt.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'}));
+    }
+
     _updatedText(value) {
         const date = new Date(value);
         if (Number.isNaN(date.getTime()))
@@ -605,8 +700,10 @@ export default class AIUsageBarExtension extends Extension {
         return _('Updated %sd ago').format(Math.round(seconds / 86400));
     }
 
-    _openConfig() {
-        Gio.app_info_launch_default_for_uri(`file://${configPath()}`, null);
+    _openProviderPreferences() {
+        if (this._activeId)
+            this._settings.set_string('preferences-provider', this._activeId);
+        this.openPreferences();
         this._indicator.menu.close();
     }
 }

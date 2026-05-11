@@ -56,6 +56,7 @@ class GeneralPage extends Adw.PreferencesPage {
 
         this._settings = settings;
         this.add(this._buildPanelGroup());
+        this.add(this._buildThresholdGroup());
         this.add(this._buildColorGroup());
     }
 
@@ -109,16 +110,21 @@ class GeneralPage extends Adw.PreferencesPage {
         });
         group.add(displayModeRow);
 
-        const styleRow = combo([_('Meter'), _('Percent'), _('Label only')], {
-            meter: _('Meter'),
-            percent: _('Percent'),
-            label: _('Label only'),
-        }[this._settings.get_string('indicator-style')] || _('Meter'));
-        styleRow.title = _('Panel style');
-        styleRow.connect('notify::selected', () => {
-            this._settings.set_string('indicator-style', ['meter', 'percent', 'label'][styleRow.selected] || 'meter');
+        const tierRow = combo([_('Auto'), _('Session'), _('Weekly'), _('Third window'), _('Fourth window')], {
+            auto: _('Auto'),
+            primary: _('Session'),
+            secondary: _('Weekly'),
+            tertiary: _('Third window'),
+            quaternary: _('Fourth window'),
+        }[this._settings.get_string('panel-usage-tier')] || _('Auto'));
+        tierRow.title = _('Top bar usage window');
+        tierRow.subtitle = _('Choose which usage measure drives the panel meter.');
+        tierRow.connect('notify::selected', () => {
+            this._settings.set_string('panel-usage-tier', ['auto', 'primary', 'secondary', 'tertiary', 'quaternary'][tierRow.selected] || 'auto');
         });
-        group.add(styleRow);
+        group.add(tierRow);
+
+        this._addPanelComponentRows(group);
 
         const labelRow = new Adw.SwitchRow({
             title: _('Show panel text'),
@@ -126,6 +132,69 @@ class GeneralPage extends Adw.PreferencesPage {
         });
         this._settings.bind('show-label', labelRow, 'active', Gio.SettingsBindFlags.DEFAULT);
         group.add(labelRow);
+
+        return group;
+    }
+
+    _addPanelComponentRows(group) {
+        const values = ['', 'bar', 'percent', 'logo', 'text'];
+        const labels = [_('Hidden'), _('Usage bar'), _('Usage %'), _('Logo'), _('Text')];
+        const valid = new Set(values);
+        const current = this._settings.get_string('panel-components')
+            .split(',')
+            .map(part => part.trim())
+            .filter(part => valid.has(part) && part);
+        const rows = [];
+
+        const update = () => {
+            const next = rows
+                .map(row => values[row.selected] || '')
+                .filter(Boolean);
+            this._settings.set_string('panel-components', [...new Set(next)].join(',') || 'bar');
+        };
+
+        for (let index = 0; index < 4; index++) {
+            const selectedValue = current[index] || '';
+            const row = combo(labels, labels[Math.max(0, values.indexOf(selectedValue))]);
+            row.title = _('Panel slot %s').format(index + 1);
+            row.subtitle = _('Choose one component or hide this slot.');
+            row.connect('notify::selected', update);
+            rows.push(row);
+            group.add(row);
+        }
+    }
+
+    _buildThresholdGroup() {
+        const group = new Adw.PreferencesGroup({
+            title: _('Thresholds'),
+            description: _('Percent used where each state starts. Normal is below warning.'),
+        });
+
+        for (const [key, title] of [
+            ['warning-threshold', _('Warning starts at')],
+            ['danger-threshold', _('Danger starts at')],
+            ['limit-threshold', _('Limit reached at')],
+        ]) {
+            const row = new Adw.SpinRow({
+                title,
+                adjustment: new Gtk.Adjustment({
+                    lower: 0,
+                    upper: 100,
+                    step_increment: 1,
+                    value: this._settings.get_int(key),
+                }),
+            });
+            this._settings.bind(key, row.adjustment, 'value', Gio.SettingsBindFlags.DEFAULT);
+            group.add(row);
+        }
+
+        const notifyRow = new Adw.SwitchRow({
+            title: _('Notify when threshold is crossed'),
+            subtitle: _('Sends a notification when usage moves into warning, danger, or limit reached.'),
+            active: this._settings.get_boolean('notify-threshold-crossing'),
+        });
+        this._settings.bind('notify-threshold-crossing', notifyRow, 'active', Gio.SettingsBindFlags.DEFAULT);
+        group.add(notifyRow);
 
         return group;
     }
@@ -140,6 +209,7 @@ class GeneralPage extends Adw.PreferencesPage {
             ['accent-color', _('Normal')],
             ['warning-color', _('Warning')],
             ['danger-color', _('Danger')],
+            ['limit-color', _('Limit reached')],
             ['neutral-color', _('Text and outline')],
         ]) {
             const row = this._buildColorRow(key, title);
@@ -193,26 +263,44 @@ class GeneralPage extends Adw.PreferencesPage {
 
 const ProvidersPage = GObject.registerClass(
 class ProvidersPage extends Adw.PreferencesPage {
-    _init() {
+    _init(settings) {
         super._init({
             title: _('Providers'),
             icon_name: 'view-grid-symbolic',
         });
 
+        this._settings = settings;
+        this._targetProviderId = this._settings.get_string('preferences-provider') || null;
         this._config = loadConfig();
         this._save();
-        this._providerList = new Gtk.ListBox({
+
+        this._enabledList = new Gtk.ListBox({
             selection_mode: Gtk.SelectionMode.NONE,
         });
-        this._providerList.add_css_class('boxed-list');
+        this._enabledList.add_css_class('boxed-list');
 
-        this._group = new Adw.PreferencesGroup({
-            title: _('CodexBar Providers'),
-            description: _('Drag providers to reorder. Disabled providers are kept at the bottom.'),
+        this._disabledList = new Gtk.ListBox({
+            selection_mode: Gtk.SelectionMode.NONE,
         });
-        this._group.add(new Adw.PreferencesRow({child: this._providerList}));
-        this.add(this._group);
-        this._renderProviders();
+        this._disabledList.add_css_class('boxed-list');
+
+        this._enabledGroup = new Adw.PreferencesGroup({
+            title: _('Enabled Providers'),
+            description: _('Drag enabled providers to reorder the switcher.'),
+        });
+        this._enabledGroup.add(new Adw.PreferencesRow({child: this._enabledList}));
+        this.add(this._enabledGroup);
+
+        this._disabledGroup = new Adw.PreferencesGroup({
+            title: _('Disabled Providers'),
+            description: _('Enable a provider to move it into the draggable list.'),
+        });
+        this._disabledGroup.add(new Adw.PreferencesRow({child: this._disabledList}));
+        this.add(this._disabledGroup);
+
+        this._renderProviders(this._targetProviderId);
+        if (this._targetProviderId)
+            this._settings.set_string('preferences-provider', '');
     }
 
     _provider(id) {
@@ -234,11 +322,16 @@ class ProvidersPage extends Adw.PreferencesPage {
     }
 
     _renderProviders(expandedId = null) {
-        while (this._providerList.get_first_child())
-            this._providerList.remove(this._providerList.get_first_child());
+        while (this._enabledList.get_first_child())
+            this._enabledList.remove(this._enabledList.get_first_child());
+        while (this._disabledList.get_first_child())
+            this._disabledList.remove(this._disabledList.get_first_child());
 
         for (const provider of this._orderedProviders()) {
-            this._providerList.append(this._buildProviderListRow(provider, expandedId));
+            if (provider.enabled === false)
+                this._disabledList.append(this._buildProviderListRow(provider, expandedId, false));
+            else
+                this._enabledList.append(this._buildProviderListRow(provider, expandedId, true));
         }
     }
 
@@ -248,7 +341,7 @@ class ProvidersPage extends Adw.PreferencesPage {
         return this._config.providers;
     }
 
-    _buildProviderListRow(provider, expandedId) {
+    _buildProviderListRow(provider, expandedId, draggable) {
         const listRow = new Gtk.ListBoxRow();
         listRow._providerId = provider.id;
 
@@ -258,10 +351,12 @@ class ProvidersPage extends Adw.PreferencesPage {
             expanded: expandedId === provider.id || (expandedId === null && provider.enabled !== false && provider.id === 'codex'),
         });
 
-        row.add_prefix(new Gtk.Image({
-            icon_name: 'list-drag-handle-symbolic',
-            tooltip_text: _('Drag to reorder'),
-        }));
+        if (draggable) {
+            row.add_prefix(new Gtk.Image({
+                icon_name: 'list-drag-handle-symbolic',
+                tooltip_text: _('Drag to reorder'),
+            }));
+        }
 
         const enabled = new Gtk.Switch({
             active: provider.enabled !== false,
@@ -287,10 +382,33 @@ class ProvidersPage extends Adw.PreferencesPage {
         row.add_row(sourceRow);
 
         this._addRelevantRows(row, provider);
+        this._addTrackingRows(row, provider);
 
         listRow.set_child(row);
-        this._setupDragAndDrop(listRow);
+        if (draggable)
+            this._setupDragAndDrop(listRow);
         return listRow;
+    }
+
+    _addTrackingRows(row, provider) {
+        if (!this._apiKeyProviders().has(provider.id) || (provider.source || 'auto') === 'api')
+            return;
+
+        const trackingRow = new Adw.ActionRow({
+            title: _('Add API tracking'),
+            subtitle: _('Switch this provider to API source and show token fields.'),
+        });
+        const button = new Gtk.Button({
+            label: _('Add'),
+            valign: Gtk.Align.CENTER,
+        });
+        button.connect('clicked', () => {
+            provider.source = 'api';
+            this._save();
+            this._renderProviders(provider.id);
+        });
+        trackingRow.add_suffix(button);
+        row.add_row(trackingRow);
     }
 
     _addRelevantRows(row, provider) {
@@ -393,6 +511,8 @@ class ProvidersPage extends Adw.PreferencesPage {
         const sourceIndex = providers.findIndex(provider => provider.id === sourceId);
         const targetIndex = providers.findIndex(provider => provider.id === targetId);
         if (sourceIndex < 0 || targetIndex < 0)
+            return;
+        if (providers[sourceIndex].enabled === false || providers[targetIndex].enabled === false)
             return;
 
         const [provider] = providers.splice(sourceIndex, 1);
@@ -528,9 +648,14 @@ class MaintenancePage extends Adw.PreferencesPage {
 export default class AIUsageBarPreferences extends ExtensionPreferences {
     fillPreferencesWindow(window) {
         const settings = this.getSettings();
+        const targetProviderId = settings.get_string('preferences-provider');
+        const generalPage = new GeneralPage(settings);
+        const providersPage = new ProvidersPage(settings);
         window.set_default_size(760, 760);
-        window.add(new GeneralPage(settings));
-        window.add(new ProvidersPage());
+        window.add(generalPage);
+        window.add(providersPage);
         window.add(new MaintenancePage());
+        if (targetProviderId)
+            window.set_visible_page(providersPage);
     }
 }
