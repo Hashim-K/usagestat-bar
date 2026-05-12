@@ -34,6 +34,7 @@ export const PROVIDERS = [
 ];
 
 export const PROVIDER_NAMES = Object.fromEntries(PROVIDERS);
+const PROVIDER_IDS = new Set(PROVIDERS.map(([id]) => id));
 
 export function configPath() {
     return GLib.build_filenamev([GLib.get_home_dir(), '.codexbar', 'config.json']);
@@ -55,16 +56,41 @@ export function ensureProviderShape(config) {
     const next = (config && typeof config === 'object') ? {...config} : defaultConfig();
     next.version = Number.isInteger(next.version) ? next.version : 1;
     const existing = Array.isArray(next.providers) ? next.providers : [];
-    const byId = new Map();
+    const providers = [];
+    const seenKeys = new Set();
+    const seenBaseIds = new Set();
 
     for (const provider of existing) {
-        if (provider && typeof provider.id === 'string' && provider.id.trim())
-            byId.set(provider.id, {...provider});
+        if (!provider || typeof provider.id !== 'string' || !provider.id.trim())
+            continue;
+
+        const id = provider.id.trim();
+        const isCustom = provider.custom === true || Boolean(provider.customCommand);
+        if (!PROVIDER_IDS.has(id) && !isCustom)
+            continue;
+
+        const nextProvider = {
+            ...provider,
+            id,
+            source: provider.source || 'auto',
+            cookieSource: provider.cookieSource || 'auto',
+        };
+        if (isCustom)
+            nextProvider.custom = true;
+
+        const key = providerKey(nextProvider);
+        if (seenKeys.has(key))
+            continue;
+
+        providers.push(nextProvider);
+        seenKeys.add(key);
+        if (PROVIDER_IDS.has(id))
+            seenBaseIds.add(id);
     }
 
     for (const [id] of PROVIDERS) {
-        if (!byId.has(id)) {
-            byId.set(id, {
+        if (!seenBaseIds.has(id)) {
+            providers.push({
                 id,
                 enabled: false,
                 source: 'auto',
@@ -73,7 +99,7 @@ export function ensureProviderShape(config) {
         }
     }
 
-    next.providers = [...byId.values()];
+    next.providers = providers;
     return next;
 }
 
@@ -116,3 +142,24 @@ export function enabledProviders(config) {
     return ensureProviderShape(config).providers.filter(provider => provider.enabled !== false);
 }
 
+export function providerBaseId(provider) {
+    if (typeof provider === 'string')
+        return provider;
+    return provider?.id || '';
+}
+
+export function providerKey(provider) {
+    if (typeof provider === 'string')
+        return provider;
+    return provider?.instanceId || provider?.id || '';
+}
+
+export function providerDisplayName(provider) {
+    if (!provider || typeof provider === 'string')
+        return PROVIDER_NAMES[provider] || provider || 'AI';
+    return provider.displayName || PROVIDER_NAMES[providerBaseId(provider)] || providerBaseId(provider) || 'AI';
+}
+
+export function makeProviderInstanceId(id) {
+    return `${id}:${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
+}

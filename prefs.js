@@ -5,9 +5,10 @@ import Gdk from 'gi://Gdk';
 import Gtk from 'gi://Gtk';
 import Adw from 'gi://Adw';
 import {ExtensionPreferences, gettext as _} from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
-import {loadConfig, PROVIDERS, saveConfig} from './config.js';
+import {loadConfig, makeProviderInstanceId, providerBaseId, providerDisplayName, providerKey, PROVIDERS, saveConfig} from './config.js';
 
 const SOURCE_OPTIONS = ['auto', 'web', 'cli', 'oauth', 'api'];
+const CUSTOM_PROVIDER_VALUE = '__custom_provider__';
 const EXTENSION_DIR = GLib.path_get_dirname(GLib.filename_from_uri(import.meta.url)[0]);
 const PANEL_COMPONENTS = [
     ['bar', 'Usage bar'],
@@ -544,6 +545,13 @@ class ProvidersPage extends Adw.PreferencesPage {
         this._enabledGroup.add(new Adw.PreferencesRow({child: this._enabledList}));
         this.add(this._enabledGroup);
 
+        this._addSourceGroup = new Adw.PreferencesGroup({
+            title: _('Add Provider Source'),
+            description: _('Add another built-in provider source, or define a custom command-backed source.'),
+        });
+        this._addSourceGroup.add(this._buildAddProviderSourceRow());
+        this.add(this._addSourceGroup);
+
         this._disabledGroup = new Adw.PreferencesGroup({
             title: _('Disabled Providers'),
             description: _('Enable a provider to move it into the draggable list.'),
@@ -563,6 +571,103 @@ class ProvidersPage extends Adw.PreferencesPage {
             this._config.providers.push(provider);
         }
         return provider;
+    }
+
+    _buildAddProviderSourceRow() {
+        const row = new Adw.ExpanderRow({
+            title: _('Add Provider Source'),
+            subtitle: _('Pick a known provider or create a custom CLI source.'),
+        });
+
+        const providerOptions = [
+            ...PROVIDERS.map(([id, name]) => [id, name]),
+            [CUSTOM_PROVIDER_VALUE, _('Custom CLI command')],
+        ];
+        const providerValues = providerOptions.map(([value]) => value);
+        const providerLabels = providerOptions.map(([, label]) => label);
+
+        const providerRow = combo(providerLabels, providerLabels[0]);
+        providerRow.title = _('Provider');
+        row.add_row(providerRow);
+
+        const nameRow = entryRow(_('Name'), '', _('Optional display name'));
+        row.add_row(nameRow);
+
+        const commandRow = entryRow(_('CLI command'), '', _('Command that prints CodexBar-style usage JSON'));
+        row.add_row(commandRow);
+
+        const addRow = new Adw.ActionRow({
+            title: _('Create source'),
+            subtitle: _('New sources are enabled immediately and can be reordered above.'),
+        });
+        const addButton = new Gtk.Button({
+            label: _('OK'),
+            valign: Gtk.Align.CENTER,
+            css_classes: ['suggested-action'],
+        });
+        addButton.connect('clicked', () => {
+            const selected = providerValues[providerRow.selected] || providerValues[0];
+            if (this._addProviderSource(selected, nameRow._entry.get_text(), commandRow._entry.get_text())) {
+                nameRow._entry.set_text('');
+                commandRow._entry.set_text('');
+                row.set_expanded(false);
+            }
+        });
+        addRow.add_suffix(addButton);
+        row.add_row(addRow);
+
+        const syncCommandState = () => {
+            const isCustom = providerValues[providerRow.selected] === CUSTOM_PROVIDER_VALUE;
+            commandRow.set_sensitive(isCustom);
+            commandRow.subtitle = isCustom
+                ? _('Required. The command must print a single JSON object or an array with one usage object.')
+                : _('Only used for custom CLI sources.');
+        };
+        providerRow.connect('notify::selected', syncCommandState);
+        syncCommandState();
+
+        return row;
+    }
+
+    _addProviderSource(selectedProvider, rawName, rawCommand) {
+        const displayName = rawName.trim();
+        const command = rawCommand.trim();
+
+        if (selectedProvider === CUSTOM_PROVIDER_VALUE) {
+            if (!command) {
+                this._showError(_('Command required'), _('Custom providers need a CLI command that prints usage JSON.'));
+                return false;
+            }
+
+            const id = `custom-${Date.now().toString(36)}`;
+            const provider = {
+                id,
+                instanceId: makeProviderInstanceId(id),
+                enabled: true,
+                source: 'custom',
+                cookieSource: 'auto',
+                custom: true,
+                customCommand: command,
+                displayName: displayName || _('Custom Provider'),
+            };
+            this._config.providers.push(provider);
+            this._save();
+            this._renderProviders(providerKey(provider));
+            return true;
+        }
+
+        const provider = {
+            id: selectedProvider,
+            instanceId: makeProviderInstanceId(selectedProvider),
+            enabled: true,
+            source: 'auto',
+            cookieSource: 'auto',
+            displayName: displayName || _('%s Source').format(this._name(selectedProvider)),
+        };
+        this._config.providers.push(provider);
+        this._save();
+        this._renderProviders(providerKey(provider));
+        return true;
     }
 
     _save() {
@@ -596,12 +701,14 @@ class ProvidersPage extends Adw.PreferencesPage {
 
     _buildProviderListRow(provider, expandedId, draggable) {
         const listRow = new Gtk.ListBoxRow();
-        listRow._providerId = provider.id;
+        const key = providerKey(provider);
+        const baseId = providerBaseId(provider);
+        listRow._providerKey = key;
 
         const row = new Adw.ExpanderRow({
-            title: this._name(provider.id),
+            title: this._name(provider),
             subtitle: provider.enabled === false ? _('Disabled') : this._subtitle(provider),
-            expanded: expandedId === provider.id || (expandedId === null && provider.enabled !== false && provider.id === 'codex'),
+            expanded: expandedId === key || (expandedId === null && provider.enabled !== false && baseId === 'codex'),
         });
 
         if (draggable) {
@@ -619,26 +726,36 @@ class ProvidersPage extends Adw.PreferencesPage {
             provider.enabled = enabled.active;
             row.set_subtitle(provider.enabled ? this._subtitle(provider) : _('Disabled'));
             this._save();
-            this._renderProviders(provider.id);
+            this._renderProviders(key);
         });
         row.add_suffix(enabled);
 
-        const sourceRow = combo(SOURCE_OPTIONS, provider.source || 'auto');
-        sourceRow.title = _('Source');
-        sourceRow.subtitle = this._sourceSubtitle(provider.id, provider.source || 'auto');
-        sourceRow.connect('notify::selected', () => {
-            provider.source = SOURCE_OPTIONS[sourceRow.selected] || 'auto';
-            row.set_subtitle(this._subtitle(provider));
-            this._save();
-            this._renderProviders(provider.id);
+        const nameRow = entryRow(_('Name'), provider.displayName || '', this._name(baseId));
+        nameRow._entry.connect('changed', () => {
+            this._assignOptional(provider, 'displayName', nameRow._entry.get_text());
+            row.set_title(this._name(provider));
         });
-        row.add_row(sourceRow);
+        row.add_row(nameRow);
+
+        if (!this._isCustomProvider(provider)) {
+            const sourceRow = combo(SOURCE_OPTIONS, provider.source || 'auto');
+            sourceRow.title = _('Source');
+            sourceRow.subtitle = this._sourceSubtitle(baseId, provider.source || 'auto');
+            sourceRow.connect('notify::selected', () => {
+                provider.source = SOURCE_OPTIONS[sourceRow.selected] || 'auto';
+                row.set_subtitle(this._subtitle(provider));
+                this._save();
+                this._renderProviders(key);
+            });
+            row.add_row(sourceRow);
+        }
 
         const tierRow = this._usageTierRow(provider);
         row.add_row(tierRow);
 
         this._addRelevantRows(row, provider);
         this._addTrackingRows(row, provider);
+        this._addSourceInstanceRows(row, provider);
 
         listRow.set_child(row);
         if (draggable)
@@ -647,7 +764,7 @@ class ProvidersPage extends Adw.PreferencesPage {
     }
 
     _usageTierRow(provider) {
-        const options = this._usageTierOptions(provider.id);
+        const options = this._usageTierOptions(provider);
         const values = options.map(([value]) => value);
         const labels = options.map(([, label]) => label);
         const selectedValue = values.includes(provider.panelUsageTier) ? provider.panelUsageTier : 'auto';
@@ -663,7 +780,7 @@ class ProvidersPage extends Adw.PreferencesPage {
         return row;
     }
 
-    _usageTierOptions(providerId) {
+    _usageTierOptions(provider) {
         const fallback = [
             ['auto', _('Auto')],
             ['primary', _('Session')],
@@ -672,7 +789,8 @@ class ProvidersPage extends Adw.PreferencesPage {
 
         let discovered = null;
         try {
-            discovered = JSON.parse(this._settings.get_string('provider-usage-windows'))?.[providerId] || null;
+            const windows = JSON.parse(this._settings.get_string('provider-usage-windows')) || {};
+            discovered = windows[providerKey(provider)] || windows[providerBaseId(provider)] || null;
         } catch {
             discovered = null;
         }
@@ -691,11 +809,28 @@ class ProvidersPage extends Adw.PreferencesPage {
     }
 
     _addTrackingRows(row, provider) {
-        if (!this._apiKeyProviders().has(provider.id) || (provider.source || 'auto') === 'api')
+        if (!this._apiKeyProviders().has(providerBaseId(provider)))
+            return;
+
+        if ((provider.source || 'auto') !== 'api') {
+            const apiSourceRow = new Adw.ActionRow({
+                title: _('Add API token source'),
+                subtitle: _('Create a separate source for API usage tracking.'),
+            });
+            const apiSourceButton = new Gtk.Button({
+                label: _('Add'),
+                valign: Gtk.Align.CENTER,
+            });
+            apiSourceButton.connect('clicked', () => this._addApiProvider(provider));
+            apiSourceRow.add_suffix(apiSourceButton);
+            row.add_row(apiSourceRow);
+        }
+
+        if ((provider.source || 'auto') === 'api')
             return;
 
         const trackingRow = new Adw.ActionRow({
-            title: _('Add API tracking'),
+            title: _('Use API tracking here'),
             subtitle: _('Switch this provider to API source and show token fields.'),
         });
         const button = new Gtk.Button({
@@ -705,21 +840,103 @@ class ProvidersPage extends Adw.PreferencesPage {
         button.connect('clicked', () => {
             provider.source = 'api';
             this._save();
-            this._renderProviders(provider.id);
+            this._renderProviders(providerKey(provider));
         });
         trackingRow.add_suffix(button);
         row.add_row(trackingRow);
     }
 
+    _addApiProvider(provider) {
+        const baseId = providerBaseId(provider);
+        const copy = {
+            id: baseId,
+            instanceId: makeProviderInstanceId(baseId),
+            enabled: true,
+            source: 'api',
+            cookieSource: 'auto',
+            displayName: _('%s API').format(this._name(baseId)),
+        };
+        this._config.providers.push(copy);
+        this._save();
+        this._renderProviders(providerKey(copy));
+    }
+
+    _addSourceInstanceRows(row, provider) {
+        const duplicateRow = new Adw.ActionRow({
+            title: _('Add alternative source'),
+            subtitle: _('Create another account/source as a separate draggable switcher tab.'),
+        });
+        const duplicateButton = new Gtk.Button({
+            label: _('Add'),
+            valign: Gtk.Align.CENTER,
+        });
+        duplicateButton.connect('clicked', () => this._duplicateProvider(provider));
+        duplicateRow.add_suffix(duplicateButton);
+        row.add_row(duplicateRow);
+
+        if (provider.instanceId) {
+            const deleteRow = new Adw.ActionRow({
+                title: _('Delete source'),
+                subtitle: _('Remove this extra source from the provider list.'),
+            });
+            const deleteButton = new Gtk.Button({
+                label: _('Delete'),
+                valign: Gtk.Align.CENTER,
+                css_classes: ['destructive-action'],
+            });
+            deleteButton.connect('clicked', () => this._deleteProviderInstance(providerKey(provider)));
+            deleteRow.add_suffix(deleteButton);
+            row.add_row(deleteRow);
+        }
+    }
+
+    _duplicateProvider(provider) {
+        const baseId = providerBaseId(provider);
+        const copy = {
+            ...provider,
+            id: baseId,
+            instanceId: makeProviderInstanceId(baseId),
+            enabled: true,
+            displayName: _('%s Source').format(this._name(baseId)),
+        };
+        delete copy.cookieHeader;
+        delete copy.apiKey;
+        this._config.providers.push(copy);
+        this._save();
+        this._renderProviders(providerKey(copy));
+    }
+
+    _deleteProviderInstance(key) {
+        this._config.providers = this._config.providers.filter(provider => providerKey(provider) !== key);
+        this._save();
+        this._renderProviders();
+    }
+
     _addRelevantRows(row, provider) {
         const source = provider.source || 'auto';
+        const baseId = providerBaseId(provider);
 
-        if (provider.id === 'codex' && (source === 'auto' || source === 'web')) {
+        if (this._isCustomProvider(provider)) {
+            const commandRow = entryRow(_('CLI command'), provider.customCommand || '', _('Command that prints CodexBar-style usage JSON'));
+            commandRow._entry.connect('changed', () => {
+                this._assignOptional(provider, 'customCommand', commandRow._entry.get_text());
+            });
+            row.add_row(commandRow);
+
+            const note = new Adw.ActionRow({
+                title: _('Custom source'),
+                subtitle: _('The command output should be a usage JSON object or an array containing one usage object.'),
+            });
+            row.add_row(note);
+            return;
+        }
+
+        if (baseId === 'codex' && (source === 'auto' || source === 'web')) {
             this._addCodexAutoLoginRows(row, provider);
             return;
         }
 
-        if (source === 'api' || this._apiKeyProviders().has(provider.id)) {
+        if (source === 'api' || this._apiKeyProviders().has(baseId)) {
             const apiKeyRow = entryRow(_('API key'), provider.apiKey || '', _('Provider API token'), true);
             apiKeyRow._entry.connect('changed', () => {
                 this._assignOptional(provider, 'apiKey', apiKeyRow._entry.get_text());
@@ -737,13 +954,13 @@ class ProvidersPage extends Adw.PreferencesPage {
             row.add_row(cookieHeaderRow);
         }
 
-        if (['zai', 'minimax', 'alibaba'].includes(provider.id)) {
+        if (['zai', 'minimax', 'alibaba'].includes(baseId)) {
             const regionRow = entryRow(_('Region'), provider.region || '', _('Provider-specific region'));
             regionRow._entry.connect('changed', () => this._assignOptional(provider, 'region', regionRow._entry.get_text()));
             row.add_row(regionRow);
         }
 
-        if (['opencode', 'opencodego'].includes(provider.id)) {
+        if (['opencode', 'opencodego'].includes(baseId)) {
             const workspaceRow = entryRow(_('Workspace ID'), provider.workspaceID || '', _('Provider-specific workspace'));
             workspaceRow._entry.connect('changed', () => this._assignOptional(provider, 'workspaceID', workspaceRow._entry.get_text()));
             row.add_row(workspaceRow);
@@ -790,14 +1007,14 @@ class ProvidersPage extends Adw.PreferencesPage {
         drag.connect('prepare', () => {
             const value = new GObject.Value();
             value.init(GObject.TYPE_STRING);
-            value.set_string(listRow._providerId);
+            value.set_string(listRow._providerKey);
             return Gdk.ContentProvider.new_for_value(value);
         });
         listRow.add_controller(drag);
 
         const drop = Gtk.DropTarget.new(GObject.TYPE_STRING, Gdk.DragAction.MOVE);
         drop.connect('drop', (target, sourceId) => {
-            this._moveProvider(String(sourceId), listRow._providerId);
+            this._moveProvider(String(sourceId), listRow._providerKey);
             return true;
         });
         listRow.add_controller(drop);
@@ -808,8 +1025,8 @@ class ProvidersPage extends Adw.PreferencesPage {
             return;
 
         const providers = this._config.providers;
-        const sourceIndex = providers.findIndex(provider => provider.id === sourceId);
-        const targetIndex = providers.findIndex(provider => provider.id === targetId);
+        const sourceIndex = providers.findIndex(provider => providerKey(provider) === sourceId);
+        const targetIndex = providers.findIndex(provider => providerKey(provider) === targetId);
         if (sourceIndex < 0 || targetIndex < 0)
             return;
         if (providers[sourceIndex].enabled === false || providers[targetIndex].enabled === false)
@@ -818,7 +1035,7 @@ class ProvidersPage extends Adw.PreferencesPage {
         const [provider] = providers.splice(sourceIndex, 1);
         providers.splice(targetIndex, 0, provider);
         this._save();
-        this._renderProviders(provider.id);
+        this._renderProviders(providerKey(provider));
     }
 
     _assignOptional(provider, key, raw) {
@@ -831,6 +1048,8 @@ class ProvidersPage extends Adw.PreferencesPage {
     }
 
     _subtitle(provider) {
+        if (this._isCustomProvider(provider))
+            return _('Enabled, custom CLI source');
         return _('Enabled, %s source').format(provider.source || 'auto');
     }
 
@@ -841,11 +1060,28 @@ class ProvidersPage extends Adw.PreferencesPage {
     }
 
     _apiKeyProviders() {
-        return new Set(['gemini', 'copilot', 'zai', 'minimax', 'kimi', 'kimik2', 'kilo', 'warp', 'openrouter', 'synthetic', 'deepseek', 'codebuff', 'alibaba', 'mistral']);
+        return new Set(['codex', 'claude', 'gemini', 'copilot', 'zai', 'minimax', 'kimi', 'kimik2', 'kilo', 'warp', 'openrouter', 'synthetic', 'deepseek', 'codebuff', 'alibaba', 'mistral']);
     }
 
-    _name(id) {
-        return PROVIDERS.find(([providerId]) => providerId === id)?.[1] || id;
+    _name(provider) {
+        if (provider && typeof provider === 'object')
+            return providerDisplayName(provider);
+        return PROVIDERS.find(([providerId]) => providerId === provider)?.[1] || provider;
+    }
+
+    _isCustomProvider(provider) {
+        return provider?.custom === true || Boolean(provider?.customCommand) || provider?.source === 'custom';
+    }
+
+    _showError(heading, body) {
+        const dialog = new Adw.MessageDialog({
+            transient_for: this.get_root(),
+            modal: true,
+            heading,
+            body,
+        });
+        dialog.add_response('ok', _('OK'));
+        dialog.present();
     }
 
     async _importCodexCookies(provider, entry) {

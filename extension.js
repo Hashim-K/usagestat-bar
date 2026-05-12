@@ -6,7 +6,7 @@ import {Extension, gettext as _} from 'resource:///org/gnome/shell/extensions/ex
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 import {fetchProviderUsage, findCodexbar} from './cli.js';
-import {enabledProviders, loadConfig, PROVIDER_NAMES} from './config.js';
+import {enabledProviders, loadConfig, PROVIDER_NAMES, providerBaseId, providerDisplayName, providerKey} from './config.js';
 
 const TIERS = ['primary', 'secondary', 'tertiary', 'quaternary'];
 const PANEL_COMPONENTS = ['bar', 'percent', 'logo', 'text'];
@@ -186,8 +186,8 @@ export default class AIUsageBarExtension extends Extension {
         this._providers = enabledProviders(this._config);
         if (!this._providers.length)
             this._providers = [];
-        if (!this._activeId || !this._providers.some(provider => provider.id === this._activeId))
-            this._activeId = this._providers[0]?.id ?? null;
+        if (!this._activeId || !this._providers.some(provider => providerKey(provider) === this._activeId))
+            this._activeId = this._providers[0] ? providerKey(this._providers[0]) : null;
     }
 
     _setupRefresh() {
@@ -219,15 +219,16 @@ export default class AIUsageBarExtension extends Extension {
                     break;
                 try {
                     const data = await fetchProviderUsage(provider, this._cancellable);
-                    this._usage.set(provider.id, data);
-                    this._errors.delete(provider.id);
-                    this._rememberUsageWindows(provider.id, data);
-                    this._maybeNotifyThreshold(provider.id, data);
+                    const key = providerKey(provider);
+                    this._usage.set(key, data);
+                    this._errors.delete(key);
+                    this._rememberUsageWindows(key, data);
+                    this._maybeNotifyThreshold(key, data);
                     this._render();
                 } catch (error) {
                     if (!this._cancellable || this._cancellable.is_cancelled())
                         break;
-                    this._errors.set(provider.id, error.message || String(error));
+                    this._errors.set(providerKey(provider), error.message || String(error));
                     this._render();
                 }
             }
@@ -262,10 +263,10 @@ export default class AIUsageBarExtension extends Extension {
         for (const provider of this._providers)
             this._addProviderSwitch(provider);
 
-        if (!findCodexbar() && !this._canUseDirectFallback()) {
+        if (!findCodexbar() && this._providerNeedsCodexbar(this._activeProviderConfig())) {
             this._renderMessage(
                 _('CodexBar CLI not found'),
-                _('Install it with `brew install steipete/tap/codexbar`, or set CODEXBAR_CLI to the binary path.'),
+                _('Install it with `brew install steipete/tap/codexbar`, set CODEXBAR_CLI, or use custom command sources.'),
             );
             return;
         }
@@ -274,7 +275,8 @@ export default class AIUsageBarExtension extends Extension {
     }
 
     _addProviderSwitch(provider) {
-        const id = provider.id;
+        const id = providerKey(provider);
+        const baseId = providerBaseId(provider);
         const active = id === this._activeId;
         const snapshot = this._usage.get(id);
         const percent = this._snapshotUsedPercent(snapshot);
@@ -285,9 +287,9 @@ export default class AIUsageBarExtension extends Extension {
             style_class: 'ai-usage-provider-tile-box',
             x_align: Clutter.ActorAlign.CENTER,
         });
-        box.add_child(this._providerIcon(id, 22));
+        box.add_child(this._providerIcon(baseId, 22));
         box.add_child(new St.Label({
-            text: this._providerName(id),
+            text: this._providerName(provider),
             style_class: 'ai-usage-provider-tile-label',
             x_align: Clutter.ActorAlign.CENTER,
         }));
@@ -308,7 +310,7 @@ export default class AIUsageBarExtension extends Extension {
             can_focus: true,
         });
         button.connect('clicked', () => {
-            this._activeId = provider.id;
+            this._activeId = providerKey(provider);
             this._render();
         });
         this._switcher.add_child(button);
@@ -336,7 +338,7 @@ export default class AIUsageBarExtension extends Extension {
         this._panelLabel.set_style(`color: ${this._settings.get_string('neutral-color')};`);
         this._panelPercent.set_style(`color: ${this._settings.get_string('neutral-color')};`);
 
-        const icon = this._providerIcon(this._activeId, 16);
+        const icon = this._providerIcon(providerBaseId(this._activeProviderConfig()) || this._activeId, 16);
         icon.add_style_class_name('ai-usage-panel-icon');
 
         for (const component of components) {
@@ -353,7 +355,7 @@ export default class AIUsageBarExtension extends Extension {
 
     _panelName() {
         if (this._activeId)
-            return this._providerName(this._activeId);
+            return this._providerName(this._activeProviderConfig() || this._activeId);
         return this._providers.length > 1 ? _('AI') : this._providerName(this._providers[0]?.id);
     }
 
@@ -361,14 +363,14 @@ export default class AIUsageBarExtension extends Extension {
         const snapshot = this._usage.get(providerId);
         const error = this._errors.get(providerId);
         if (error) {
-            this._renderMessage(this._providerName(providerId), error, true);
+            this._renderMessage(this._providerName(this._providerForKey(providerId) || providerId), error, true);
             return;
         }
         if (!snapshot) {
             if (this._loading)
                 this._renderLoadingProvider(providerId);
             else
-                this._renderMessage(this._providerName(providerId), _('No usage fetched yet.'));
+                this._renderMessage(this._providerName(this._providerForKey(providerId) || providerId), _('No usage fetched yet.'));
             return;
         }
 
@@ -398,7 +400,7 @@ export default class AIUsageBarExtension extends Extension {
 
     _renderLoadingProvider(providerId) {
         this._content.add_child(new St.Label({
-            text: this._providerName(providerId),
+            text: this._providerName(this._providerForKey(providerId) || providerId),
             style_class: 'ai-usage-provider-heading',
         }));
 
@@ -589,7 +591,7 @@ export default class AIUsageBarExtension extends Extension {
 
         Main.notify(
             _('AI usage threshold crossed'),
-            _('%s is now %s%% used (%s)').format(this._providerName(providerId), Math.round(percent), threshold.label),
+            _('%s is now %s%% used (%s)').format(this._providerName(this._providerForKey(providerId) || providerId), Math.round(percent), threshold.label),
         );
     }
 
@@ -655,18 +657,24 @@ export default class AIUsageBarExtension extends Extension {
 
     _providerHeading(snapshot, providerId) {
         const version = snapshot.version ? ` ${snapshot.version}` : '';
-        return `${this._providerName(providerId)}${version}`;
+        return `${this._providerName(this._providerForKey(providerId) || providerId)}${version}`;
     }
 
-    _providerName(id) {
+    _providerName(provider) {
+        const id = providerBaseId(provider);
+        if (provider && typeof provider === 'object')
+            return providerDisplayName(provider);
         if (id === 'factory')
             return _('Droid');
         return PROVIDER_NAMES[id] || id || _('AI');
     }
 
-    _canUseDirectFallback() {
-        return this._providers.some(provider =>
-            provider.id === 'codex' && Boolean(provider.cookieHeader));
+    _providerNeedsCodexbar(provider) {
+        if (!provider || provider.customCommand)
+            return false;
+        if (providerBaseId(provider) === 'codex' && Boolean(provider.cookieHeader))
+            return false;
+        return true;
     }
 
     _providerIcon(providerId, size) {
@@ -702,7 +710,11 @@ export default class AIUsageBarExtension extends Extension {
     _activeProviderConfig() {
         if (!this._activeId)
             return null;
-        return this._providers.find(provider => provider.id === this._activeId) || null;
+        return this._providerForKey(this._activeId);
+    }
+
+    _providerForKey(key) {
+        return this._providers.find(provider => providerKey(provider) === key) || null;
     }
 
     _thresholds() {

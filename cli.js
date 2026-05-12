@@ -1,6 +1,7 @@
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import {UsageApiClient} from './usageApi.js';
+import {providerBaseId} from './config.js';
 import {loadLegacyToken} from './secret.js';
 
 const COMMAND_TIMEOUT_SECONDS = 90;
@@ -72,7 +73,10 @@ function runAsync(argv, cancellable) {
 }
 
 export async function fetchProviderUsage(provider, cancellable) {
-    const providerId = typeof provider === 'string' ? provider : provider.id;
+    const providerId = providerBaseId(provider);
+    if (provider?.customCommand || provider?.custom === true || provider?.source === 'custom')
+        return fetchCustomCommandUsage(provider, cancellable);
+
     const binary = findCodexbar();
     if (!binary)
         throw new Error('codexbar CLI was not found on PATH or in common install locations.');
@@ -93,19 +97,43 @@ export async function fetchProviderUsage(provider, cancellable) {
         throw new Error(detail);
     }
 
+    const payload = parseUsageJson(stdout, 'codexbar');
+    if (payload?.error) {
+        const message = payload.error.message || payload.error.code || JSON.stringify(payload.error);
+        if (providerId === 'codex' && message.includes('web support'))
+            return fetchCodexDirect(provider, cancellable);
+        throw new Error(message);
+    }
+    return payload;
+}
+
+async function fetchCustomCommandUsage(provider, cancellable) {
+    const command = provider.customCommand?.trim() || '';
+    if (!command)
+        throw new Error('Custom provider command is empty.');
+
+    const result = await runAsync(['bash', '-lc', command], cancellable);
+    const stdout = result.stdout.trim();
+    if (!stdout) {
+        const detail = result.stderr.trim().split('\n')[0] || `custom command exited with status ${result.status}`;
+        throw new Error(detail);
+    }
+
+    const payload = parseUsageJson(stdout, 'custom command');
+    if (payload?.error) {
+        const message = payload.error.message || payload.error.code || JSON.stringify(payload.error);
+        throw new Error(message);
+    }
+    return payload;
+}
+
+function parseUsageJson(stdout, sourceName) {
     try {
         const parsed = JSON.parse(stdout);
-        const payload = Array.isArray(parsed) ? parsed[0] : parsed;
-        if (payload?.error) {
-            const message = payload.error.message || payload.error.code || JSON.stringify(payload.error);
-            if (providerId === 'codex' && message.includes('web support'))
-                return fetchCodexDirect(provider, cancellable);
-            throw new Error(message);
-        }
-        return payload;
+        return Array.isArray(parsed) ? parsed[0] : parsed;
     } catch (error) {
         if (error instanceof SyntaxError)
-            throw new Error(`Could not parse codexbar JSON: ${error.message}`);
+            throw new Error(`Could not parse ${sourceName} JSON: ${error.message}`);
         throw error;
     }
 }

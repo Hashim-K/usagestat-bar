@@ -28,7 +28,13 @@
   - [x] Enabled and disabled providers are separated.
   - [x] Disabled providers are not draggable.
   - [x] Disabled providers become draggable after enabling.
-  - [x] Add API tracking action for providers with API-key support.
+  - [x] Add Provider Source section between enabled and disabled providers.
+  - [x] Custom provider source names.
+  - [x] Add another account/source for a provider as a separate switcher tab.
+  - [x] Add API token tracking as a separate source for providers with API-key support.
+  - [x] Switch an existing provider source to API tracking.
+  - [x] Add custom CLI command-backed providers.
+  - [x] Delete user-created provider sources without deleting built-in providers.
 - [x] GNOME 50 nested shell development helper.
 
 ## Planned
@@ -42,8 +48,9 @@
   - [ ] Status page link
   - [ ] Settings/about/quit style actions if useful on GNOME
 - [ ] Improve provider-specific settings:
-  - [ ] Clearer wording for API tracking vs extra tracking.
   - [ ] Better provider-specific add/setup actions.
   - [ ] Provider icons in preferences.
+  - [ ] Presets for direct Anthropic/OpenAI usage APIs beyond CodexBar-style command output.
+  - [ ] Group multiple sources for one provider under one switcher tab.
 - [ ] Add visual QA screenshots for the popup and preferences pages.
 - [ ] Document the GNOME 50 development workflow in README.
