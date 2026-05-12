@@ -68,10 +68,10 @@ export default class AIUsageBarExtension extends Extension {
             'refresh-interval',
             'display-mode',
             'panel-components',
-            'panel-usage-tier',
             'panel-position',
             'panel-index',
             'usage-thresholds',
+            'provider-usage-windows',
             'warning-threshold',
             'danger-threshold',
             'limit-threshold',
@@ -221,6 +221,7 @@ export default class AIUsageBarExtension extends Extension {
                     const data = await fetchProviderUsage(provider, this._cancellable);
                     this._usage.set(provider.id, data);
                     this._errors.delete(provider.id);
+                    this._rememberUsageWindows(provider.id, data);
                     this._maybeNotifyThreshold(provider.id, data);
                     this._render();
                 } catch (error) {
@@ -508,7 +509,7 @@ export default class AIUsageBarExtension extends Extension {
         const usage = snapshot?.usage;
         if (!usage)
             return 0;
-        const tier = this._settings.get_string('panel-usage-tier');
+        const tier = this._activeProviderConfig()?.panelUsageTier || 'auto';
         if (TIERS.includes(tier) && usage[tier]?.usedPercent !== undefined)
             return this._displayPercent(usage[tier]);
         const values = TIERS
@@ -524,7 +525,7 @@ export default class AIUsageBarExtension extends Extension {
         const usage = snapshot?.usage;
         if (!usage)
             return 0;
-        const tier = this._settings.get_string('panel-usage-tier');
+        const tier = this._activeProviderConfig()?.panelUsageTier || 'auto';
         if (TIERS.includes(tier) && usage[tier]?.usedPercent !== undefined)
             return Math.max(0, Math.min(100, Number(usage[tier].usedPercent) || 0));
         const values = TIERS
@@ -612,6 +613,35 @@ export default class AIUsageBarExtension extends Extension {
         return tier.charAt(0).toUpperCase() + tier.slice(1);
     }
 
+    _rememberUsageWindows(providerId, snapshot) {
+        const usage = snapshot?.usage;
+        if (!usage)
+            return;
+
+        const windows = {};
+        for (const tier of TIERS) {
+            const window = usage[tier];
+            if (window && window.usedPercent !== undefined)
+                windows[tier] = this._windowLabel(tier, window);
+        }
+
+        if (!Object.keys(windows).length)
+            return;
+
+        let allWindows = {};
+        try {
+            allWindows = JSON.parse(this._settings.get_string('provider-usage-windows'));
+        } catch {
+            allWindows = {};
+        }
+
+        const next = {...allWindows, [providerId]: windows};
+        const current = JSON.stringify(allWindows[providerId] || {});
+        const incoming = JSON.stringify(windows);
+        if (current !== incoming)
+            this._settings.set_string('provider-usage-windows', JSON.stringify(next));
+    }
+
     _resetText(window) {
         if (window.resetDescription)
             return window.resetDescription;
@@ -667,6 +697,12 @@ export default class AIUsageBarExtension extends Extension {
         if (!parts.length)
             return ['bar', 'percent', 'text'];
         return [...new Set(parts)];
+    }
+
+    _activeProviderConfig() {
+        if (!this._activeId)
+            return null;
+        return this._providers.find(provider => provider.id === this._activeId) || null;
     }
 
     _thresholds() {

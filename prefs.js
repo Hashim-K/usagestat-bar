@@ -122,20 +122,6 @@ class GeneralPage extends Adw.PreferencesPage {
         });
         group.add(displayModeRow);
 
-        const tierRow = combo([_('Auto'), _('Session'), _('Weekly'), _('Third window'), _('Fourth window')], {
-            auto: _('Auto'),
-            primary: _('Session'),
-            secondary: _('Weekly'),
-            tertiary: _('Third window'),
-            quaternary: _('Fourth window'),
-        }[this._settings.get_string('panel-usage-tier')] || _('Auto'));
-        tierRow.title = _('Top bar usage window');
-        tierRow.subtitle = _('Choose which usage measure drives the panel meter.');
-        tierRow.connect('notify::selected', () => {
-            this._settings.set_string('panel-usage-tier', ['auto', 'primary', 'secondary', 'tertiary', 'quaternary'][tierRow.selected] || 'auto');
-        });
-        group.add(tierRow);
-
         return group;
     }
 
@@ -648,6 +634,9 @@ class ProvidersPage extends Adw.PreferencesPage {
         });
         row.add_row(sourceRow);
 
+        const tierRow = this._usageTierRow(provider);
+        row.add_row(tierRow);
+
         this._addRelevantRows(row, provider);
         this._addTrackingRows(row, provider);
 
@@ -655,6 +644,50 @@ class ProvidersPage extends Adw.PreferencesPage {
         if (draggable)
             this._setupDragAndDrop(listRow);
         return listRow;
+    }
+
+    _usageTierRow(provider) {
+        const options = this._usageTierOptions(provider.id);
+        const values = options.map(([value]) => value);
+        const labels = options.map(([, label]) => label);
+        const selectedValue = values.includes(provider.panelUsageTier) ? provider.panelUsageTier : 'auto';
+        const row = combo(labels, labels[values.indexOf(selectedValue)]);
+        row.title = _('Top bar usage window');
+        row.subtitle = _('Usage measure shown when this provider is active.');
+        row.connect('notify::selected', () => {
+            provider.panelUsageTier = values[row.selected] || 'auto';
+            if (provider.panelUsageTier === 'auto')
+                delete provider.panelUsageTier;
+            this._save();
+        });
+        return row;
+    }
+
+    _usageTierOptions(providerId) {
+        const fallback = [
+            ['auto', _('Auto')],
+            ['primary', _('Session')],
+            ['secondary', _('Weekly')],
+        ];
+
+        let discovered = null;
+        try {
+            discovered = JSON.parse(this._settings.get_string('provider-usage-windows'))?.[providerId] || null;
+        } catch {
+            discovered = null;
+        }
+
+        if (!discovered || typeof discovered !== 'object')
+            return fallback;
+
+        const options = [['auto', _('Auto')]];
+        for (const tier of ['primary', 'secondary', 'tertiary', 'quaternary']) {
+            const label = discovered[tier];
+            if (typeof label === 'string' && label.trim())
+                options.push([tier, label.trim()]);
+        }
+
+        return options.length > 1 ? options : fallback;
     }
 
     _addTrackingRows(row, provider) {
