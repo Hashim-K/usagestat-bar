@@ -596,6 +596,11 @@ class ProvidersPage extends Adw.PreferencesPage {
         const commandRow = entryRow(_('CLI command'), '', _('Command that prints CodexBar-style usage JSON'));
         row.add_row(commandRow);
 
+        const sourceRow = combo(SOURCE_OPTIONS, 'auto');
+        sourceRow.title = _('Source');
+        sourceRow.subtitle = _('Only used for built-in providers.');
+        row.add_row(sourceRow);
+
         const addRow = new Adw.ActionRow({
             title: _('Create source'),
             subtitle: _('New sources are enabled immediately and can be reordered above.'),
@@ -607,7 +612,8 @@ class ProvidersPage extends Adw.PreferencesPage {
         });
         addButton.connect('clicked', () => {
             const selected = providerValues[providerRow.selected] || providerValues[0];
-            if (this._addProviderSource(selected, nameRow._entry.get_text(), commandRow._entry.get_text())) {
+            const source = SOURCE_OPTIONS[sourceRow.selected] || 'auto';
+            if (this._addProviderSource(selected, nameRow._entry.get_text(), commandRow._entry.get_text(), source)) {
                 nameRow._entry.set_text('');
                 commandRow._entry.set_text('');
                 row.set_expanded(false);
@@ -619,6 +625,7 @@ class ProvidersPage extends Adw.PreferencesPage {
         const syncCommandState = () => {
             const isCustom = providerValues[providerRow.selected] === CUSTOM_PROVIDER_VALUE;
             commandRow.set_sensitive(isCustom);
+            sourceRow.set_sensitive(!isCustom);
             commandRow.subtitle = isCustom
                 ? _('Required. The command must print a single JSON object or an array with one usage object.')
                 : _('Only used for custom CLI sources.');
@@ -629,7 +636,7 @@ class ProvidersPage extends Adw.PreferencesPage {
         return row;
     }
 
-    _addProviderSource(selectedProvider, rawName, rawCommand) {
+    _addProviderSource(selectedProvider, rawName, rawCommand, rawSource = 'auto') {
         const displayName = rawName.trim();
         const command = rawCommand.trim();
 
@@ -660,7 +667,7 @@ class ProvidersPage extends Adw.PreferencesPage {
             id: selectedProvider,
             instanceId: makeProviderInstanceId(selectedProvider),
             enabled: true,
-            source: 'auto',
+            source: SOURCE_OPTIONS.includes(rawSource) ? rawSource : 'auto',
             cookieSource: 'auto',
             displayName: displayName || _('%s Source').format(this._name(selectedProvider)),
         };
@@ -686,6 +693,8 @@ class ProvidersPage extends Adw.PreferencesPage {
             this._disabledList.remove(this._disabledList.get_first_child());
 
         for (const provider of this._orderedProviders()) {
+            if (provider.tabParent)
+                continue;
             if (provider.enabled === false)
                 this._disabledList.append(this._buildProviderListRow(provider, expandedId, false));
             else
@@ -754,8 +763,8 @@ class ProvidersPage extends Adw.PreferencesPage {
         row.add_row(tierRow);
 
         this._addRelevantRows(row, provider);
-        this._addTrackingRows(row, provider);
-        this._addSourceInstanceRows(row, provider);
+        this._addTabExtensionRows(row, provider);
+        this._addDeleteSourceRow(row, provider);
 
         listRow.set_child(row);
         if (draggable)
@@ -804,76 +813,129 @@ class ProvidersPage extends Adw.PreferencesPage {
             if (typeof label === 'string' && label.trim())
                 options.push([tier, label.trim()]);
         }
+        if (typeof discovered.extraUsage === 'string' && discovered.extraUsage.trim())
+            options.push(['extraUsage', discovered.extraUsage.trim()]);
 
         return options.length > 1 ? options : fallback;
     }
 
-    _addTrackingRows(row, provider) {
-        if (!this._apiKeyProviders().has(providerBaseId(provider)))
-            return;
+    _addTabExtensionRows(row, provider) {
+        const children = this._childProviders(providerKey(provider));
+        if (children.length) {
+            const childList = new Gtk.ListBox({
+                selection_mode: Gtk.SelectionMode.NONE,
+            });
+            childList.add_css_class('boxed-list');
 
-        if ((provider.source || 'auto') !== 'api') {
-            const apiSourceRow = new Adw.ActionRow({
-                title: _('Add API token source'),
-                subtitle: _('Create a separate source for API usage tracking.'),
-            });
-            const apiSourceButton = new Gtk.Button({
-                label: _('Add'),
-                valign: Gtk.Align.CENTER,
-            });
-            apiSourceButton.connect('clicked', () => this._addApiProvider(provider));
-            apiSourceRow.add_suffix(apiSourceButton);
-            row.add_row(apiSourceRow);
+            for (const child of children)
+                childList.append(this._buildChildSourceRow(child, providerKey(provider)));
+
+            row.add_row(new Adw.PreferencesRow({child: childList}));
         }
 
-        if ((provider.source || 'auto') === 'api')
-            return;
-
-        const trackingRow = new Adw.ActionRow({
-            title: _('Use API tracking here'),
-            subtitle: _('Switch this provider to API source and show token fields.'),
+        const addSourceRow = new Adw.ActionRow({
+            title: _('Add source to this tab'),
+            subtitle: _('Add account, API token, or custom command tracking under this provider tab.'),
         });
-        const button = new Gtk.Button({
+        const addSourceButton = new Gtk.Button({
             label: _('Add'),
             valign: Gtk.Align.CENTER,
         });
-        button.connect('clicked', () => {
-            provider.source = 'api';
-            this._save();
-            this._renderProviders(providerKey(provider));
+        addSourceButton.connect('clicked', () => this._addChildProvider(provider, {
+            source: provider.source || 'auto',
+            displayName: _('%s Source').format(this._name(provider)),
+        }));
+        addSourceRow.add_suffix(addSourceButton);
+        row.add_row(addSourceRow);
+
+        if (!this._apiKeyProviders().has(providerBaseId(provider)))
+            return;
+
+        const apiRow = new Adw.ActionRow({
+            title: _('Add API token tracking'),
+            subtitle: _('Add API usage under this provider tab instead of creating another top tab.'),
         });
-        trackingRow.add_suffix(button);
-        row.add_row(trackingRow);
+        const apiButton = new Gtk.Button({
+            label: _('Add'),
+            valign: Gtk.Align.CENTER,
+        });
+        apiButton.connect('clicked', () => this._addChildProvider(provider, {
+            source: 'api',
+            displayName: _('%s API').format(this._name(provider)),
+        }));
+        apiRow.add_suffix(apiButton);
+        row.add_row(apiRow);
     }
 
-    _addApiProvider(provider) {
+    _buildChildSourceRow(provider, parentKey) {
+        const listRow = new Gtk.ListBoxRow();
+        listRow._providerKey = providerKey(provider);
+
+        const row = new Adw.ExpanderRow({
+            title: this._name(provider),
+            subtitle: this._subtitle(provider),
+        });
+        row.add_prefix(new Gtk.Image({
+            icon_name: 'list-drag-handle-symbolic',
+            tooltip_text: _('Drag to reorder'),
+        }));
+
+        const nameRow = entryRow(_('Name'), provider.displayName || '', this._name(providerBaseId(provider)));
+        nameRow._entry.connect('changed', () => {
+            this._assignOptional(provider, 'displayName', nameRow._entry.get_text());
+            row.set_title(this._name(provider));
+        });
+        row.add_row(nameRow);
+
+        if (!this._isCustomProvider(provider)) {
+            const sourceRow = combo(SOURCE_OPTIONS, provider.source || 'auto');
+            sourceRow.title = _('Source');
+            sourceRow.connect('notify::selected', () => {
+                provider.source = SOURCE_OPTIONS[sourceRow.selected] || 'auto';
+                row.set_subtitle(this._subtitle(provider));
+                this._save();
+                this._renderProviders(parentKey);
+            });
+            row.add_row(sourceRow);
+        }
+
+        this._addRelevantRows(row, provider);
+
+        const deleteRow = new Adw.ActionRow({
+            title: _('Delete from tab'),
+            subtitle: _('Remove this section from the provider popup tab.'),
+        });
+        const deleteButton = new Gtk.Button({
+            label: _('Delete'),
+            valign: Gtk.Align.CENTER,
+            css_classes: ['destructive-action'],
+        });
+        deleteButton.connect('clicked', () => this._deleteProviderInstance(providerKey(provider), parentKey));
+        deleteRow.add_suffix(deleteButton);
+        row.add_row(deleteRow);
+
+        listRow.set_child(row);
+        this._setupDragAndDrop(listRow);
+        return listRow;
+    }
+
+    _addChildProvider(provider, overrides = {}) {
         const baseId = providerBaseId(provider);
         const copy = {
             id: baseId,
             instanceId: makeProviderInstanceId(baseId),
             enabled: true,
-            source: 'api',
+            tabParent: providerKey(provider),
+            source: 'auto',
             cookieSource: 'auto',
-            displayName: _('%s API').format(this._name(baseId)),
+            ...overrides,
         };
         this._config.providers.push(copy);
         this._save();
-        this._renderProviders(providerKey(copy));
+        this._renderProviders(providerKey(provider));
     }
 
-    _addSourceInstanceRows(row, provider) {
-        const duplicateRow = new Adw.ActionRow({
-            title: _('Add alternative source'),
-            subtitle: _('Create another account/source as a separate draggable switcher tab.'),
-        });
-        const duplicateButton = new Gtk.Button({
-            label: _('Add'),
-            valign: Gtk.Align.CENTER,
-        });
-        duplicateButton.connect('clicked', () => this._duplicateProvider(provider));
-        duplicateRow.add_suffix(duplicateButton);
-        row.add_row(duplicateRow);
-
+    _addDeleteSourceRow(row, provider) {
         if (provider.instanceId) {
             const deleteRow = new Adw.ActionRow({
                 title: _('Delete source'),
@@ -890,26 +952,11 @@ class ProvidersPage extends Adw.PreferencesPage {
         }
     }
 
-    _duplicateProvider(provider) {
-        const baseId = providerBaseId(provider);
-        const copy = {
-            ...provider,
-            id: baseId,
-            instanceId: makeProviderInstanceId(baseId),
-            enabled: true,
-            displayName: _('%s Source').format(this._name(baseId)),
-        };
-        delete copy.cookieHeader;
-        delete copy.apiKey;
-        this._config.providers.push(copy);
+    _deleteProviderInstance(key, expandedId = null) {
+        this._config.providers = this._config.providers.filter(provider =>
+            providerKey(provider) !== key && provider.tabParent !== key);
         this._save();
-        this._renderProviders(providerKey(copy));
-    }
-
-    _deleteProviderInstance(key) {
-        this._config.providers = this._config.providers.filter(provider => providerKey(provider) !== key);
-        this._save();
-        this._renderProviders();
+        this._renderProviders(expandedId);
     }
 
     _addRelevantRows(row, provider) {
@@ -936,7 +983,7 @@ class ProvidersPage extends Adw.PreferencesPage {
             return;
         }
 
-        if (source === 'api' || this._apiKeyProviders().has(baseId)) {
+        if (source === 'api') {
             const apiKeyRow = entryRow(_('API key'), provider.apiKey || '', _('Provider API token'), true);
             apiKeyRow._entry.connect('changed', () => {
                 this._assignOptional(provider, 'apiKey', apiKeyRow._entry.get_text());
@@ -964,16 +1011,6 @@ class ProvidersPage extends Adw.PreferencesPage {
             const workspaceRow = entryRow(_('Workspace ID'), provider.workspaceID || '', _('Provider-specific workspace'));
             workspaceRow._entry.connect('changed', () => this._assignOptional(provider, 'workspaceID', workspaceRow._entry.get_text()));
             row.add_row(workspaceRow);
-        }
-
-        if (source === 'cli' || source === 'oauth' || source === 'auto') {
-            const note = new Adw.ActionRow({
-                title: source === 'auto' ? _('Automatic source') : _('%s source').format(source),
-                subtitle: source === 'auto'
-                    ? _('CodexBar CLI will use the provider fallback order.')
-                    : _('No extra GNOME-side fields are needed for this source.'),
-            });
-            row.add_row(note);
         }
     }
 
@@ -1031,11 +1068,13 @@ class ProvidersPage extends Adw.PreferencesPage {
             return;
         if (providers[sourceIndex].enabled === false || providers[targetIndex].enabled === false)
             return;
+        if ((providers[sourceIndex].tabParent || '') !== (providers[targetIndex].tabParent || ''))
+            return;
 
         const [provider] = providers.splice(sourceIndex, 1);
         providers.splice(targetIndex, 0, provider);
         this._save();
-        this._renderProviders(providerKey(provider));
+        this._renderProviders(provider.tabParent || providerKey(provider));
     }
 
     _assignOptional(provider, key, raw) {
@@ -1056,7 +1095,11 @@ class ProvidersPage extends Adw.PreferencesPage {
     _sourceSubtitle(providerId, source) {
         if (providerId === 'codex' && source === 'auto')
             return _('Uses browser auto-login first, then CodexBar fallback behavior.');
-        return _('auto mirrors CodexBar fallback behavior');
+        if (source === 'auto')
+            return _('Uses CodexBar fallback behavior.');
+        if (source === 'api')
+            return _('Uses a provider API token.');
+        return _('Uses CodexBar %s source.').format(source);
     }
 
     _apiKeyProviders() {
@@ -1071,6 +1114,10 @@ class ProvidersPage extends Adw.PreferencesPage {
 
     _isCustomProvider(provider) {
         return provider?.custom === true || Boolean(provider?.customCommand) || provider?.source === 'custom';
+    }
+
+    _childProviders(parentKey) {
+        return this._config.providers.filter(provider => provider.tabParent === parentKey);
     }
 
     _showError(heading, body) {

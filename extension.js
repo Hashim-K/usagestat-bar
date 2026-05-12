@@ -184,10 +184,13 @@ export default class AIUsageBarExtension extends Extension {
     _loadProviders() {
         this._config = loadConfig();
         this._providers = enabledProviders(this._config);
+        this._visibleProviders = this._providers.filter(provider => !provider.tabParent);
         if (!this._providers.length)
             this._providers = [];
-        if (!this._activeId || !this._providers.some(provider => providerKey(provider) === this._activeId))
-            this._activeId = this._providers[0] ? providerKey(this._providers[0]) : null;
+        if (!this._visibleProviders.length)
+            this._visibleProviders = [];
+        if (!this._activeId || !this._visibleProviders.some(provider => providerKey(provider) === this._activeId))
+            this._activeId = this._visibleProviders[0] ? providerKey(this._visibleProviders[0]) : null;
     }
 
     _setupRefresh() {
@@ -252,7 +255,7 @@ export default class AIUsageBarExtension extends Extension {
         const active = this._activeSnapshot();
         this._renderPanel(active);
 
-        if (!this._providers.length) {
+        if (!this._visibleProviders.length) {
             this._renderMessage(
                 _('No providers enabled'),
                 _('Enable providers in preferences or edit ~/.codexbar/config.json.'),
@@ -260,7 +263,7 @@ export default class AIUsageBarExtension extends Extension {
             return;
         }
 
-        for (const provider of this._providers)
+        for (const provider of this._visibleProviders)
             this._addProviderSwitch(provider);
 
         if (!findCodexbar() && this._providerNeedsCodexbar(this._activeProviderConfig())) {
@@ -356,7 +359,7 @@ export default class AIUsageBarExtension extends Extension {
     _panelName() {
         if (this._activeId)
             return this._providerName(this._activeProviderConfig() || this._activeId);
-        return this._providers.length > 1 ? _('AI') : this._providerName(this._providers[0]?.id);
+        return this._visibleProviders.length > 1 ? _('AI') : this._providerName(this._visibleProviders[0]?.id);
     }
 
     _renderProvider(providerId) {
@@ -383,19 +386,63 @@ export default class AIUsageBarExtension extends Extension {
                 this._renderUsageWindow(this._windowLabel(tier, window), window);
         }
 
-        if (snapshot.credits?.remaining !== undefined) {
-            this._content.add_child(new St.Label({
-                text: _('Credits: %s left').format(String(snapshot.credits.remaining)),
-                style_class: 'ai-usage-credits',
-            }));
+        for (const namedWindow of usage.extraRateWindows || []) {
+            if (namedWindow?.window?.usedPercent !== undefined)
+                this._renderUsageWindow(namedWindow.title || this._windowLabel(namedWindow.id || 'extra', namedWindow.window), namedWindow.window);
         }
 
-        if (snapshot.openaiDashboard?.codeReviewRemainingPercent !== undefined) {
+        if (usage.providerCost)
+            this._renderProviderCost(usage.providerCost);
+
+        if (snapshot.credits?.remaining !== undefined)
+            this._renderCreditLine(_('Credits: %s left').format(String(snapshot.credits.remaining)));
+
+        if (snapshot.openaiDashboard?.codeReviewRemainingPercent !== undefined)
+            this._renderCreditLine(_('Code review: %s%% left').format(Math.round(snapshot.openaiDashboard.codeReviewRemainingPercent)));
+
+        for (const child of this._childProviders(providerId))
+            this._renderChildProvider(child);
+    }
+
+    _renderChildProvider(provider) {
+        const key = providerKey(provider);
+        const snapshot = this._usage.get(key);
+        const error = this._errors.get(key);
+
+        this._content.add_child(new St.Widget({style_class: 'ai-usage-separator'}));
+        this._content.add_child(new St.Label({
+            text: this._providerName(provider),
+            style_class: 'ai-usage-provider-heading',
+        }));
+
+        if (error) {
             this._content.add_child(new St.Label({
-                text: _('Code review: %s%% left').format(Math.round(snapshot.openaiDashboard.codeReviewRemainingPercent)),
-                style_class: 'ai-usage-credits',
+                text: error,
+                style_class: 'ai-usage-message-body',
             }));
+            return;
         }
+
+        if (!snapshot) {
+            this._content.add_child(new St.Label({
+                text: this._loading ? _('Fetching usage...') : _('No usage fetched yet.'),
+                style_class: 'ai-usage-muted',
+            }));
+            return;
+        }
+
+        const usage = snapshot.usage || {};
+        for (const tier of TIERS) {
+            const window = usage[tier];
+            if (window && window.usedPercent !== undefined)
+                this._renderUsageWindow(this._windowLabel(tier, window), window);
+        }
+        for (const namedWindow of usage.extraRateWindows || []) {
+            if (namedWindow?.window?.usedPercent !== undefined)
+                this._renderUsageWindow(namedWindow.title || this._windowLabel(namedWindow.id || 'extra', namedWindow.window), namedWindow.window);
+        }
+        if (usage.providerCost)
+            this._renderProviderCost(usage.providerCost);
     }
 
     _renderLoadingProvider(providerId) {
@@ -496,6 +543,81 @@ export default class AIUsageBarExtension extends Extension {
         this._content.add_child(row);
     }
 
+    _renderProviderCost(cost) {
+        if (!cost || !(Number(cost.limit) > 0))
+            return;
+
+        const used = Number(cost.used) || 0;
+        const limit = Number(cost.limit) || 0;
+        const usedPercent = Math.max(0, Math.min(100, (used / limit) * 100));
+        const window = {
+            usedPercent,
+            resetsAt: cost.resetsAt,
+            resetDescription: cost.period || null,
+        };
+        const title = cost.currencyCode === 'Quota' ? _('Quota usage') : _('Extra usage');
+        const percent = this._displayPercent(window);
+        const color = this._colorForPercent(percent);
+
+        const row = new St.BoxLayout({vertical: true, style_class: 'ai-usage-window'});
+        row.add_child(new St.Label({text: title, style_class: 'ai-usage-window-title'}));
+
+        const track = new St.BoxLayout({style_class: 'ai-usage-track'});
+        const fill = new St.Widget({
+            style_class: 'ai-usage-track-fill',
+            style: `background-color: ${color};`,
+        });
+        fill.set_width(this._barFillWidth(percent, 390));
+        track.add_child(fill);
+        row.add_child(track);
+
+        const footer = new St.BoxLayout();
+        footer.add_child(new St.Label({
+            text: this._providerCostText(cost),
+            style_class: 'ai-usage-window-percent',
+            x_expand: true,
+        }));
+        footer.add_child(new St.Label({
+            text: _('%s%% used').format(Math.round(usedPercent)),
+            style_class: 'ai-usage-muted',
+        }));
+        row.add_child(footer);
+        this._content.add_child(row);
+    }
+
+    _renderCreditLine(text) {
+        this._content.add_child(new St.Label({
+            text,
+            style_class: 'ai-usage-credits',
+        }));
+    }
+
+    _providerCostText(cost) {
+        const period = cost.period || _('This month');
+        if (cost.currencyCode === 'Quota')
+            return _('%s: %s / %s').format(period, Math.round(Number(cost.used) || 0), Math.round(Number(cost.limit) || 0));
+
+        return _('%s: %s / %s').format(
+            period,
+            this._formatMoney(Number(cost.used) || 0, cost.currencyCode),
+            this._formatMoney(Number(cost.limit) || 0, cost.currencyCode),
+        );
+    }
+
+    _formatMoney(value, currencyCode) {
+        const code = currencyCode || 'USD';
+        try {
+            return new Intl.NumberFormat(undefined, {
+                style: 'currency',
+                currency: code,
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+            }).format(value);
+        } catch {
+            return `${code} ${value.toFixed(2)}`;
+        }
+    }
+
     _renderMessage(title, body, isError = false) {
         this._content.add_child(new St.Label({
             text: title,
@@ -508,35 +630,61 @@ export default class AIUsageBarExtension extends Extension {
     }
 
     _snapshotPercent(snapshot) {
-        const usage = snapshot?.usage;
-        if (!usage)
+        const window = this._selectedPanelWindow(snapshot);
+        if (!window)
             return 0;
-        const tier = this._activeProviderConfig()?.panelUsageTier || 'auto';
-        if (TIERS.includes(tier) && usage[tier]?.usedPercent !== undefined)
-            return this._displayPercent(usage[tier]);
-        const values = TIERS
-            .map(tier => usage[tier])
-            .filter(window => window && window.usedPercent !== undefined)
-            .map(window => this._displayPercent(window));
-        if (!values.length)
-            return 0;
-        return values.reduce((sum, value) => sum + value, 0) / values.length;
+        return this._displayPercent(window);
     }
 
     _snapshotUsedPercent(snapshot) {
+        const window = this._selectedPanelWindow(snapshot);
+        if (!window)
+            return 0;
+        return Math.max(0, Math.min(100, Number(window.usedPercent) || 0));
+    }
+
+    _selectedPanelWindow(snapshot) {
         const usage = snapshot?.usage;
         if (!usage)
-            return 0;
+            return null;
+
         const tier = this._activeProviderConfig()?.panelUsageTier || 'auto';
+        if (tier === 'extraUsage')
+            return this._providerCostWindow(usage.providerCost) || usage.primary || usage.secondary || null;
         if (TIERS.includes(tier) && usage[tier]?.usedPercent !== undefined)
-            return Math.max(0, Math.min(100, Number(usage[tier].usedPercent) || 0));
+            return usage[tier];
+        return this._automaticPanelWindow(usage);
+    }
+
+    _automaticPanelWindow(usage) {
+        if (usage.primary?.usedPercent >= 100) {
+            const costWindow = this._providerCostWindow(usage.providerCost);
+            if (costWindow)
+                return costWindow;
+        }
+
         const values = TIERS
             .map(tier => usage[tier])
             .filter(window => window && window.usedPercent !== undefined)
-            .map(window => Math.max(0, Math.min(100, Number(window.usedPercent) || 0)));
+            .map(window => ({
+                ...window,
+                usedPercent: Math.max(0, Math.min(100, Number(window.usedPercent) || 0)),
+            }));
         if (!values.length)
-            return 0;
-        return values.reduce((sum, value) => sum + value, 0) / values.length;
+            return null;
+        const usedPercent = values.reduce((sum, window) => sum + window.usedPercent, 0) / values.length;
+        return {usedPercent, windowMinutes: null, resetsAt: null, resetDescription: null};
+    }
+
+    _providerCostWindow(cost) {
+        if (!cost || !(Number(cost.limit) > 0))
+            return null;
+        return {
+            usedPercent: Math.max(0, Math.min(100, (Number(cost.used) || 0) / Number(cost.limit) * 100)),
+            windowMinutes: null,
+            resetsAt: cost.resetsAt,
+            resetDescription: cost.period || null,
+        };
     }
 
     _displayPercent(window) {
@@ -626,6 +774,8 @@ export default class AIUsageBarExtension extends Extension {
             if (window && window.usedPercent !== undefined)
                 windows[tier] = this._windowLabel(tier, window);
         }
+        if (usage.providerCost && Number(usage.providerCost.limit) > 0)
+            windows.extraUsage = usage.providerCost.currencyCode === 'Quota' ? _('Quota usage') : _('Extra usage');
 
         if (!Object.keys(windows).length)
             return;
@@ -715,6 +865,10 @@ export default class AIUsageBarExtension extends Extension {
 
     _providerForKey(key) {
         return this._providers.find(provider => providerKey(provider) === key) || null;
+    }
+
+    _childProviders(parentKey) {
+        return this._providers.filter(provider => provider.tabParent === parentKey);
     }
 
     _thresholds() {
