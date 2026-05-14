@@ -7,9 +7,10 @@ import Adw from 'gi://Adw';
 import {ExtensionPreferences, gettext as _} from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
 import {loadConfig, makeProviderInstanceId, providerBaseId, providerDisplayName, providerKey, PROVIDERS, saveConfig} from './config.js';
 
-const SOURCE_OPTIONS = ['auto', 'web', 'cli', 'oauth', 'api'];
+const SOURCE_OPTIONS = ['auto', 'web', 'cli', 'oauth', 'api', 'local'];
 const CUSTOM_PROVIDER_VALUE = '__custom_provider__';
 const EXTENSION_DIR = GLib.path_get_dirname(GLib.filename_from_uri(import.meta.url)[0]);
+const TIERS = ['primary', 'secondary', 'tertiary', 'quaternary'];
 const PANEL_COMPONENTS = [
     ['bar', 'Usage bar'],
     ['percent', 'Usage %'],
@@ -81,7 +82,7 @@ class GeneralPage extends Adw.PreferencesPage {
 
         const refreshRow = new Adw.SpinRow({
             title: _('Refresh interval'),
-            subtitle: _('Minutes between CodexBar CLI refreshes'),
+            subtitle: _('Minutes between ai-usage CLI refreshes'),
             adjustment: new Gtk.Adjustment({
                 lower: 1,
                 upper: 1440,
@@ -122,6 +123,26 @@ class GeneralPage extends Adw.PreferencesPage {
             this._settings.set_string('display-mode', displayModeRow.selected === 1 ? 'used' : 'remaining');
         });
         group.add(displayModeRow);
+
+        const resetOptions = [
+            ['smart', _('Smart')],
+            ['relative', _('Relative')],
+            ['time', _('Time only')],
+            ['weekday-time', _('Day and time')],
+            ['date-time', _('Date and time')],
+        ];
+        const resetValues = resetOptions.map(([value]) => value);
+        const resetLabels = resetOptions.map(([, label]) => label);
+        const selectedReset = resetValues.includes(this._settings.get_string('reset-time-format'))
+            ? this._settings.get_string('reset-time-format')
+            : 'smart';
+        const resetRow = combo(resetLabels, resetLabels[resetValues.indexOf(selectedReset)]);
+        resetRow.title = _('Reset display');
+        resetRow.subtitle = _('Smart includes weekday for weekly resets.');
+        resetRow.connect('notify::selected', () => {
+            this._settings.set_string('reset-time-format', resetValues[resetRow.selected] || 'smart');
+        });
+        group.add(resetRow);
 
         return group;
     }
@@ -567,7 +588,7 @@ class ProvidersPage extends Adw.PreferencesPage {
     _provider(id) {
         let provider = this._config.providers.find(item => item.id === id);
         if (!provider) {
-            provider = {id, enabled: false, source: 'auto', cookieSource: 'auto'};
+            provider = {id, enabled: false, source: 'auto'};
             this._config.providers.push(provider);
         }
         return provider;
@@ -593,7 +614,7 @@ class ProvidersPage extends Adw.PreferencesPage {
         const nameRow = entryRow(_('Name'), '', _('Optional display name'));
         row.add_row(nameRow);
 
-        const commandRow = entryRow(_('CLI command'), '', _('Command that prints CodexBar-style usage JSON'));
+        const commandRow = entryRow(_('CLI command'), '', _('Command that prints ai-usage-style usage JSON'));
         row.add_row(commandRow);
 
         const sourceRow = combo(SOURCE_OPTIONS, 'auto');
@@ -646,13 +667,12 @@ class ProvidersPage extends Adw.PreferencesPage {
                 return false;
             }
 
-            const id = `custom-${Date.now().toString(36)}`;
+            const id = 'custom';
             const provider = {
                 id,
                 instanceId: makeProviderInstanceId(id),
                 enabled: true,
                 source: 'custom',
-                cookieSource: 'auto',
                 custom: true,
                 customCommand: command,
                 displayName: displayName || _('Custom Provider'),
@@ -668,7 +688,6 @@ class ProvidersPage extends Adw.PreferencesPage {
             instanceId: makeProviderInstanceId(selectedProvider),
             enabled: true,
             source: SOURCE_OPTIONS.includes(rawSource) ? rawSource : 'auto',
-            cookieSource: 'auto',
             displayName: displayName || _('%s Source').format(this._name(selectedProvider)),
         };
         this._config.providers.push(provider);
@@ -759,10 +778,12 @@ class ProvidersPage extends Adw.PreferencesPage {
             row.add_row(sourceRow);
         }
 
+        this._addRelevantRows(row, provider);
+
         const tierRow = this._usageTierRow(provider);
         row.add_row(tierRow);
+        row.add_row(this._usageTrackersRow(provider));
 
-        this._addRelevantRows(row, provider);
         this._addTabExtensionRows(row, provider);
         this._addDeleteSourceRow(row, provider);
 
@@ -776,17 +797,64 @@ class ProvidersPage extends Adw.PreferencesPage {
         const options = this._usageTierOptions(provider);
         const values = options.map(([value]) => value);
         const labels = options.map(([, label]) => label);
-        const selectedValue = values.includes(provider.panelUsageTier) ? provider.panelUsageTier : 'auto';
+        const selectedValue = values.includes(this._providerUsageSetting(provider, 'panelUsageTier')) ? this._providerUsageSetting(provider, 'panelUsageTier') : 'auto';
         const row = combo(labels, labels[values.indexOf(selectedValue)]);
         row.title = _('Top bar usage window');
         row.subtitle = _('Usage measure shown when this provider is active.');
         row.connect('notify::selected', () => {
-            provider.panelUsageTier = values[row.selected] || 'auto';
-            if (provider.panelUsageTier === 'auto')
-                delete provider.panelUsageTier;
-            this._save();
+            const value = values[row.selected] || 'auto';
+            this._setProviderUsageSetting(provider, 'panelUsageTier', value === 'auto' ? null : value);
         });
         return row;
+    }
+
+    _usageTrackersRow(provider) {
+        const options = this._usageTrackerOptions(provider);
+        const row = new Adw.ExpanderRow({
+            title: _('Usage trackers'),
+            subtitle: _('Choose which usage meters are shown in the popup and auto meter.'),
+        });
+
+        if (!options.length) {
+            row.add_row(new Adw.ActionRow({
+                title: _('No usage trackers discovered yet'),
+                subtitle: _('Refresh this provider once to populate tracker controls.'),
+            }));
+            return row;
+        }
+
+        for (const [windowId, label] of options) {
+            const item = new Adw.ActionRow({title: label});
+            const toggle = new Gtk.Switch({
+                active: !this._hiddenUsageWindows(provider).includes(windowId),
+                valign: Gtk.Align.CENTER,
+            });
+            toggle.connect('notify::active', () => {
+                this._setUsageWindowVisible(provider, windowId, toggle.active);
+            });
+            item.add_suffix(toggle);
+            item.activatable_widget = toggle;
+            row.add_row(item);
+        }
+
+        return row;
+    }
+
+    _usageTrackerOptions(provider) {
+        let discovered = null;
+        try {
+            const windows = JSON.parse(this._settings.get_string('provider-usage-windows')) || {};
+            discovered = windows[providerKey(provider)] || windows[providerBaseId(provider)] || null;
+        } catch {
+            discovered = null;
+        }
+
+        if (!discovered || typeof discovered !== 'object')
+            return this._usageTierOptions(provider).filter(([value]) => value !== 'auto');
+
+        return Object.entries(discovered)
+            .filter(([, label]) => typeof label === 'string' && label.trim())
+            .map(([id, label]) => [id, label.trim()]);
     }
 
     _usageTierOptions(provider) {
@@ -815,8 +883,55 @@ class ProvidersPage extends Adw.PreferencesPage {
         }
         if (typeof discovered.extraUsage === 'string' && discovered.extraUsage.trim())
             options.push(['extraUsage', discovered.extraUsage.trim()]);
+        for (const [id, label] of Object.entries(discovered)) {
+            if (id.startsWith('text:') || id.startsWith('badge:'))
+                continue;
+            if (id === 'extraUsage' || TIERS.includes(id))
+                continue;
+            if (typeof label === 'string' && label.trim())
+                options.push([id, label.trim()]);
+        }
 
         return options.length > 1 ? options : fallback;
+    }
+
+    _providerUsageSettings() {
+        try {
+            return JSON.parse(this._settings.get_string('provider-usage-settings')) || {};
+        } catch {
+            return {};
+        }
+    }
+
+    _providerUsageSetting(provider, key) {
+        return this._providerUsageSettings()[providerKey(provider)]?.[key] || null;
+    }
+
+    _setProviderUsageSetting(provider, key, value) {
+        const all = this._providerUsageSettings();
+        const id = providerKey(provider);
+        const next = {...(all[id] || {})};
+        if (value === null || value === undefined || value === '')
+            delete next[key];
+        else
+            next[key] = value;
+        if (Object.keys(next).length)
+            all[id] = next;
+        else
+            delete all[id];
+        this._settings.set_string('provider-usage-settings', JSON.stringify(all));
+    }
+
+    _hiddenUsageWindows(provider) {
+        const hidden = this._providerUsageSetting(provider, 'hiddenWindows');
+        return Array.isArray(hidden) ? hidden : [];
+    }
+
+    _setUsageWindowVisible(provider, windowId, visible) {
+        const hidden = this._hiddenUsageWindows(provider).filter(id => id !== windowId);
+        if (!visible)
+            hidden.push(windowId);
+        this._setProviderUsageSetting(provider, 'hiddenWindows', hidden.length ? hidden : null);
     }
 
     _addTabExtensionRows(row, provider) {
@@ -847,24 +962,6 @@ class ProvidersPage extends Adw.PreferencesPage {
         }));
         addSourceRow.add_suffix(addSourceButton);
         row.add_row(addSourceRow);
-
-        if (!this._apiKeyProviders().has(providerBaseId(provider)))
-            return;
-
-        const apiRow = new Adw.ActionRow({
-            title: _('Add API token tracking'),
-            subtitle: _('Add API usage under this provider tab instead of creating another top tab.'),
-        });
-        const apiButton = new Gtk.Button({
-            label: _('Add'),
-            valign: Gtk.Align.CENTER,
-        });
-        apiButton.connect('clicked', () => this._addChildProvider(provider, {
-            source: 'api',
-            displayName: _('%s API').format(this._name(provider)),
-        }));
-        apiRow.add_suffix(apiButton);
-        row.add_row(apiRow);
     }
 
     _buildChildSourceRow(provider, parentKey) {
@@ -927,7 +1024,6 @@ class ProvidersPage extends Adw.PreferencesPage {
             enabled: true,
             tabParent: providerKey(provider),
             source: 'auto',
-            cookieSource: 'auto',
             ...overrides,
         };
         this._config.providers.push(copy);
@@ -964,7 +1060,7 @@ class ProvidersPage extends Adw.PreferencesPage {
         const baseId = providerBaseId(provider);
 
         if (this._isCustomProvider(provider)) {
-            const commandRow = entryRow(_('CLI command'), provider.customCommand || '', _('Command that prints CodexBar-style usage JSON'));
+            const commandRow = entryRow(_('CLI command'), provider.customCommand || '', _('Command that prints ai-usage-style usage JSON'));
             commandRow._entry.connect('changed', () => {
                 this._assignOptional(provider, 'customCommand', commandRow._entry.get_text());
             });
@@ -975,11 +1071,6 @@ class ProvidersPage extends Adw.PreferencesPage {
                 subtitle: _('The command output should be a usage JSON object or an array containing one usage object.'),
             });
             row.add_row(note);
-            return;
-        }
-
-        if (baseId === 'codex' && (source === 'auto' || source === 'web')) {
-            this._addCodexAutoLoginRows(row, provider);
             return;
         }
 
@@ -995,46 +1086,101 @@ class ProvidersPage extends Adw.PreferencesPage {
             const cookieHeaderRow = entryRow(_('Cookie header'), provider.cookieHeader || '', _('name=value; other=value'), true);
             cookieHeaderRow._entry.connect('changed', () => {
                 this._assignOptional(provider, 'cookieHeader', cookieHeaderRow._entry.get_text());
-                if (cookieHeaderRow._entry.get_text().trim())
-                    provider.cookieSource = 'manual';
             });
             row.add_row(cookieHeaderRow);
+
+            const importRow = new Adw.ActionRow({
+                title: _('Auto cookie scraping'),
+                subtitle: _('Import browser cookies for ChatGPT/OpenAI sessions.'),
+            });
+            const importButton = new Gtk.Button({
+                label: _('Import'),
+                valign: Gtk.Align.CENTER,
+                css_classes: ['suggested-action'],
+            });
+            importButton.connect('clicked', () => this._importCookies(provider, cookieHeaderRow._entry));
+            importRow.add_suffix(importButton);
+            row.add_row(importRow);
         }
 
-        if (['zai', 'minimax', 'alibaba'].includes(baseId)) {
+        if (source === 'cli') {
+            this._addSettingEntry(row, provider, 'profile', _('CLI profile'), _('Optional provider CLI profile'));
+            this._addSettingEntry(row, provider, 'path', _('CLI path'), _('Optional config, database, or executable path'));
+        }
+
+        if (source === 'oauth') {
+            this._addSettingEntry(row, provider, 'account', _('OAuth account'), _('Optional account label'));
+            this._addSettingEntry(row, provider, 'tokenPath', _('Token path'), _('Optional OAuth token file'));
+        }
+
+        if (source === 'local') {
+            this._addSettingEntry(row, provider, 'path', _('Local path'), _('Optional local database, cache, or log path'));
+            this._addSettingEntry(row, provider, 'project', _('Project'), _('Optional project or workspace label'));
+        }
+
+        if (['zai', 'minimax', 'doubao'].includes(baseId)) {
             const regionRow = entryRow(_('Region'), provider.region || '', _('Provider-specific region'));
             regionRow._entry.connect('changed', () => this._assignOptional(provider, 'region', regionRow._entry.get_text()));
             row.add_row(regionRow);
         }
 
-        if (['opencode', 'opencodego'].includes(baseId)) {
-            const workspaceRow = entryRow(_('Workspace ID'), provider.workspaceID || '', _('Provider-specific workspace'));
-            workspaceRow._entry.connect('changed', () => this._assignOptional(provider, 'workspaceID', workspaceRow._entry.get_text()));
+        if (['opencode-go', 'openai-api'].includes(baseId)) {
+            const workspaceRow = entryRow(_('Workspace ID'), provider.workspaceId || '', _('Provider-specific workspace'));
+            workspaceRow._entry.connect('changed', () => this._assignOptional(provider, 'workspaceId', workspaceRow._entry.get_text()));
             row.add_row(workspaceRow);
         }
     }
 
-    _addCodexAutoLoginRows(row, provider) {
-        const cookieRow = entryRow(_('Session cookies'), provider.cookieHeader || '', _('ChatGPT Cookie header'), true);
-        cookieRow._entry.connect('changed', () => {
-            this._assignOptional(provider, 'cookieHeader', cookieRow._entry.get_text());
-            if (cookieRow._entry.get_text().trim())
-                provider.cookieSource = 'manual';
+    _addSettingEntry(row, provider, key, title, placeholder) {
+        const settings = provider.settings || {};
+        const settingRow = entryRow(title, settings[key] || '', placeholder);
+        settingRow._entry.connect('changed', () => {
+            const value = settingRow._entry.get_text().trim();
+            provider.settings = {...(provider.settings || {})};
+            if (value)
+                provider.settings[key] = value;
+            else
+                delete provider.settings[key];
+            if (!Object.keys(provider.settings).length)
+                delete provider.settings;
+            this._save();
         });
-        row.add_row(cookieRow);
+        row.add_row(settingRow);
+    }
 
-        const importRow = new Adw.ActionRow({
-            title: _('Auto-Login from Browser'),
-            subtitle: _('Imports ChatGPT cookies from Chrome or Brave, matching the original GNOME wrapper.'),
-        });
-        const importButton = new Gtk.Button({
-            label: _('Import'),
-            valign: Gtk.Align.CENTER,
-            css_classes: ['suggested-action'],
-        });
-        importButton.connect('clicked', () => this._importCodexCookies(provider, cookieRow._entry));
-        importRow.add_suffix(importButton);
-        row.add_row(importRow);
+    async _importCookies(provider, entry) {
+        const path = GLib.build_filenamev([EXTENSION_DIR, 'cookie_importer.py']);
+
+        try {
+            const proc = Gio.Subprocess.new(
+                ['python3', path],
+                Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE,
+            );
+            const [, stdout, stderr] = await new Promise((resolve, reject) => {
+                proc.communicate_utf8_async(null, null, (process, result) => {
+                    try {
+                        resolve(process.communicate_utf8_finish(result));
+                    } catch (error) {
+                        reject(error);
+                    }
+                });
+            });
+
+            const text = stdout.trim();
+            if (!text)
+                throw new Error(stderr.trim() || _('No cookies were imported.'));
+
+            const payload = JSON.parse(text);
+            if (payload.cookie_header) {
+                provider.cookieHeader = payload.cookie_header;
+                entry.set_text(payload.cookie_header);
+                this._save();
+            } else {
+                throw new Error(payload.details || payload.message || payload.error || _('No browser cookies found.'));
+            }
+        } catch (error) {
+            this._showError(_('Could not import cookies'), error.message || String(error));
+        }
     }
 
     _setupDragAndDrop(listRow) {
@@ -1094,16 +1240,24 @@ class ProvidersPage extends Adw.PreferencesPage {
 
     _sourceSubtitle(providerId, source) {
         if (providerId === 'codex' && source === 'auto')
-            return _('Uses browser auto-login first, then CodexBar fallback behavior.');
+            return _('Uses ai-usage provider defaults.');
         if (source === 'auto')
-            return _('Uses CodexBar fallback behavior.');
+            return _('Uses ai-usage provider defaults.');
         if (source === 'api')
             return _('Uses a provider API token.');
-        return _('Uses CodexBar %s source.').format(source);
+        if (source === 'web')
+            return _('Uses browser session cookies.');
+        if (source === 'cli')
+            return _('Uses local CLI/app state, with optional profile or path hints.');
+        if (source === 'oauth')
+            return _('Uses OAuth login state, with optional account or token path hints.');
+        if (source === 'local')
+            return _('Uses local files, databases, caches, or services.');
+        return _('Uses ai-usage %s source.').format(source);
     }
 
     _apiKeyProviders() {
-        return new Set(['codex', 'claude', 'gemini', 'copilot', 'zai', 'minimax', 'kimi', 'kimik2', 'kilo', 'warp', 'openrouter', 'synthetic', 'deepseek', 'codebuff', 'alibaba', 'mistral']);
+        return new Set(['codex', 'claude', 'gemini', 'copilot', 'zai', 'minimax', 'kimi', 'kimi-k2', 'kilo', 'warp', 'openrouter', 'synthetic', 'deepseek', 'codebuff', 'doubao', 'mistral', 'openai-api']);
     }
 
     _name(provider) {
@@ -1131,69 +1285,68 @@ class ProvidersPage extends Adw.PreferencesPage {
         dialog.present();
     }
 
-    async _importCodexCookies(provider, entry) {
-        const path = GLib.build_filenamev([EXTENSION_DIR, 'cookie_importer.py']);
-
-        try {
-            const proc = Gio.Subprocess.new(
-                ['python3', path],
-                Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE,
-            );
-            const [, stdout, stderr] = await new Promise((resolve, reject) => {
-                proc.communicate_utf8_async(null, null, (process, result) => {
-                    try {
-                        resolve(process.communicate_utf8_finish(result));
-                    } catch (error) {
-                        reject(error);
-                    }
-                });
-            });
-
-            const text = stdout.trim();
-            if (!text)
-                throw new Error(stderr.trim() || _('No cookies were imported.'));
-
-            const payload = JSON.parse(text);
-            if (payload.cookie_header) {
-                provider.cookieHeader = payload.cookie_header;
-                provider.cookieSource = 'manual';
-                entry.set_text(payload.cookie_header);
-                this._save();
-            } else {
-                throw new Error(payload.message || payload.error || _('No ChatGPT cookies found.'));
-            }
-        } catch (error) {
-            const dialog = new Adw.MessageDialog({
-                transient_for: this.get_root(),
-                modal: true,
-                heading: _('Could not import cookies'),
-                body: error.message || String(error),
-            });
-            dialog.add_response('ok', _('OK'));
-            dialog.present();
-        }
-    }
 });
 
 const MaintenancePage = GObject.registerClass(
 class MaintenancePage extends Adw.PreferencesPage {
-    _init() {
+    _init(settings) {
         super._init({
             title: _('Tools'),
             icon_name: 'applications-system-symbolic',
         });
+        this._settings = settings;
+        this.add(this._buildTerminalGroup());
         this.add(this._buildGroup());
+    }
+
+    _buildTerminalGroup() {
+        const group = new Adw.PreferencesGroup({
+            title: _('Terminal'),
+            description: _('Choose which terminal emulator opens Tools commands.'),
+        });
+
+        const options = [
+            ['auto', _('Auto')],
+            ['kgx', _('GNOME Console')],
+            ['gnome-terminal', _('GNOME Terminal')],
+            ['x-terminal-emulator', _('System default terminal')],
+            ['konsole', _('Konsole')],
+            ['xfce4-terminal', _('Xfce Terminal')],
+            ['alacritty', _('Alacritty')],
+            ['kitty', _('Kitty')],
+        ];
+        const values = options.map(([value]) => value);
+        const labels = options.map(([, label]) => label);
+        const selected = values.includes(this._settings.get_string('tools-terminal'))
+            ? this._settings.get_string('tools-terminal')
+            : 'auto';
+        const row = combo(labels, labels[values.indexOf(selected)]);
+        row.title = _('Open tools with');
+        row.connect('notify::selected', () => {
+            this._settings.set_string('tools-terminal', values[row.selected] || 'auto');
+        });
+        group.add(row);
+
+        return group;
     }
 
     _buildGroup() {
         const group = new Adw.PreferencesGroup({
-            title: _('CodexBar CLI'),
+            title: _('ai-usage CLI'),
         });
 
         for (const [title, command] of [
-            [_('Validate config'), 'codexbar config validate'],
-            [_('Dump normalized config'), 'codexbar config dump --pretty'],
-            [_('Clear cookie cache'), 'codexbar cache clear --cookies'],
+            [_('Validate config'), 'ai-usage config validate'],
+            [_('Dump normalized config'), 'ai-usage config dump'],
+            [_('List providers'), 'ai-usage list --all --plain'],
+            [_('Show enabled usage'), 'ai-usage usage'],
+            [_('Show all usage JSON'), 'ai-usage --json usage --provider all'],
+            [_('Provider status'), 'ai-usage status --provider all --plain'],
+            [_('Cost summary'), 'ai-usage cost --provider all'],
+            [_('Export live usage JSON'), 'ai-usage export --provider all --format json'],
+            [_('Export live usage CSV'), 'ai-usage export --provider all --format csv'],
+            [_('Clear snapshots cache'), 'ai-usage cache clear --snapshots'],
+            [_('ai-usage help'), 'ai-usage --help'],
         ]) {
             const row = new Adw.ActionRow({
                 title,
@@ -1203,15 +1356,13 @@ class MaintenancePage extends Adw.PreferencesPage {
                 icon_name: 'utilities-terminal-symbolic',
                 valign: Gtk.Align.CENTER,
             });
-            button.connect('clicked', () => {
-                GLib.spawn_command_line_async(`bash -lc '${command.replaceAll("'", "'\\''")}; read -p "Press enter to close..."'`);
-            });
+            button.connect('clicked', () => this._runInTerminal(command));
             row.add_suffix(button);
             group.add(row);
         }
 
         const docsRow = new Adw.ActionRow({
-            title: _('CodexBar docs'),
+            title: _('ai-usage docs'),
             subtitle: _('Provider setup and config schema'),
         });
         const docsButton = new Gtk.Button({
@@ -1219,12 +1370,71 @@ class MaintenancePage extends Adw.PreferencesPage {
             valign: Gtk.Align.CENTER,
         });
         docsButton.connect('clicked', () => {
-            Gio.app_info_launch_default_for_uri('https://github.com/steipete/CodexBar/tree/main/docs', null);
+            Gio.app_info_launch_default_for_uri('https://github.com/hashim-k/ai-usage-backend', null);
         });
         docsRow.add_suffix(docsButton);
         group.add(docsRow);
 
         return group;
+    }
+
+    _runInTerminal(command) {
+        const script = [
+            command,
+            'status=$?',
+            'printf "\\nExit status: %s\\n" "$status"',
+            'read -r -p "Press enter to close..."',
+        ].join('; ');
+
+        const terminals = this._terminalCandidates(script);
+
+        for (const argv of terminals) {
+            if (!GLib.find_program_in_path(argv[0]))
+                continue;
+            try {
+                Gio.Subprocess.new(argv, Gio.SubprocessFlags.NONE);
+                return;
+            } catch (error) {
+                logError(error, `AI Usage Bar: failed to launch ${argv[0]}`);
+            }
+        }
+
+        this._showError(
+            _('No terminal found'),
+            _('Install GNOME Console, GNOME Terminal, or another terminal emulator to run CLI tools from preferences.'),
+        );
+    }
+
+    _shellQuote(value) {
+        return `'${String(value).replaceAll("'", "'\\''")}'`;
+    }
+
+    _terminalCandidates(script) {
+        const byId = {
+            kgx: ['kgx', '--', 'bash', '-lc', script],
+            'gnome-terminal': ['gnome-terminal', '--', 'bash', '-lc', script],
+            'x-terminal-emulator': ['x-terminal-emulator', '-e', 'bash', '-lc', script],
+            konsole: ['konsole', '-e', 'bash', '-lc', script],
+            'xfce4-terminal': ['xfce4-terminal', '-e', `bash -lc ${this._shellQuote(script)}`],
+            alacritty: ['alacritty', '-e', 'bash', '-lc', script],
+            kitty: ['kitty', 'bash', '-lc', script],
+        };
+        const preferred = this._settings.get_string('tools-terminal');
+        const order = ['kgx', 'gnome-terminal', 'x-terminal-emulator', 'konsole', 'xfce4-terminal', 'alacritty', 'kitty'];
+        if (preferred !== 'auto' && byId[preferred])
+            return [byId[preferred], ...order.filter(id => id !== preferred).map(id => byId[id])];
+        return order.map(id => byId[id]);
+    }
+
+    _showError(heading, body) {
+        const dialog = new Adw.MessageDialog({
+            transient_for: this.get_root(),
+            modal: true,
+            heading,
+            body,
+        });
+        dialog.add_response('ok', _('OK'));
+        dialog.present();
     }
 });
 
@@ -1237,7 +1447,7 @@ export default class AIUsageBarPreferences extends ExtensionPreferences {
         window.set_default_size(760, 760);
         window.add(generalPage);
         window.add(providersPage);
-        window.add(new MaintenancePage());
+        window.add(new MaintenancePage(settings));
         if (targetProviderId)
             window.set_visible_page(providersPage);
     }
