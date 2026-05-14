@@ -57,6 +57,18 @@
       <default>'{}'</default>
       <summary>Discovered usage window labels per provider</summary>
     </key>
+    <key name="provider-usage-settings" type="s">
+      <default>'{}'</default>
+      <summary>Extension usage window visibility and panel selection per provider</summary>
+    </key>
+    <key name="reset-time-format" type="s">
+      <default>'smart'</default>
+      <summary>How usage reset times are displayed</summary>
+    </key>
+    <key name="tools-terminal" type="s">
+      <default>'auto'</default>
+      <summary>Preferred terminal emulator for tools commands</summary>
+    </key>
     <key name="accent-color" type="s">
       <default>'#8ab4f8'</default>
       <summary>Normal meter color</summary>

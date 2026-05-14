@@ -5,7 +5,7 @@ import Clutter from 'gi://Clutter';
 import {Extension, gettext as _} from 'resource:///org/gnome/shell/extensions/extension.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
-import {fetchProviderUsage, findCodexbar} from './cli.js';
+import {fetchProviderUsage, findAiUsage} from './cli.js';
 import {enabledProviders, loadConfig, PROVIDER_NAMES, providerBaseId, providerDisplayName, providerKey} from './config.js';
 
 const TIERS = ['primary', 'secondary', 'tertiary', 'quaternary'];
@@ -72,6 +72,8 @@ export default class AIUsageBarExtension extends Extension {
             'panel-index',
             'usage-thresholds',
             'provider-usage-windows',
+            'provider-usage-settings',
+            'reset-time-format',
             'warning-threshold',
             'danger-threshold',
             'limit-threshold',
@@ -258,7 +260,7 @@ export default class AIUsageBarExtension extends Extension {
         if (!this._visibleProviders.length) {
             this._renderMessage(
                 _('No providers enabled'),
-                _('Enable providers in preferences or edit ~/.codexbar/config.json.'),
+                _('Enable providers in preferences or edit ~/.config/ai-usage/config.toml.'),
             );
             return;
         }
@@ -266,10 +268,10 @@ export default class AIUsageBarExtension extends Extension {
         for (const provider of this._visibleProviders)
             this._addProviderSwitch(provider);
 
-        if (!findCodexbar() && this._providerNeedsCodexbar(this._activeProviderConfig())) {
+        if (!findAiUsage() && this._providerNeedsCli(this._activeProviderConfig())) {
             this._renderMessage(
-                _('CodexBar CLI not found'),
-                _('Install it with `brew install steipete/tap/codexbar`, set CODEXBAR_CLI, or use custom command sources.'),
+                _('ai-usage CLI not found'),
+                _('Install ai-usage, add it to PATH, or set AI_USAGE_CLI before GNOME Shell starts.'),
             );
             return;
         }
@@ -382,17 +384,20 @@ export default class AIUsageBarExtension extends Extension {
 
         for (const tier of TIERS) {
             const window = usage[tier];
-            if (window && window.usedPercent !== undefined)
+            if (window && window.usedPercent !== undefined && this._usageWindowVisible(providerId, tier))
                 this._renderUsageWindow(this._windowLabel(tier, window), window);
         }
 
         for (const namedWindow of usage.extraRateWindows || []) {
-            if (namedWindow?.window?.usedPercent !== undefined)
-                this._renderUsageWindow(namedWindow.title || this._windowLabel(namedWindow.id || 'extra', namedWindow.window), namedWindow.window);
+            const id = namedWindow.id || namedWindow.title || 'extra';
+            if (namedWindow?.window?.usedPercent !== undefined && this._usageWindowVisible(providerId, id))
+                this._renderUsageWindow(namedWindow.title || this._windowLabel(id, namedWindow.window), namedWindow.window);
         }
 
-        if (usage.providerCost)
+        if (usage.providerCost && this._usageWindowVisible(providerId, 'extraUsage'))
             this._renderProviderCost(usage.providerCost);
+
+        this._renderMetricLines(providerId, usage);
 
         if (snapshot.credits?.remaining !== undefined)
             this._renderCreditLine(_('Credits: %s left').format(String(snapshot.credits.remaining)));
@@ -434,15 +439,17 @@ export default class AIUsageBarExtension extends Extension {
         const usage = snapshot.usage || {};
         for (const tier of TIERS) {
             const window = usage[tier];
-            if (window && window.usedPercent !== undefined)
+            if (window && window.usedPercent !== undefined && this._usageWindowVisible(key, tier))
                 this._renderUsageWindow(this._windowLabel(tier, window), window);
         }
         for (const namedWindow of usage.extraRateWindows || []) {
-            if (namedWindow?.window?.usedPercent !== undefined)
-                this._renderUsageWindow(namedWindow.title || this._windowLabel(namedWindow.id || 'extra', namedWindow.window), namedWindow.window);
+            const id = namedWindow.id || namedWindow.title || 'extra';
+            if (namedWindow?.window?.usedPercent !== undefined && this._usageWindowVisible(key, id))
+                this._renderUsageWindow(namedWindow.title || this._windowLabel(id, namedWindow.window), namedWindow.window);
         }
-        if (usage.providerCost)
+        if (usage.providerCost && this._usageWindowVisible(key, 'extraUsage'))
             this._renderProviderCost(usage.providerCost);
+        this._renderMetricLines(key, usage);
     }
 
     _renderLoadingProvider(providerId) {
@@ -592,6 +599,26 @@ export default class AIUsageBarExtension extends Extension {
         }));
     }
 
+    _renderMetricLines(providerId, usage) {
+        for (const badge of usage.badges || []) {
+            const id = this._metricLineId('badge', badge.label || badge.text);
+            if (!this._usageWindowVisible(providerId, id))
+                continue;
+            const text = [badge.label, badge.text].filter(Boolean).join(': ');
+            if (text)
+                this._renderCreditLine(text);
+        }
+
+        for (const line of usage.extraTextLines || []) {
+            const id = this._metricLineId('text', line.label || line.value);
+            if (!this._usageWindowVisible(providerId, id))
+                continue;
+            const text = [line.label, line.value].filter(Boolean).join(': ');
+            if (text)
+                this._renderCreditLine(text);
+        }
+    }
+
     _providerCostText(cost) {
         const period = cost.period || _('This month');
         if (cost.currencyCode === 'Quota')
@@ -648,16 +675,22 @@ export default class AIUsageBarExtension extends Extension {
         if (!usage)
             return null;
 
-        const tier = this._activeProviderConfig()?.panelUsageTier || 'auto';
+        const providerId = providerKey(this._activeProviderConfig() || this._activeId);
+        const tier = this._panelUsageTier(providerId);
+        if (tier !== 'auto' && !this._usageWindowVisible(providerId, tier))
+            return this._automaticPanelWindow(usage, providerId);
         if (tier === 'extraUsage')
             return this._providerCostWindow(usage.providerCost) || usage.primary || usage.secondary || null;
+        const extra = (usage.extraRateWindows || []).find(item => (item.id || item.title) === tier);
+        if (extra?.window?.usedPercent !== undefined)
+            return extra.window;
         if (TIERS.includes(tier) && usage[tier]?.usedPercent !== undefined)
             return usage[tier];
-        return this._automaticPanelWindow(usage);
+        return this._automaticPanelWindow(usage, providerId);
     }
 
-    _automaticPanelWindow(usage) {
-        if (usage.primary?.usedPercent >= 100) {
+    _automaticPanelWindow(usage, providerId) {
+        if (usage.primary?.usedPercent >= 100 && this._usageWindowVisible(providerId, 'extraUsage')) {
             const costWindow = this._providerCostWindow(usage.providerCost);
             if (costWindow)
                 return costWindow;
@@ -665,7 +698,7 @@ export default class AIUsageBarExtension extends Extension {
 
         const values = TIERS
             .map(tier => usage[tier])
-            .filter(window => window && window.usedPercent !== undefined)
+            .filter((window, index) => window && window.usedPercent !== undefined && this._usageWindowVisible(providerId, TIERS[index]))
             .map(window => ({
                 ...window,
                 usedPercent: Math.max(0, Math.min(100, Number(window.usedPercent) || 0)),
@@ -774,8 +807,23 @@ export default class AIUsageBarExtension extends Extension {
             if (window && window.usedPercent !== undefined)
                 windows[tier] = this._windowLabel(tier, window);
         }
+        for (const namedWindow of usage.extraRateWindows || []) {
+            const id = namedWindow.id || namedWindow.title;
+            if (id && namedWindow?.window?.usedPercent !== undefined)
+                windows[id] = namedWindow.title || this._windowLabel(id, namedWindow.window);
+        }
         if (usage.providerCost && Number(usage.providerCost.limit) > 0)
             windows.extraUsage = usage.providerCost.currencyCode === 'Quota' ? _('Quota usage') : _('Extra usage');
+        for (const line of usage.extraTextLines || []) {
+            const id = this._metricLineId('text', line.label || line.value);
+            if (id)
+                windows[id] = line.label || line.value;
+        }
+        for (const badge of usage.badges || []) {
+            const id = this._metricLineId('badge', badge.label || badge.text);
+            if (id)
+                windows[id] = badge.label || badge.text;
+        }
 
         if (!Object.keys(windows).length)
             return;
@@ -800,9 +848,68 @@ export default class AIUsageBarExtension extends Extension {
         if (window.resetsAt) {
             const date = new Date(window.resetsAt);
             if (!Number.isNaN(date.getTime()))
-                return _('Resets %s').format(date.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'}));
+                return _('Resets %s').format(this._formatResetDate(date, window));
         }
         return '';
+    }
+
+    _formatResetDate(date, window = null) {
+        const mode = this._settings.get_string('reset-time-format');
+        const now = new Date();
+        const diffSeconds = Math.max(0, Math.round((date.getTime() - now.getTime()) / 1000));
+
+        if (mode === 'relative')
+            return this._relativeResetText(diffSeconds);
+        if (mode === 'time')
+            return date.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
+        if (mode === 'weekday-time')
+            return date.toLocaleDateString([], {weekday: 'short', hour: '2-digit', minute: '2-digit'});
+        if (mode === 'date-time')
+            return date.toLocaleDateString([], {month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'});
+
+        const windowMinutes = Number(window?.windowMinutes || 0);
+        if (windowMinutes >= 7 * 24 * 60)
+            return date.toLocaleDateString([], {weekday: 'short', hour: '2-digit', minute: '2-digit'});
+        if (diffSeconds < 24 * 60 * 60 && date.toDateString() === now.toDateString())
+            return this._relativeResetText(diffSeconds);
+        if (diffSeconds < 7 * 24 * 60 * 60)
+            return date.toLocaleDateString([], {weekday: 'short', hour: '2-digit', minute: '2-digit'});
+        return date.toLocaleDateString([], {month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'});
+    }
+
+    _relativeResetText(seconds) {
+        if (seconds < 60)
+            return _('%ss').format(seconds);
+        if (seconds < 3600)
+            return _('%sm').format(Math.round(seconds / 60));
+        const hours = Math.floor(seconds / 3600);
+        const minutes = Math.round((seconds % 3600) / 60);
+        if (hours < 24)
+            return minutes > 0 ? _('%sh %sm').format(hours, minutes) : _('%sh').format(hours);
+        return _('%sd').format(Math.round(seconds / 86400));
+    }
+
+    _providerUsageSettings(providerId) {
+        try {
+            const parsed = JSON.parse(this._settings.get_string('provider-usage-settings')) || {};
+            return parsed[providerId] || {};
+        } catch {
+            return {};
+        }
+    }
+
+    _panelUsageTier(providerId) {
+        return this._providerUsageSettings(providerId).panelUsageTier || 'auto';
+    }
+
+    _usageWindowVisible(providerId, windowId) {
+        const hidden = this._providerUsageSettings(providerId).hiddenWindows || [];
+        return !hidden.includes(windowId);
+    }
+
+    _metricLineId(type, label) {
+        const safe = String(label || '').trim();
+        return safe ? `${type}:${safe}` : '';
     }
 
     _providerHeading(snapshot, providerId) {
@@ -819,10 +926,8 @@ export default class AIUsageBarExtension extends Extension {
         return PROVIDER_NAMES[id] || id || _('AI');
     }
 
-    _providerNeedsCodexbar(provider) {
+    _providerNeedsCli(provider) {
         if (!provider || provider.customCommand)
-            return false;
-        if (providerBaseId(provider) === 'codex' && Boolean(provider.cookieHeader))
             return false;
         return true;
     }
