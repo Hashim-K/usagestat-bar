@@ -11,6 +11,7 @@ const SOURCE_OPTIONS = ['auto', 'web', 'cli', 'oauth', 'api', 'local'];
 const CUSTOM_PROVIDER_VALUE = '__custom_provider__';
 const EXTENSION_DIR = GLib.path_get_dirname(GLib.filename_from_uri(import.meta.url)[0]);
 const TIERS = ['primary', 'secondary', 'tertiary', 'quaternary'];
+const VALIDATION_TIMEOUT_SECONDS = 90;
 const PANEL_COMPONENTS = [
     ['bar', 'Usage bar'],
     ['percent', 'Usage %'],
@@ -547,6 +548,8 @@ class ProvidersPage extends Adw.PreferencesPage {
         this._settings = settings;
         this._targetProviderId = this._settings.get_string('preferences-provider') || null;
         this._config = loadConfig();
+        this._validationCache = new Map();
+        this._validationInFlight = new Map();
         this._save();
 
         this._enabledList = new Gtk.ListBox({
@@ -756,6 +759,7 @@ class ProvidersPage extends Adw.PreferencesPage {
             this._save();
             this._renderProviders(key);
         });
+        row.add_suffix(this._sourceStatusDot(provider));
         row.add_suffix(enabled);
 
         const nameRow = entryRow(_('Name'), provider.displayName || '', this._name(baseId));
@@ -976,6 +980,7 @@ class ProvidersPage extends Adw.PreferencesPage {
             icon_name: 'list-drag-handle-symbolic',
             tooltip_text: _('Drag to reorder'),
         }));
+        row.add_suffix(this._sourceStatusDot(provider));
 
         const nameRow = entryRow(_('Name'), provider.displayName || '', this._name(providerBaseId(provider)));
         nameRow._entry.connect('changed', () => {
@@ -1029,6 +1034,158 @@ class ProvidersPage extends Adw.PreferencesPage {
         this._config.providers.push(copy);
         this._save();
         this._renderProviders(providerKey(provider));
+    }
+
+    _sourceStatusDot(provider) {
+        const label = new Gtk.Label({
+            use_markup: true,
+            valign: Gtk.Align.CENTER,
+        });
+
+        if (provider.enabled === false) {
+            this._setStatusDot(label, 'orange', _('Disabled'));
+            return label;
+        }
+
+        const cacheKey = this._validationCacheKey(provider);
+        const cached = this._validationCache.get(cacheKey);
+        if (cached) {
+            this._setStatusDot(label, cached.state, cached.message);
+            return label;
+        }
+
+        this._setStatusDot(label, 'orange', _('Checking source...'));
+        this._validateProvider(provider, label);
+        return label;
+    }
+
+    _setStatusDot(label, state, tooltip) {
+        const color = {
+            green: '#33d17a',
+            orange: '#f6d32d',
+            red: '#ff5f57',
+        }[state] || '#f6d32d';
+        label.set_markup(`<span foreground="${color}" size="large">●</span>`);
+        label.set_tooltip_text(tooltip || '');
+    }
+
+    async _validateProvider(provider, label) {
+        const cacheKey = this._validationCacheKey(provider);
+        if (this._validationInFlight.has(cacheKey)) {
+            this._validationInFlight.get(cacheKey).then(result => this._setStatusDot(label, result.state, result.message));
+            return;
+        }
+
+        const promise = this._probeProvider(provider)
+            .then(result => {
+                this._validationCache.set(cacheKey, result);
+                this._validationInFlight.delete(cacheKey);
+                return result;
+            })
+            .catch(error => {
+                const result = {state: 'red', message: error.message || String(error)};
+                this._validationCache.set(cacheKey, result);
+                this._validationInFlight.delete(cacheKey);
+                return result;
+            });
+        this._validationInFlight.set(cacheKey, promise);
+
+        const result = await promise;
+        this._setStatusDot(label, result.state, result.message);
+    }
+
+    async _probeProvider(provider) {
+        const result = await this._runValidationCommand(this._validationArgv(provider));
+        const stdout = result.stdout.trim();
+        const stderr = result.stderr.trim();
+        if (!stdout)
+            return {state: 'red', message: stderr.split('\n')[0] || _('No output from source validation.')};
+
+        let payload;
+        try {
+            payload = JSON.parse(stdout);
+        } catch (error) {
+            return {state: 'red', message: _('Validation returned invalid JSON: %s').format(error.message)};
+        }
+
+        const snapshot = Array.isArray(payload) ? payload[0] : payload;
+        if (snapshot?.source === 'error' || snapshot?.error) {
+            const message = snapshot?.error?.message || snapshot?.error || this._firstErrorMetric(snapshot) || _('Source returned an error.');
+            return {state: 'red', message: String(message)};
+        }
+        if (Array.isArray(snapshot?.metrics) && snapshot.metrics.length)
+            return {state: 'green', message: _('Source validated successfully.')};
+        if (snapshot && typeof snapshot === 'object')
+            return {state: 'orange', message: _('Source responded, but no usage metrics were returned.')};
+        return {state: 'red', message: _('Source validation returned an unexpected response.')};
+    }
+
+    _validationArgv(provider) {
+        if (this._isCustomProvider(provider))
+            return ['bash', '-lc', provider.customCommand || ''];
+
+        const argv = ['ai-usage', '--json-only', 'usage', '--provider', providerBaseId(provider)];
+        if (provider.source && provider.source !== 'auto')
+            argv.push('--source', provider.source);
+        return argv;
+    }
+
+    _runValidationCommand(argv) {
+        return new Promise((resolve, reject) => {
+            if (!argv[0]) {
+                reject(new Error(_('No validation command configured.')));
+                return;
+            }
+
+            const proc = Gio.Subprocess.new(
+                argv,
+                Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE,
+            );
+
+            let timeoutId = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, VALIDATION_TIMEOUT_SECONDS, () => {
+                try {
+                    proc.force_exit();
+                } catch {
+                    // Process may already be gone.
+                }
+                timeoutId = 0;
+                return GLib.SOURCE_REMOVE;
+            });
+
+            proc.communicate_utf8_async(null, null, (process, result) => {
+                if (timeoutId)
+                    GLib.source_remove(timeoutId);
+                try {
+                    const [, stdout, stderr] = process.communicate_utf8_finish(result);
+                    const status = process.get_exit_status();
+                    if (status !== 0)
+                        reject(new Error((stderr || stdout || `Exited with status ${status}`).trim().split('\n')[0]));
+                    else
+                        resolve({stdout: stdout || '', stderr: stderr || ''});
+                } catch (error) {
+                    reject(error);
+                }
+            });
+        });
+    }
+
+    _validationCacheKey(provider) {
+        return JSON.stringify([
+            providerKey(provider),
+            providerBaseId(provider),
+            provider.source || 'auto',
+            provider.customCommand || '',
+            provider.apiKey || '',
+            provider.cookieHeader || '',
+            provider.region || '',
+            provider.workspaceId || '',
+            provider.settings || {},
+        ]);
+    }
+
+    _firstErrorMetric(snapshot) {
+        const metric = (snapshot?.metrics || []).find(item => item?.type === 'badge' && String(item.label || '').toLowerCase().includes('error'));
+        return metric?.text || null;
     }
 
     _addDeleteSourceRow(row, provider) {
