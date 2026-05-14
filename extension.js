@@ -284,7 +284,7 @@ export default class AIUsageBarExtension extends Extension {
         const baseId = providerBaseId(provider);
         const active = id === this._activeId;
         const snapshot = this._usage.get(id);
-        const percent = this._snapshotUsedPercent(snapshot);
+        const percent = this._snapshotUsedPercent(snapshot, id);
         const color = this._colorForUsedPercent(percent);
 
         const box = new St.BoxLayout({
@@ -730,29 +730,29 @@ export default class AIUsageBarExtension extends Extension {
         }));
     }
 
-    _snapshotPercent(snapshot) {
-        const window = this._selectedPanelWindow(snapshot);
+    _snapshotPercent(snapshot, providerId) {
+        const window = this._selectedPanelWindow(snapshot, providerId);
         if (!window)
             return 0;
         return this._displayPercent(window);
     }
 
-    _snapshotUsedPercent(snapshot) {
-        const window = this._selectedPanelWindow(snapshot);
+    _snapshotUsedPercent(snapshot, providerId) {
+        const window = this._selectedPanelWindow(snapshot, providerId);
         if (!window)
             return 0;
         return Math.max(0, Math.min(100, Number(window.usedPercent) || 0));
     }
 
-    _selectedPanelWindow(snapshot) {
+    _selectedPanelWindow(snapshot, providerId) {
         const usage = snapshot?.usage;
         if (!usage)
             return null;
 
-        const providerId = providerKey(this._activeProviderConfig() || this._activeId);
-        const tier = this._panelUsageTier(providerId);
-        if (tier !== 'auto' && !this._usageWindowVisible(providerId, tier))
-            return this._automaticPanelWindow(usage, providerId);
+        const resolvedId = providerId ?? providerKey(this._activeProviderConfig() || this._activeId);
+        const tier = this._panelUsageTier(resolvedId);
+        if (tier !== 'auto' && !this._usageWindowVisible(resolvedId, tier))
+            return this._automaticPanelWindow(usage, resolvedId);
         if (tier === 'extraUsage')
             return this._providerCostWindow(usage.providerCost) || usage.primary || usage.secondary || null;
         const extra = (usage.extraRateWindows || []).find(item => (item.id || item.title) === tier);
@@ -760,7 +760,7 @@ export default class AIUsageBarExtension extends Extension {
             return extra.window;
         if (TIERS.includes(tier) && usage[tier]?.usedPercent !== undefined)
             return usage[tier];
-        return this._automaticPanelWindow(usage, providerId);
+        return this._automaticPanelWindow(usage, resolvedId);
     }
 
     _automaticPanelWindow(usage, providerId) {
@@ -825,7 +825,7 @@ export default class AIUsageBarExtension extends Extension {
     }
 
     _maybeNotifyThreshold(providerId, snapshot) {
-        const percent = this._snapshotUsedPercent(snapshot);
+        const percent = this._snapshotUsedPercent(snapshot, providerId);
         const threshold = this._thresholdForUsedPercent(percent);
         const state = threshold?.id || 'normal';
         if (!this._thresholdStates.has(providerId)) {
