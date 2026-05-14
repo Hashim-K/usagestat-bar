@@ -12,6 +12,7 @@ const CUSTOM_PROVIDER_VALUE = '__custom_provider__';
 const EXTENSION_DIR = GLib.path_get_dirname(GLib.filename_from_uri(import.meta.url)[0]);
 const TIERS = ['primary', 'secondary', 'tertiary', 'quaternary'];
 const VALIDATION_TIMEOUT_SECONDS = 90;
+const VALIDATION_DEBOUNCE_SECONDS = 10;
 const PANEL_COMPONENTS = [
     ['bar', 'Usage bar'],
     ['percent', 'Usage %'],
@@ -550,6 +551,7 @@ class ProvidersPage extends Adw.PreferencesPage {
         this._config = loadConfig();
         this._validationCache = new Map();
         this._validationInFlight = new Map();
+        this._validationDebounceIds = new Map();
         this._save();
 
         this._enabledList = new Gtk.ListBox({
@@ -749,6 +751,7 @@ class ProvidersPage extends Adw.PreferencesPage {
             }));
         }
 
+        const validator = this._sourceValidator(provider);
         const enabled = new Gtk.Switch({
             active: provider.enabled !== false,
             valign: Gtk.Align.CENTER,
@@ -759,7 +762,7 @@ class ProvidersPage extends Adw.PreferencesPage {
             this._save();
             this._renderProviders(key);
         });
-        row.add_suffix(this._sourceStatusDot(provider));
+        row.add_suffix(validator.box);
         row.add_suffix(enabled);
 
         const nameRow = entryRow(_('Name'), provider.displayName || '', this._name(baseId));
@@ -782,7 +785,7 @@ class ProvidersPage extends Adw.PreferencesPage {
             row.add_row(sourceRow);
         }
 
-        this._addRelevantRows(row, provider);
+        this._addRelevantRows(row, provider, validator);
 
         const tierRow = this._usageTierRow(provider);
         row.add_row(tierRow);
@@ -980,7 +983,8 @@ class ProvidersPage extends Adw.PreferencesPage {
             icon_name: 'list-drag-handle-symbolic',
             tooltip_text: _('Drag to reorder'),
         }));
-        row.add_suffix(this._sourceStatusDot(provider));
+        const validator = this._sourceValidator(provider);
+        row.add_suffix(validator.box);
 
         const nameRow = entryRow(_('Name'), provider.displayName || '', this._name(providerBaseId(provider)));
         nameRow._entry.connect('changed', () => {
@@ -1001,7 +1005,7 @@ class ProvidersPage extends Adw.PreferencesPage {
             row.add_row(sourceRow);
         }
 
-        this._addRelevantRows(row, provider);
+        this._addRelevantRows(row, provider, validator);
 
         const deleteRow = new Adw.ActionRow({
             title: _('Delete from tab'),
@@ -1036,30 +1040,46 @@ class ProvidersPage extends Adw.PreferencesPage {
         this._renderProviders(providerKey(provider));
     }
 
-    _sourceStatusDot(provider) {
+    _sourceValidator(provider) {
+        const box = new Gtk.Box({
+            orientation: Gtk.Orientation.HORIZONTAL,
+            spacing: 6,
+            valign: Gtk.Align.CENTER,
+        });
         const label = new Gtk.Label({
             use_markup: true,
             valign: Gtk.Align.CENTER,
         });
+        const button = new Gtk.Button({
+            icon_name: 'view-refresh-symbolic',
+            valign: Gtk.Align.CENTER,
+            tooltip_text: _('Check source now'),
+        });
+        button.add_css_class('flat');
+        button.connect('clicked', () => this._forceValidateProvider(provider, label));
+        box.append(label);
+        box.append(button);
 
         if (provider.enabled === false) {
             this._setStatusDot(label, 'orange', _('Disabled'));
-            return label;
+            return {box, label};
         }
 
         const cacheKey = this._validationCacheKey(provider);
         const cached = this._validationCache.get(cacheKey);
         if (cached) {
             this._setStatusDot(label, cached.state, cached.message);
-            return label;
+            return {box, label};
         }
 
         this._setStatusDot(label, 'orange', _('Checking source...'));
         this._validateProvider(provider, label);
-        return label;
+        return {box, label};
     }
 
     _setStatusDot(label, state, tooltip) {
+        if (!label)
+            return;
         const color = {
             green: '#33d17a',
             orange: '#f6d32d',
@@ -1092,6 +1112,39 @@ class ProvidersPage extends Adw.PreferencesPage {
 
         const result = await promise;
         this._setStatusDot(label, result.state, result.message);
+    }
+
+    _forceValidateProvider(provider, label) {
+        this._clearValidationDebounce(provider);
+        this._validationCache.delete(this._validationCacheKey(provider));
+        if (provider.enabled === false) {
+            this._setStatusDot(label, 'orange', _('Disabled'));
+            return;
+        }
+        this._setStatusDot(label, 'orange', _('Checking source...'));
+        this._validateProvider(provider, label);
+    }
+
+    _scheduleValidation(provider, label) {
+        this._clearValidationDebounce(provider);
+        if (provider.enabled === false)
+            return;
+        this._setStatusDot(label, 'orange', _('Waiting for edits...'));
+        const key = providerKey(provider);
+        const id = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, VALIDATION_DEBOUNCE_SECONDS, () => {
+            this._validationDebounceIds.delete(key);
+            this._forceValidateProvider(provider, label);
+            return GLib.SOURCE_REMOVE;
+        });
+        this._validationDebounceIds.set(key, id);
+    }
+
+    _clearValidationDebounce(provider) {
+        const key = providerKey(provider);
+        const id = this._validationDebounceIds.get(key);
+        if (id)
+            GLib.source_remove(id);
+        this._validationDebounceIds.delete(key);
     }
 
     async _probeProvider(provider) {
@@ -1212,7 +1265,7 @@ class ProvidersPage extends Adw.PreferencesPage {
         this._renderProviders(expandedId);
     }
 
-    _addRelevantRows(row, provider) {
+    _addRelevantRows(row, provider, validator = null) {
         const source = provider.source || 'auto';
         const baseId = providerBaseId(provider);
 
@@ -1220,6 +1273,7 @@ class ProvidersPage extends Adw.PreferencesPage {
             const commandRow = entryRow(_('CLI command'), provider.customCommand || '', _('Command that prints ai-usage-style usage JSON'));
             commandRow._entry.connect('changed', () => {
                 this._assignOptional(provider, 'customCommand', commandRow._entry.get_text());
+                this._scheduleValidation(provider, validator?.label);
             });
             row.add_row(commandRow);
 
@@ -1235,6 +1289,7 @@ class ProvidersPage extends Adw.PreferencesPage {
             const apiKeyRow = entryRow(_('API key'), provider.apiKey || '', _('Provider API token'), true);
             apiKeyRow._entry.connect('changed', () => {
                 this._assignOptional(provider, 'apiKey', apiKeyRow._entry.get_text());
+                this._scheduleValidation(provider, validator?.label);
             });
             row.add_row(apiKeyRow);
         }
@@ -1243,52 +1298,54 @@ class ProvidersPage extends Adw.PreferencesPage {
             const cookieHeaderRow = entryRow(_('Cookie header'), provider.cookieHeader || '', _('name=value; other=value'), true);
             cookieHeaderRow._entry.connect('changed', () => {
                 this._assignOptional(provider, 'cookieHeader', cookieHeaderRow._entry.get_text());
-            });
-            row.add_row(cookieHeaderRow);
-
-            const importRow = new Adw.ActionRow({
-                title: _('Auto cookie scraping'),
-                subtitle: _('Import browser cookies for ChatGPT/OpenAI sessions.'),
+                this._scheduleValidation(provider, validator?.label);
             });
             const importButton = new Gtk.Button({
-                label: _('Import'),
+                icon_name: 'folder-download-symbolic',
                 valign: Gtk.Align.CENTER,
+                tooltip_text: _('Import browser cookies'),
                 css_classes: ['suggested-action'],
             });
-            importButton.connect('clicked', () => this._importCookies(provider, cookieHeaderRow._entry));
-            importRow.add_suffix(importButton);
-            row.add_row(importRow);
+            importButton.connect('clicked', () => this._importCookies(provider, cookieHeaderRow._entry, validator?.label));
+            cookieHeaderRow.add_suffix(importButton);
+            row.add_row(cookieHeaderRow);
         }
 
         if (source === 'cli') {
-            this._addSettingEntry(row, provider, 'profile', _('CLI profile'), _('Optional provider CLI profile'));
-            this._addSettingEntry(row, provider, 'path', _('CLI path'), _('Optional config, database, or executable path'));
+            this._addSettingEntry(row, provider, 'profile', _('CLI profile'), _('Optional provider CLI profile'), validator);
+            this._addSettingEntry(row, provider, 'path', _('CLI path'), _('Optional config, database, or executable path'), validator);
         }
 
         if (source === 'oauth') {
-            this._addSettingEntry(row, provider, 'account', _('OAuth account'), _('Optional account label'));
-            this._addSettingEntry(row, provider, 'tokenPath', _('Token path'), _('Optional OAuth token file'));
+            this._addSettingEntry(row, provider, 'account', _('OAuth account'), _('Optional account label'), validator);
+            this._addSettingEntry(row, provider, 'tokenPath', _('Token path'), _('Optional OAuth token file'), validator);
         }
 
         if (source === 'local') {
-            this._addSettingEntry(row, provider, 'path', _('Local path'), _('Optional local database, cache, or log path'));
-            this._addSettingEntry(row, provider, 'project', _('Project'), _('Optional project or workspace label'));
+            this._addSettingEntry(row, provider, 'path', _('Local path'), _('Optional local database, cache, or log path'), validator);
+            this._addSettingEntry(row, provider, 'project', _('Project'), _('Optional project or workspace label'), validator);
         }
 
         if (['zai', 'minimax', 'doubao'].includes(baseId)) {
             const regionRow = entryRow(_('Region'), provider.region || '', _('Provider-specific region'));
-            regionRow._entry.connect('changed', () => this._assignOptional(provider, 'region', regionRow._entry.get_text()));
+            regionRow._entry.connect('changed', () => {
+                this._assignOptional(provider, 'region', regionRow._entry.get_text());
+                this._scheduleValidation(provider, validator?.label);
+            });
             row.add_row(regionRow);
         }
 
         if (['opencode-go', 'openai-api'].includes(baseId)) {
             const workspaceRow = entryRow(_('Workspace ID'), provider.workspaceId || '', _('Provider-specific workspace'));
-            workspaceRow._entry.connect('changed', () => this._assignOptional(provider, 'workspaceId', workspaceRow._entry.get_text()));
+            workspaceRow._entry.connect('changed', () => {
+                this._assignOptional(provider, 'workspaceId', workspaceRow._entry.get_text());
+                this._scheduleValidation(provider, validator?.label);
+            });
             row.add_row(workspaceRow);
         }
     }
 
-    _addSettingEntry(row, provider, key, title, placeholder) {
+    _addSettingEntry(row, provider, key, title, placeholder, validator = null) {
         const settings = provider.settings || {};
         const settingRow = entryRow(title, settings[key] || '', placeholder);
         settingRow._entry.connect('changed', () => {
@@ -1301,11 +1358,12 @@ class ProvidersPage extends Adw.PreferencesPage {
             if (!Object.keys(provider.settings).length)
                 delete provider.settings;
             this._save();
+            this._scheduleValidation(provider, validator?.label);
         });
         row.add_row(settingRow);
     }
 
-    async _importCookies(provider, entry) {
+    async _importCookies(provider, entry, validationLabel = null) {
         const path = GLib.build_filenamev([EXTENSION_DIR, 'cookie_importer.py']);
 
         try {
@@ -1332,6 +1390,7 @@ class ProvidersPage extends Adw.PreferencesPage {
                 provider.cookieHeader = payload.cookie_header;
                 entry.set_text(payload.cookie_header);
                 this._save();
+                this._forceValidateProvider(provider, validationLabel);
             } else {
                 throw new Error(payload.details || payload.message || payload.error || _('No browser cookies found.'));
             }
