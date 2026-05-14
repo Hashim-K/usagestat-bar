@@ -265,7 +265,7 @@ function formatConfigToml(config) {
     for (const provider of normalized.providers) {
         lines.push('[[providers]]');
         lines.push(`id = ${quoteTomlString(provider.id)}`);
-        for (const key of ['instanceId', 'tabParent', 'displayName', 'source', 'customCommand', 'apiKey', 'cookieHeader', 'region', 'workspaceId']) {
+        for (const key of ['instanceId', 'tabParent', 'displayName', 'source', 'customCommand', 'apiKey', 'cookieHeader', 'region', 'workspaceId', 'loginUrl']) {
             if (provider[key] !== undefined && provider[key] !== null && String(provider[key]).trim())
                 lines.push(`${key} = ${formatTomlValue(provider[key])}`);
         }

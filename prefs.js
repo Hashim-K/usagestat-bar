@@ -5,11 +5,11 @@ import Gdk from 'gi://Gdk';
 import Gtk from 'gi://Gtk';
 import Adw from 'gi://Adw';
 import {ExtensionPreferences, gettext as _} from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
+import {findAiUsage} from './cli.js';
 import {loadConfig, makeProviderInstanceId, providerBaseId, providerDisplayName, providerKey, PROVIDERS, saveConfig} from './config.js';
 
 const SOURCE_OPTIONS = ['auto', 'web', 'cli', 'oauth', 'api', 'local'];
 const CUSTOM_PROVIDER_VALUE = '__custom_provider__';
-const EXTENSION_DIR = GLib.path_get_dirname(GLib.filename_from_uri(import.meta.url)[0]);
 const TIERS = ['primary', 'secondary', 'tertiary', 'quaternary'];
 const VALIDATION_TIMEOUT_SECONDS = 90;
 const VALIDATION_DEBOUNCE_SECONDS = 10;
@@ -24,6 +24,24 @@ const DEFAULT_THRESHOLDS = [
     {id: 'danger', label: 'Danger', percent: 90, color: '#ff5f57', notify: false},
     {id: 'limit', label: 'Limit reached', percent: 100, color: '#ff2d55', notify: false},
 ];
+const PROVIDER_LOGIN_URLS = {
+    augment: 'https://app.augmentcode.com/account',
+    claude: 'https://claude.ai/',
+    codebuff: 'https://www.codebuff.com/usage',
+    codex: 'https://chatgpt.com/',
+    crof: 'https://crof.ai',
+    cursor: 'https://www.cursor.com/dashboard',
+    deepseek: 'https://platform.deepseek.com/usage',
+    doubao: 'https://console.volcengine.com/ark/region:ark+cn-beijing/usage',
+    kilo: 'https://app.kilo.ai/usage',
+    'kimi-k2': 'https://platform.moonshot.cn',
+    mistral: 'https://admin.mistral.ai/organization/usage',
+    nanogpt: 'https://nano-gpt.com/usage',
+    ollama: 'https://ollama.com/settings',
+    'openai-api': 'https://platform.openai.com/usage',
+    'opencode-go': 'https://opencode.ai/auth',
+    synthetic: 'https://synthetic.new/billing',
+};
 
 function combo(strings, selectedValue) {
     const row = new Adw.ComboRow({
@@ -36,11 +54,19 @@ function combo(strings, selectedValue) {
 
 function entryRow(title, value, placeholder, secret = false) {
     const row = new Adw.ActionRow({title});
-    const entry = secret
-        ? new Gtk.PasswordEntry({text: value || '', placeholder_text: placeholder || ''})
-        : new Gtk.Entry({text: value || '', placeholder_text: placeholder || '', hexpand: true});
+    let entry;
+    if (secret) {
+        entry = new Gtk.PasswordEntry({
+            text: value || '',
+            placeholder_text: placeholder || '',
+            show_peek_icon: true,
+            hexpand: true,
+        });
+    } else {
+        entry = new Gtk.Entry({text: value || '', placeholder_text: placeholder || '', hexpand: true});
+        entry.width_chars = 34;
+    }
     entry.valign = Gtk.Align.CENTER;
-    entry.width_chars = 34;
     row.add_suffix(entry);
     row.activatable_widget = entry;
     row._entry = entry;
@@ -552,7 +578,9 @@ class ProvidersPage extends Adw.PreferencesPage {
         this._validationCache = new Map();
         this._validationInFlight = new Map();
         this._validationDebounceIds = new Map();
+        this._manifests = new Map();
         this._save();
+        this._loadProviderManifests();
 
         this._enabledList = new Gtk.ListBox({
             selection_mode: Gtk.SelectionMode.NONE,
@@ -599,6 +627,41 @@ class ProvidersPage extends Adw.PreferencesPage {
         return provider;
     }
 
+    async _loadProviderManifests() {
+        const binary = findAiUsage();
+        if (!binary)
+            return;
+        try {
+            const result = await this._runValidationCommand([binary, 'list', '--json']);
+            const providers = JSON.parse(result.stdout.trim());
+            if (!Array.isArray(providers))
+                return;
+            this._manifests = new Map(providers.map(p => [p.id, p]));
+            this._renderProviders(null);
+        } catch {
+            // Non-critical; fall back to showing all source options.
+        }
+    }
+
+    _manifest(baseId) {
+        return this._manifests.get(baseId) || null;
+    }
+
+    _supportedSourceOptions(baseId) {
+        const manifest = this._manifest(baseId);
+        if (!Array.isArray(manifest?.supportedModes) || !manifest.supportedModes.length)
+            return SOURCE_OPTIONS;
+        const supported = new Set(manifest.supportedModes);
+        return SOURCE_OPTIONS.filter(mode => mode === 'auto' || supported.has(mode));
+    }
+
+    _effectiveSource(provider) {
+        const source = provider.source || 'auto';
+        if (source !== 'auto')
+            return source;
+        return this._manifest(providerBaseId(provider))?.autoMode || 'auto';
+    }
+
     _buildAddProviderSourceRow() {
         const row = new Adw.ExpanderRow({
             title: _('Add Provider Source'),
@@ -638,7 +701,7 @@ class ProvidersPage extends Adw.PreferencesPage {
         });
         addButton.connect('clicked', () => {
             const selected = providerValues[providerRow.selected] || providerValues[0];
-            const source = SOURCE_OPTIONS[sourceRow.selected] || 'auto';
+            const source = sourceRow._values[sourceRow.selected] || 'auto';
             if (this._addProviderSource(selected, nameRow._entry.get_text(), commandRow._entry.get_text(), source)) {
                 nameRow._entry.set_text('');
                 commandRow._entry.set_text('');
@@ -649,12 +712,21 @@ class ProvidersPage extends Adw.PreferencesPage {
         row.add_row(addRow);
 
         const syncCommandState = () => {
-            const isCustom = providerValues[providerRow.selected] === CUSTOM_PROVIDER_VALUE;
+            const selectedId = providerValues[providerRow.selected];
+            const isCustom = selectedId === CUSTOM_PROVIDER_VALUE;
             commandRow.set_sensitive(isCustom);
             sourceRow.set_sensitive(!isCustom);
             commandRow.subtitle = isCustom
                 ? _('Required. The command must print a single JSON object or an array with one usage object.')
                 : _('Only used for custom CLI sources.');
+
+            if (!isCustom) {
+                const options = this._supportedSourceOptions(selectedId);
+                const current = sourceRow._values?.[sourceRow.selected] || 'auto';
+                sourceRow.set_model(new Gtk.StringList({strings: options}));
+                sourceRow._values = options;
+                sourceRow.selected = Math.max(0, options.indexOf(current));
+            }
         };
         providerRow.connect('notify::selected', syncCommandState);
         syncCommandState();
@@ -716,14 +788,18 @@ class ProvidersPage extends Adw.PreferencesPage {
         while (this._disabledList.get_first_child())
             this._disabledList.remove(this._disabledList.get_first_child());
 
+        const disabled = [];
         for (const provider of this._orderedProviders()) {
             if (provider.tabParent)
                 continue;
             if (provider.enabled === false)
-                this._disabledList.append(this._buildProviderListRow(provider, expandedId, false));
+                disabled.push(provider);
             else
                 this._enabledList.append(this._buildProviderListRow(provider, expandedId, true));
         }
+        disabled.sort((a, b) => this._name(a).localeCompare(this._name(b)));
+        for (const provider of disabled)
+            this._disabledList.append(this._buildProviderListRow(provider, expandedId, false));
     }
 
     _orderedProviders() {
@@ -773,19 +849,10 @@ class ProvidersPage extends Adw.PreferencesPage {
         row.add_row(nameRow);
 
         if (!this._isCustomProvider(provider)) {
-            const sourceRow = combo(SOURCE_OPTIONS, provider.source || 'auto');
-            sourceRow.title = _('Source');
-            sourceRow.subtitle = this._sourceSubtitle(baseId, provider.source || 'auto');
-            sourceRow.connect('notify::selected', () => {
-                provider.source = SOURCE_OPTIONS[sourceRow.selected] || 'auto';
-                row.set_subtitle(this._subtitle(provider));
-                this._save();
-                this._renderProviders(key);
-            });
-            row.add_row(sourceRow);
+            row.add_row(this._buildSourceExpanderRow(provider, row, validator));
+        } else {
+            this._addRelevantRows(row, provider, validator);
         }
-
-        this._addRelevantRows(row, provider, validator);
 
         const tierRow = this._usageTierRow(provider);
         row.add_row(tierRow);
@@ -994,18 +1061,10 @@ class ProvidersPage extends Adw.PreferencesPage {
         row.add_row(nameRow);
 
         if (!this._isCustomProvider(provider)) {
-            const sourceRow = combo(SOURCE_OPTIONS, provider.source || 'auto');
-            sourceRow.title = _('Source');
-            sourceRow.connect('notify::selected', () => {
-                provider.source = SOURCE_OPTIONS[sourceRow.selected] || 'auto';
-                row.set_subtitle(this._subtitle(provider));
-                this._save();
-                this._renderProviders(parentKey);
-            });
-            row.add_row(sourceRow);
+            row.add_row(this._buildSourceExpanderRow(provider, row, validator));
+        } else {
+            this._addRelevantRows(row, provider, validator);
         }
-
-        this._addRelevantRows(row, provider, validator);
 
         const deleteRow = new Adw.ActionRow({
             title: _('Delete from tab'),
@@ -1265,8 +1324,52 @@ class ProvidersPage extends Adw.PreferencesPage {
         this._renderProviders(expandedId);
     }
 
+    _buildSourceExpanderRow(provider, parentRow, validator) {
+        const baseId = providerBaseId(provider);
+        const sourceOptions = this._supportedSourceOptions(baseId);
+        const currentSource = provider.source || 'auto';
+
+        const expander = new Adw.ExpanderRow({
+            title: _('Source'),
+            subtitle: this._sourceSubtitle(baseId, currentSource),
+        });
+
+        const valueLabel = new Gtk.Label({
+            label: currentSource,
+            css_classes: ['dim-label'],
+            valign: Gtk.Align.CENTER,
+        });
+        expander.add_suffix(valueLabel);
+
+        const modeRow = combo(sourceOptions, currentSource);
+        modeRow.title = _('Mode');
+        expander.add_row(modeRow);
+
+        let trackedRows = [];
+        const rebuildRows = () => {
+            for (const r of trackedRows)
+                expander.remove(r);
+            trackedRows = [];
+            const sink = {add_row: r => { expander.add_row(r); trackedRows.push(r); }};
+            this._addRelevantRows(sink, provider, validator);
+        };
+
+        rebuildRows();
+
+        modeRow.connect('notify::selected', () => {
+            provider.source = modeRow._values[modeRow.selected] || 'auto';
+            valueLabel.set_label(provider.source);
+            expander.set_subtitle(this._sourceSubtitle(baseId, provider.source));
+            parentRow?.set_subtitle(this._subtitle(provider));
+            this._save();
+            rebuildRows();
+        });
+
+        return expander;
+    }
+
     _addRelevantRows(row, provider, validator = null) {
-        const source = provider.source || 'auto';
+        const effectiveSource = this._effectiveSource(provider);
         const baseId = providerBaseId(provider);
 
         if (this._isCustomProvider(provider)) {
@@ -1285,7 +1388,7 @@ class ProvidersPage extends Adw.PreferencesPage {
             return;
         }
 
-        if (source === 'api') {
+        if (effectiveSource === 'api') {
             const apiKeyRow = entryRow(_('API key'), provider.apiKey || '', _('Provider API token'), true);
             apiKeyRow._entry.connect('changed', () => {
                 this._assignOptional(provider, 'apiKey', apiKeyRow._entry.get_text());
@@ -1294,7 +1397,7 @@ class ProvidersPage extends Adw.PreferencesPage {
             row.add_row(apiKeyRow);
         }
 
-        if (source === 'web') {
+        if (effectiveSource === 'web') {
             const cookieHeaderRow = entryRow(_('Cookie header'), provider.cookieHeader || '', _('name=value; other=value'), true);
             cookieHeaderRow._entry.connect('changed', () => {
                 this._assignOptional(provider, 'cookieHeader', cookieHeaderRow._entry.get_text());
@@ -1307,21 +1410,31 @@ class ProvidersPage extends Adw.PreferencesPage {
                 css_classes: ['suggested-action'],
             });
             importButton.connect('clicked', () => this._importCookies(provider, cookieHeaderRow._entry, validator?.label));
+            const loginUrl = this._providerLoginUrl(provider);
+            if (loginUrl) {
+                const loginButton = new Gtk.Button({
+                    icon_name: 'web-browser-symbolic',
+                    valign: Gtk.Align.CENTER,
+                    tooltip_text: _('Open provider login'),
+                });
+                loginButton.connect('clicked', () => this._openProviderLogin(provider));
+                cookieHeaderRow.add_suffix(loginButton);
+            }
             cookieHeaderRow.add_suffix(importButton);
             row.add_row(cookieHeaderRow);
         }
 
-        if (source === 'cli') {
+        if (effectiveSource === 'cli') {
             this._addSettingEntry(row, provider, 'profile', _('CLI profile'), _('Optional provider CLI profile'), validator);
             this._addSettingEntry(row, provider, 'path', _('CLI path'), _('Optional config, database, or executable path'), validator);
         }
 
-        if (source === 'oauth') {
+        if (effectiveSource === 'oauth') {
             this._addSettingEntry(row, provider, 'account', _('OAuth account'), _('Optional account label'), validator);
             this._addSettingEntry(row, provider, 'tokenPath', _('Token path'), _('Optional OAuth token file'), validator);
         }
 
-        if (source === 'local') {
+        if (effectiveSource === 'local') {
             this._addSettingEntry(row, provider, 'path', _('Local path'), _('Optional local database, cache, or log path'), validator);
             this._addSettingEntry(row, provider, 'project', _('Project'), _('Optional project or workspace label'), validator);
         }
@@ -1364,39 +1477,171 @@ class ProvidersPage extends Adw.PreferencesPage {
     }
 
     async _importCookies(provider, entry, validationLabel = null) {
-        const path = GLib.build_filenamev([EXTENSION_DIR, 'cookie_importer.py']);
-
         try {
-            const proc = Gio.Subprocess.new(
-                ['python3', path],
-                Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE,
-            );
-            const [, stdout, stderr] = await new Promise((resolve, reject) => {
-                proc.communicate_utf8_async(null, null, (process, result) => {
-                    try {
-                        resolve(process.communicate_utf8_finish(result));
-                    } catch (error) {
-                        reject(error);
-                    }
-                });
-            });
+            const binary = findAiUsage();
+            if (!binary)
+                throw new Error(_('ai-usage CLI was not found on PATH or in common install locations.'));
+
+            const {stdout, stderr, status} = await this._runCookieImportCommand([
+                binary,
+                'auth',
+                'import-cookies',
+                '--provider',
+                providerBaseId(provider),
+                '--format',
+                'json',
+            ]);
 
             const text = stdout.trim();
             if (!text)
                 throw new Error(stderr.trim() || _('No cookies were imported.'));
 
-            const payload = JSON.parse(text);
-            if (payload.cookie_header) {
-                provider.cookieHeader = payload.cookie_header;
-                entry.set_text(payload.cookie_header);
-                this._save();
-                this._forceValidateProvider(provider, validationLabel);
-            } else {
-                throw new Error(payload.details || payload.message || payload.error || _('No browser cookies found.'));
+            const parsed = JSON.parse(text);
+            const payload = Array.isArray(parsed) ? parsed[0] : parsed;
+            const message = this._cookieImportErrorMessage(payload, stderr.trim());
+            if (status !== 0) {
+                if (this._isCookieSessionNotFound(payload)) {
+                    this._showCookieLoginDialog(message, provider, entry, validationLabel);
+                    return;
+                }
+                throw new Error(message);
             }
+
+            const cookieHeader = payload?.cookieHeader || payload?.cookie_header || '';
+            if (!cookieHeader)
+                throw new Error(message);
+
+            provider.cookieHeader = cookieHeader;
+            entry.set_text(cookieHeader);
+            this._save();
+            this._forceValidateProvider(provider, validationLabel);
         } catch (error) {
             this._showError(_('Could not import cookies'), error.message || String(error));
         }
+    }
+
+    _isCookieSessionNotFound(payload) {
+        const error = payload?.error;
+        const code = typeof error === 'string' ? error : error?.code;
+        return code === 'SESSION_NOT_FOUND';
+    }
+
+    _cookieImportErrorMessage(payload, stderr = '') {
+        const error = payload?.error;
+        const candidates = [
+            payload?.message,
+            payload?.details,
+            error?.message,
+            error?.details,
+            typeof error === 'string' ? error : null,
+            error?.code,
+            stderr,
+            _('No browser cookies found.'),
+        ];
+        return String(candidates.find(item => item !== undefined && item !== null && String(item).trim()) || '').trim();
+    }
+
+    _showCookieLoginDialog(message, provider, entry, validationLabel = null) {
+        const loginUrl = this._providerLoginUrl(provider);
+        const dialog = new Adw.MessageDialog({
+            transient_for: this.get_root(),
+            modal: true,
+            heading: _('Could not import cookies'),
+            body: message || _('No usable ChatGPT/OpenAI browser cookies found.'),
+        });
+        dialog.add_response('cancel', _('Cancel'));
+        if (loginUrl)
+            dialog.add_response('login', _('Open Login'));
+        dialog.add_response('rescan', _('Rescan'));
+        dialog.set_default_response(loginUrl ? 'login' : 'rescan');
+        dialog.set_close_response('cancel');
+        if (loginUrl)
+            dialog.set_response_appearance('login', Adw.ResponseAppearance.SUGGESTED);
+        else
+            dialog.set_response_appearance('rescan', Adw.ResponseAppearance.SUGGESTED);
+
+        dialog.connect('response', (_dialog, response) => {
+            if (response === 'login') {
+                this._openProviderLogin(provider);
+                this._showCookieRescanDialog(provider, entry, validationLabel);
+            } else if (response === 'rescan') {
+                this._importCookies(provider, entry, validationLabel);
+            }
+        });
+        dialog.present();
+    }
+
+    _showCookieRescanDialog(provider, entry, validationLabel = null) {
+        const dialog = new Adw.MessageDialog({
+            transient_for: this.get_root(),
+            modal: true,
+            heading: _('Import browser cookies'),
+            body: _('After signing in to %s in the browser, rescan for cookies.').format(this._name(provider)),
+        });
+        dialog.add_response('cancel', _('Cancel'));
+        dialog.add_response('rescan', _('Rescan'));
+        dialog.set_default_response('rescan');
+        dialog.set_close_response('cancel');
+        dialog.set_response_appearance('rescan', Adw.ResponseAppearance.SUGGESTED);
+        dialog.connect('response', (_dialog, response) => {
+            if (response === 'rescan')
+                this._importCookies(provider, entry, validationLabel);
+        });
+        dialog.present();
+    }
+
+    _providerLoginUrl(provider) {
+        const baseId = providerBaseId(provider);
+        const manifest = this._manifest(baseId);
+        return provider?.loginUrl || provider?.settings?.loginUrl || manifest?.webUrl || PROVIDER_LOGIN_URLS[baseId] || '';
+    }
+
+    _openProviderLogin(provider) {
+        const url = this._providerLoginUrl(provider);
+        if (!url) {
+            this._showError(_('No login URL configured'), _('No login URL is available for this provider.'));
+            return;
+        }
+        try {
+            Gio.app_info_launch_default_for_uri(url, null);
+        } catch (error) {
+            logError(error, 'AI Usage Bar: failed to open provider login');
+            this._showError(_('Could not open browser'), error.message || String(error));
+        }
+    }
+
+    _runCookieImportCommand(argv) {
+        return new Promise((resolve, reject) => {
+            const proc = Gio.Subprocess.new(
+                argv,
+                Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE,
+            );
+
+            let timeoutId = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, VALIDATION_TIMEOUT_SECONDS, () => {
+                try {
+                    proc.force_exit();
+                } catch {
+                    // Process may already be gone.
+                }
+                timeoutId = 0;
+                return GLib.SOURCE_REMOVE;
+            });
+
+            proc.communicate_utf8_async(null, null, (process, result) => {
+                if (timeoutId)
+                    GLib.source_remove(timeoutId);
+                try {
+                    const [, stdout, stderr] = process.communicate_utf8_finish(result);
+                    resolve({
+                        stdout: stdout || '',
+                        stderr: stderr || '',
+                        status: process.get_exit_status(),
+                    });
+                } catch (error) {
+                    reject(error);
+                }
+            });
+        });
     }
 
     _setupDragAndDrop(listRow) {
