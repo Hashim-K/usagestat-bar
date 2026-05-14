@@ -1521,16 +1521,8 @@ class MaintenancePage extends Adw.PreferencesPage {
             description: _('Choose which terminal emulator opens Tools commands.'),
         });
 
-        const options = [
-            ['auto', _('Auto')],
-            ['kgx', _('GNOME Console')],
-            ['gnome-terminal', _('GNOME Terminal')],
-            ['x-terminal-emulator', _('System default terminal')],
-            ['konsole', _('Konsole')],
-            ['xfce4-terminal', _('Xfce Terminal')],
-            ['alacritty', _('Alacritty')],
-            ['kitty', _('Kitty')],
-        ];
+        const detected = this._terminalOptions();
+        const options = [['auto', _('Auto')], ...detected];
         const values = options.map(([value]) => value);
         const labels = options.map(([, label]) => label);
         const selected = values.includes(this._settings.get_string('tools-terminal'))
@@ -1542,6 +1534,13 @@ class MaintenancePage extends Adw.PreferencesPage {
             this._settings.set_string('tools-terminal', values[row.selected] || 'auto');
         });
         group.add(row);
+
+        if (!detected.length) {
+            group.add(new Adw.ActionRow({
+                title: _('No terminal detected'),
+                subtitle: _('Install a terminal emulator to run CLI tools from preferences.'),
+            }));
+        }
 
         return group;
     }
@@ -1636,10 +1635,22 @@ class MaintenancePage extends Adw.PreferencesPage {
             kitty: ['kitty', 'bash', '-lc', script],
         };
         const preferred = this._settings.get_string('tools-terminal');
-        const order = ['kgx', 'gnome-terminal', 'x-terminal-emulator', 'konsole', 'xfce4-terminal', 'alacritty', 'kitty'];
+        const order = this._terminalOptions().map(([id]) => id);
         if (preferred !== 'auto' && byId[preferred])
             return [byId[preferred], ...order.filter(id => id !== preferred).map(id => byId[id])];
         return order.map(id => byId[id]);
+    }
+
+    _terminalOptions() {
+        return [
+            ['kgx', _('GNOME Console')],
+            ['gnome-terminal', _('GNOME Terminal')],
+            ['x-terminal-emulator', _('System default terminal')],
+            ['konsole', _('Konsole')],
+            ['xfce4-terminal', _('Xfce Terminal')],
+            ['alacritty', _('Alacritty')],
+            ['kitty', _('Kitty')],
+        ].filter(([id]) => GLib.find_program_in_path(id));
     }
 
     _showError(heading, body) {
