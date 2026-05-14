@@ -1,11 +1,11 @@
 # AI Usage Bar
 
-GNOME Shell extension for the Linux `codexbar` CLI. It mirrors CodexBar's provider ordering, enabled state, usage JSON, source selection, cookies, API keys, and token settings through `~/.codexbar/config.json`.
+GNOME Shell extension for the `ai-usage` CLI. It shows normalized provider usage from `ai-usage --json-only usage --provider ...` and edits enabled provider state in `~/.config/ai-usage/config.toml`.
 
 ## Install
 
 ```bash
-brew install steipete/tap/codexbar
+cargo install --path /path/to/ai-usage-backend/crates/ai-usage-cli
 ./install.sh
 ```
 
@@ -16,11 +16,11 @@ Restart GNOME Shell on X11 with `Alt+F2`, `r`, Enter. On Wayland, log out and ba
 - Shows a compact panel usage meter with remaining/used modes.
 - Supports GNOME panel placement: left, center, right, plus position index.
 - Adds configurable normal, warning, danger, and neutral colors.
-- Uses the installed `codexbar` CLI, so provider support follows upstream CodexBar.
-- Edits `~/.codexbar/config.json` from provider controls in preferences.
+- Uses the installed `ai-usage` CLI, so provider support follows the backend plugin set.
+- Edits enabled provider state in `~/.config/ai-usage/config.toml` from preferences.
 - Keeps the config file private when saving.
 
-If the CLI is installed somewhere unusual, set `CODEXBAR_CLI=/path/to/codexbar` before GNOME Shell starts.
+If the CLI is installed somewhere unusual, set `AI_USAGE_CLI=/path/to/ai-usage` before GNOME Shell starts.
 
 ## Development Test
 

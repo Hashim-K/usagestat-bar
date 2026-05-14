@@ -51,6 +51,6 @@
 - [ ] Improve provider-specific settings:
   - [ ] Better provider-specific add/setup actions.
   - [ ] Provider icons in preferences.
-  - [ ] Presets for direct Anthropic/OpenAI usage APIs beyond CodexBar-style command output.
+  - [ ] Presets for direct Anthropic/OpenAI usage APIs beyond ai-usage-style command output.
 - [ ] Add visual QA screenshots for the popup and preferences pages.
 - [ ] Document the GNOME 50 development workflow in README.

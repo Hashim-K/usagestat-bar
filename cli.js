@@ -1,20 +1,18 @@
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
-import {UsageApiClient} from './usageApi.js';
 import {providerBaseId} from './config.js';
-import {loadLegacyToken} from './secret.js';
 
 const COMMAND_TIMEOUT_SECONDS = 90;
 
-export function findCodexbar() {
+export function findAiUsage() {
     const paths = [
-        GLib.getenv('CODEXBAR_CLI'),
-        '/home/linuxbrew/.linuxbrew/bin/codexbar',
-        `${GLib.get_home_dir()}/.linuxbrew/bin/codexbar`,
-        `${GLib.get_home_dir()}/.local/bin/codexbar`,
-        '/opt/homebrew/bin/codexbar',
-        '/usr/local/bin/codexbar',
-        '/usr/bin/codexbar',
+        GLib.getenv('AI_USAGE_CLI'),
+        `${GLib.get_home_dir()}/.local/bin/ai-usage`,
+        '/home/linuxbrew/.linuxbrew/bin/ai-usage',
+        `${GLib.get_home_dir()}/.linuxbrew/bin/ai-usage`,
+        '/opt/homebrew/bin/ai-usage',
+        '/usr/local/bin/ai-usage',
+        '/usr/bin/ai-usage',
     ].filter(Boolean);
 
     for (const path of paths) {
@@ -24,7 +22,7 @@ export function findCodexbar() {
 
     try {
         const proc = Gio.Subprocess.new(
-            ['bash', '-lc', 'command -v codexbar'],
+            ['bash', '-lc', 'command -v ai-usage'],
             Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE,
         );
         const [, stdout] = proc.communicate_utf8(null, null);
@@ -77,34 +75,34 @@ export async function fetchProviderUsage(provider, cancellable) {
     if (provider?.customCommand || provider?.custom === true || provider?.source === 'custom')
         return fetchCustomCommandUsage(provider, cancellable);
 
-    const binary = findCodexbar();
+    const binary = findAiUsage();
     if (!binary)
-        throw new Error('codexbar CLI was not found on PATH or in common install locations.');
+        throw new Error('ai-usage CLI was not found on PATH or in common install locations.');
 
-    const result = await runAsync([
+    const argv = [
         binary,
+        '--json-only',
         'usage',
         '--provider',
         providerId,
-        '--format',
-        'json',
-        '--json-only',
-    ], cancellable);
+    ];
+    if (provider?.source && provider.source !== 'auto')
+        argv.push('--source', provider.source);
+
+    const result = await runAsync(argv, cancellable);
 
     const stdout = result.stdout.trim();
     if (!stdout) {
-        const detail = result.stderr.trim().split('\n')[0] || `codexbar exited with status ${result.status}`;
+        const detail = result.stderr.trim().split('\n')[0] || `ai-usage exited with status ${result.status}`;
         throw new Error(detail);
     }
 
-    const payload = parseUsageJson(stdout, 'codexbar');
+    const payload = parseUsageJson(stdout, 'ai-usage');
     if (payload?.error) {
         const message = payload.error.message || payload.error.code || JSON.stringify(payload.error);
-        if (providerId === 'codex' && message.includes('web support'))
-            return fetchCodexDirect(provider, cancellable);
         throw new Error(message);
     }
-    return payload;
+    return normalizeBackendSnapshot(payload, providerId);
 }
 
 async function fetchCustomCommandUsage(provider, cancellable) {
@@ -138,15 +136,70 @@ function parseUsageJson(stdout, sourceName) {
     }
 }
 
-async function fetchCodexDirect(provider, cancellable) {
-    const cookieHeader = provider?.cookieHeader || loadLegacyToken('codex') || '';
-    if (!cookieHeader)
-        throw new Error('Codex web is macOS-only in the CLI. Paste a ChatGPT Cookie header in Preferences -> Providers -> Codex, or import/save one in the old CodexBar GNOME settings, to use the Linux direct API fallback.');
+function normalizeBackendSnapshot(snapshot, fallbackProviderId) {
+    if (!Array.isArray(snapshot?.metrics))
+        return snapshot;
 
-    const client = new UsageApiClient();
-    try {
-        return await client.fetchSummary(cookieHeader, cancellable);
-    } finally {
-        client.destroy();
+    const progress = [];
+    const extraTextLines = [];
+    const badges = [];
+
+    for (const metric of snapshot.metrics) {
+        if (metric?.type === 'progress') {
+            const used = Number(metric.used) || 0;
+            const limit = Number(metric.limit) || 0;
+            if (limit <= 0)
+                continue;
+            progress.push({
+                id: metric.label || `metric-${progress.length + 1}`,
+                title: metric.label || null,
+                window: {
+                    label: metric.label || null,
+                    usedPercent: Math.max(0, Math.min(100, used / limit * 100)),
+                    used,
+                    limit,
+                    format: metric.format || null,
+                    resetsAt: metric.resetsAt || null,
+                    windowMinutes: metric.periodDurationMs ? Math.round(Number(metric.periodDurationMs) / 60000) : undefined,
+                },
+            });
+        } else if (metric?.type === 'text') {
+            extraTextLines.push({
+                label: metric.label || '',
+                value: metric.value || '',
+                subtitle: metric.subtitle || '',
+            });
+        } else if (metric?.type === 'badge') {
+            badges.push({
+                label: metric.label || '',
+                text: metric.text || '',
+                subtitle: metric.subtitle || '',
+                color: metric.color || '',
+            });
+        }
     }
+
+    const usage = {
+        updatedAt: snapshot.fetchedAt || new Date().toISOString(),
+        plan: snapshot.plan || null,
+        extraTextLines,
+        badges,
+        extraRateWindows: [],
+    };
+
+    for (const [index, tier] of ['primary', 'secondary', 'tertiary', 'quaternary'].entries()) {
+        if (progress[index])
+            usage[tier] = progress[index].window;
+    }
+    for (const item of progress.slice(4))
+        usage.extraRateWindows.push(item);
+
+    return {
+        provider: snapshot.providerId || fallbackProviderId,
+        displayName: snapshot.displayName || null,
+        source: snapshot.source || null,
+        plan: snapshot.plan || null,
+        usage,
+        rawMetrics: snapshot.metrics,
+    };
 }
