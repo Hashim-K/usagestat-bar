@@ -309,6 +309,26 @@ export default class AIUsageBarExtension extends Extension {
         track.add_child(fill);
         box.add_child(track);
 
+        let tileStatus = 'green';
+        if (this._errors.has(id)) {
+            tileStatus = 'red';
+        } else if (this._loading && !snapshot) {
+            tileStatus = 'orange';
+        } else if (snapshot?.status && snapshot.status.indicator !== 'none' && snapshot.status.indicator !== 'unknown') {
+            tileStatus = snapshot.status.indicator === 'minor' ? 'orange' : 'red';
+        }
+        const tileStatusColor = {green: '#33d17a', orange: '#f6d32d', red: '#ff5f57'}[tileStatus] || '#f6d32d';
+
+        const tileInfoRow = new St.BoxLayout({
+            style_class: 'ai-usage-provider-tile-info',
+            x_align: Clutter.ActorAlign.CENTER,
+        });
+        tileInfoRow.add_child(new St.Widget({
+            style: `background-color: ${tileStatusColor}; width: 6px; height: 6px; border-radius: 3px;`,
+            y_align: Clutter.ActorAlign.CENTER,
+        }));
+        box.add_child(tileInfoRow);
+
         const button = new St.Button({
             child: box,
             style_class: active ? 'ai-usage-provider-tile active' : 'ai-usage-provider-tile',
@@ -367,10 +387,19 @@ export default class AIUsageBarExtension extends Extension {
     _renderProvider(providerId) {
         const snapshot = this._usage.get(providerId);
         const error = this._errors.get(providerId);
+
+        if (error || snapshot) {
+            this._renderProviderHeader(snapshot || {}, providerId);
+        }
+
         if (error) {
-            this._renderMessage(this._providerName(this._providerForKey(providerId) || providerId), error, true);
+            this._content.add_child(new St.Label({
+                text: error,
+                style_class: 'ai-usage-message-body',
+            }));
             return;
         }
+
         if (!snapshot) {
             if (this._loading)
                 this._renderLoadingProvider(providerId);
@@ -380,7 +409,6 @@ export default class AIUsageBarExtension extends Extension {
         }
 
         const usage = snapshot.usage || {};
-        this._renderProviderHeader(snapshot, providerId);
 
         for (const tier of TIERS) {
             const window = usage[tier];
@@ -415,10 +443,15 @@ export default class AIUsageBarExtension extends Extension {
         const error = this._errors.get(key);
 
         this._content.add_child(new St.Widget({style_class: 'ai-usage-separator'}));
-        this._content.add_child(new St.Label({
-            text: this._providerName(provider),
-            style_class: 'ai-usage-provider-heading',
-        }));
+        
+        if (error || snapshot) {
+            this._renderProviderHeader(snapshot || {}, key, true);
+        } else {
+            this._content.add_child(new St.Label({
+                text: this._providerName(provider),
+                style_class: 'ai-usage-provider-heading',
+            }));
+        }
 
         if (error) {
             this._content.add_child(new St.Label({
@@ -493,32 +526,73 @@ export default class AIUsageBarExtension extends Extension {
         this._content.add_child(row);
     }
 
-    _renderProviderHeader(snapshot, providerId) {
+    _renderProviderHeader(snapshot, providerId, isChild = false) {
         const usage = snapshot.usage || {};
-        this._content.add_child(new St.Label({
-            text: this._providerHeading(snapshot, providerId),
-            style_class: 'ai-usage-provider-heading',
+        
+        let state = 'green';
+        let tooltip = _('Working');
+        if (this._errors.has(providerId)) {
+            state = 'red';
+            tooltip = this._errors.get(providerId);
+        } else if (this._loading && !snapshot.fetchedAt) {
+            state = 'orange';
+            tooltip = _('Checking source...');
+        } else if (snapshot.status && snapshot.status.indicator !== 'none' && snapshot.status.indicator !== 'unknown') {
+            state = snapshot.status.indicator === 'minor' ? 'orange' : 'red';
+            tooltip = snapshot.status.description || tooltip;
+        }
+        
+        const color = {
+            green: '#33d17a',
+            orange: '#f6d32d',
+            red: '#ff5f57',
+        }[state] || '#f6d32d';
+
+        const headerBox = new St.BoxLayout({
+            style_class: 'ai-usage-provider-heading-box',
+        });
+
+        headerBox.add_child(new St.Widget({
+            style: `background-color: ${color}; width: 9px; height: 9px; border-radius: 5px; margin-right: 6px;`,
+            y_align: Clutter.ActorAlign.CENTER,
         }));
 
-        const meta = new St.BoxLayout({style_class: 'ai-usage-provider-meta'});
-        meta.add_child(new St.Label({
-            text: this._providerUpdatedText(usage.updatedAt),
-            style_class: 'ai-usage-muted',
-            x_expand: true,
+        headerBox.add_child(new St.Label({
+            text: this._providerHeading(snapshot, providerId),
+            style_class: 'ai-usage-provider-heading',
+            y_align: Clutter.ActorAlign.CENTER,
         }));
-        this._content.add_child(meta);
+
+        const plan = usage.plan || usage.loginMethod;
+        const mode = snapshot.source;
+        const peakBadge = (usage.badges || []).find(b => b.label === 'Peak Hours');
+        const peakText = peakBadge?.text;
+
+        for (const chipText of [plan, mode, peakText].filter(Boolean))
+            headerBox.add_child(new St.Label({text: chipText, style_class: 'ai-usage-chip'}));
+
+        this._content.add_child(headerBox);
+
+        if (!isChild) {
+            const meta = new St.BoxLayout({style_class: 'ai-usage-provider-meta'});
+            meta.add_child(new St.Label({
+                text: this._providerUpdatedText(usage.updatedAt),
+                style_class: 'ai-usage-muted',
+                x_expand: true,
+            }));
+            this._content.add_child(meta);
+        }
 
         const detail = [
             usage.accountEmail,
             usage.accountOrganization,
-            usage.loginMethod,
-            snapshot.source,
             snapshot.status?.description,
         ].filter(Boolean).join('  |  ');
         if (detail)
             this._content.add_child(new St.Label({text: detail, style_class: 'ai-usage-detail'}));
 
-        this._content.add_child(new St.Widget({style_class: 'ai-usage-separator'}));
+        if (!isChild)
+            this._content.add_child(new St.Widget({style_class: 'ai-usage-separator'}));
     }
 
     _renderUsageWindow(title, window) {
@@ -727,7 +801,8 @@ export default class AIUsageBarExtension extends Extension {
 
     _formatPercent(percent) {
         const suffix = this._settings.get_string('display-mode') === 'used' ? _('used') : _('left');
-        return `${Math.round(percent)}% ${suffix}`;
+        const value = Number(percent.toFixed(1));
+        return `${value}% ${suffix}`;
     }
 
     _colorForPercent(percent) {
