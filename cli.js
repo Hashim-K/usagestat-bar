@@ -201,5 +201,7 @@ function normalizeBackendSnapshot(snapshot, fallbackProviderId) {
         plan: snapshot.plan || null,
         usage,
         rawMetrics: snapshot.metrics,
+        pace: snapshot.pace || null,
+        statusPageUrl: snapshot.statusPageUrl || null,
     };
 }

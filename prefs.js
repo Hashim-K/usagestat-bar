@@ -222,12 +222,48 @@ class AppearancePage extends Adw.PreferencesPage {
         group.add(indexRow);
 
         const barCountRow = new Adw.SpinRow({
-            title: _('Bars shown'),
-            subtitle: _('Number of provider bars shown simultaneously in the panel.'),
+            title: _('Providers shown'),
+            subtitle: _('Number of providers shown simultaneously in the panel.'),
             adjustment: new Gtk.Adjustment({lower: 1, upper: 3, step_increment: 1, value: this._settings.get_int('panel-bar-count')}),
         });
         this._settings.bind('panel-bar-count', barCountRow.adjustment, 'value', Gio.SettingsBindFlags.DEFAULT);
         group.add(barCountRow);
+
+        const multiProviderRow = new Adw.ExpanderRow({
+            title: _('Multi-provider display'),
+            subtitle: _('Adjust layout when showing multiple providers.'),
+        });
+
+        const usageBarCountRow = new Adw.SpinRow({
+            title: _('Usage bars per provider'),
+            subtitle: _('Number of usage bars shown per provider in the panel.'),
+            adjustment: new Gtk.Adjustment({lower: 1, upper: 3, step_increment: 1, value: this._settings.get_int('panel-usage-bar-count')}),
+        });
+        this._settings.bind('panel-usage-bar-count', usageBarCountRow.adjustment, 'value', Gio.SettingsBindFlags.DEFAULT);
+        multiProviderRow.add_row(usageBarCountRow);
+
+        const layoutLabels = [_('Vertical stack'), _('Horizontal stack')];
+        const layoutValues = ['vertical', 'horizontal'];
+        const selectedLayout = layoutValues.includes(this._settings.get_string('panel-usage-bar-layout'))
+            ? this._settings.get_string('panel-usage-bar-layout')
+            : 'vertical';
+        const layoutRow = combo(layoutLabels, layoutLabels[layoutValues.indexOf(selectedLayout)]);
+        layoutRow.title = _('Usage bar layout');
+        layoutRow.subtitle = _('Vertical stacks shrink to fit the panel height.');
+        layoutRow.connect('notify::selected', () => {
+            this._settings.set_string('panel-usage-bar-layout', layoutValues[layoutRow.selected] || 'vertical');
+        });
+        multiProviderRow.add_row(layoutRow);
+
+        const providerSpacingRow = new Adw.SpinRow({
+            title: _('Provider spacing'),
+            subtitle: _('Spacing between providers in the panel.'),
+            adjustment: new Gtk.Adjustment({lower: 0, upper: 16, step_increment: 1, value: this._settings.get_int('panel-provider-spacing')}),
+        });
+        this._settings.bind('panel-provider-spacing', providerSpacingRow.adjustment, 'value', Gio.SettingsBindFlags.DEFAULT);
+        multiProviderRow.add_row(providerSpacingRow);
+
+        group.add(multiProviderRow);
 
         return group;
     }

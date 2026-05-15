@@ -93,6 +93,18 @@
       <default>1</default>
       <summary>Number of provider bars shown simultaneously in the panel</summary>
     </key>
+    <key name="panel-usage-bar-count" type="i">
+      <default>1</default>
+      <summary>Number of usage bars shown per provider in the panel</summary>
+    </key>
+    <key name="panel-usage-bar-layout" type="s">
+      <default>'vertical'</default>
+      <summary>Layout for per-provider usage bars in the panel</summary>
+    </key>
+    <key name="panel-provider-spacing" type="i">
+      <default>6</default>
+      <summary>Spacing between providers in the panel</summary>
+    </key>
     <key name="scroll-to-switch-provider" type="b">
       <default>true</default>
       <summary>Scroll on panel indicator to switch active provider</summary>

@@ -11,13 +11,68 @@
   width: 18px;
   height: 12px;
   border: 1.5px solid #e6edf3;
-  border-radius: 3px;
+  border-radius: 4px;
   padding: 1px;
 }
 
 .ai-usage-panel-meter-fill {
   height: 8px;
+  border-radius: 3px;
+}
+
+
+.ai-usage-panel-provider-stack.vertical {
+  spacing: 2px;
+}
+
+.ai-usage-panel-provider-stack.vertical.bars-2 {
+  spacing: 2px;
+}
+
+.ai-usage-panel-provider-stack.vertical.bars-3 {
+  spacing: 1px;
+}
+
+.ai-usage-panel-provider-stack.bars-1 .ai-usage-panel-meter {
+  height: 10px;
+}
+
+.ai-usage-panel-provider-stack.bars-1 .ai-usage-panel-meter-fill {
+  height: 6px;
+}
+
+.ai-usage-panel-provider-stack.vertical.bars-2 .ai-usage-panel-meter,
+.ai-usage-panel-provider-stack.vertical.bars-3 .ai-usage-panel-meter {
+  height: 5px;
+  border-width: 1px;
+  padding: 0px;
+}
+
+.ai-usage-panel-provider-stack.vertical.bars-3 .ai-usage-panel-meter {
+  height: 3px;
+}
+
+.ai-usage-panel-provider-stack.vertical.bars-2 .ai-usage-panel-meter-fill,
+.ai-usage-panel-provider-stack.vertical.bars-3 .ai-usage-panel-meter-fill {
+  height: 3px;
   border-radius: 2px;
+}
+
+.ai-usage-panel-provider-stack.vertical.bars-3 .ai-usage-panel-meter-fill {
+  height: 1px;
+  border-radius: 1px;
+}
+
+.ai-usage-panel-provider-stack.horizontal {
+  spacing: 4px;
+}
+
+.ai-usage-panel-provider-row {
+  spacing: 4px;
+}
+
+.ai-usage-panel-provider-box {
+  spacing: 6px;
 }
 
 .ai-usage-panel-label {

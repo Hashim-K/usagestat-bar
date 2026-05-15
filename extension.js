@@ -24,6 +24,14 @@ const PROVIDER_ICON_FILES = {
     gemini: 'gemini.svg',
     copilot: 'copilot.svg',
 };
+const PROVIDER_ICON_ASPECTS = {
+    codex: 256 / 260,
+    claude: 256 / 257,
+    cursor: 466.73 / 532.09,
+    factory: 67 / 65,
+    gemini: 296 / 298,
+    copilot: 256 / 208,
+};
 
 export default class AIUsageBarExtension extends Extension {
     enable() {
@@ -82,6 +90,13 @@ export default class AIUsageBarExtension extends Extension {
         });
 
         this._buildMenu();
+        this._clockTickId = null;
+        this._indicator.menu.connect('open-state-changed', (_menu, open) => {
+            if (open)
+                this._startClockTick();
+            else
+                this._stopClockTick();
+        });
         this._attachIndicator(true);
 
         for (const key of [
@@ -105,6 +120,9 @@ export default class AIUsageBarExtension extends Extension {
             'show-pace',
             'show-status-link',
             'panel-bar-count',
+            'panel-usage-bar-count',
+            'panel-usage-bar-layout',
+            'panel-provider-spacing',
         ]) {
             this._signals.push(this._settings.connect(`changed::${key}`, () => this._onSettingsChanged(key)));
         }
@@ -115,6 +133,7 @@ export default class AIUsageBarExtension extends Extension {
     }
 
     disable() {
+        this._stopClockTick();
         if (this._timeoutId) {
             GLib.source_remove(this._timeoutId);
             this._timeoutId = null;
@@ -269,6 +288,35 @@ export default class AIUsageBarExtension extends Extension {
         }
     }
 
+    _startClockTick() {
+        this._stopClockTick();
+        this._clockTickId = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 30, () => {
+            this._tickMeta();
+            return GLib.SOURCE_CONTINUE;
+        });
+    }
+
+    _stopClockTick() {
+        if (this._clockTickId) {
+            GLib.source_remove(this._clockTickId);
+            this._clockTickId = null;
+        }
+    }
+
+    _tickMeta() {
+        if (this._updatedLabel) {
+            const usage = this._activeSnapshot()?.usage;
+            this._updatedLabel.set_text(
+                usage?.updatedAt ? this._updatedText(usage.updatedAt) : _('Updated just now'),
+            );
+        }
+        if (this._nextRefreshLabel) {
+            const nextText = this._nextRefreshText();
+            this._nextRefreshLabel.set_text(nextText || '');
+            this._nextRefreshLabel.visible = Boolean(nextText);
+        }
+    }
+
     _render() {
         if (!this._indicator)
             return;
@@ -369,66 +417,139 @@ export default class AIUsageBarExtension extends Extension {
     }
 
     _renderPanel(snapshot) {
-        const shownPercent = this._snapshotPercent(snapshot);
-        const usedPercent = this._snapshotUsedPercent(snapshot);
-        const color = this._colorForUsedPercent(usedPercent);
         const components = this._panelComponents();
         const neutralColor = this._settings.get_string('neutral-color');
-        const barCount = Math.min(3, Math.max(1, this._settings.get_int('panel-bar-count')));
+        const providerCount = Math.max(1, this._settings.get_int('panel-bar-count'));
+        const barsPerProvider = Math.min(3, Math.max(1, this._settings.get_int('panel-usage-bar-count')));
+        const barLayout = this._settings.get_string('panel-usage-bar-layout') || 'vertical';
+        const providerSpacing = Math.max(0, this._settings.get_int('panel-provider-spacing'));
 
         let child;
         while ((child = this._panelBox.get_first_child()))
             this._panelBox.remove_child(child);
-
-        this._panelLabel.set_text(this._panelName());
-        this._panelPercent.set_text(`${Math.round(shownPercent)}%`);
-        this._panelLabel.set_style(`color: ${neutralColor};`);
-        this._panelPercent.set_style(`color: ${neutralColor};`);
-
-        const icon = this._providerIcon(providerBaseId(this._activeProviderConfig()) || this._activeId, 16);
-        icon.add_style_class_name('ai-usage-panel-icon');
+        this._panelBox.set_y_align(Clutter.ActorAlign.CENTER);
+        this._panelBox.set_y_expand(true);
 
         const buildBar = (pct, barColor) => {
             const fill = new St.Widget({style_class: 'ai-usage-panel-meter-fill'});
             fill.set_width(Math.round(pct * 0.18));
             fill.set_style(`background-color: ${barColor};`);
             const meter = new St.BoxLayout({style_class: 'ai-usage-panel-meter'});
+            meter.set_y_align(Clutter.ActorAlign.CENTER);
             meter.set_style(`border-color: ${neutralColor};`);
             meter.add_child(fill);
             return meter;
         };
 
-        for (const component of components) {
-            if (component === 'bar') {
-                if (barCount === 1) {
-                    this._panelBox.add_child(buildBar(shownPercent, color));
-                } else {
-                    const stack = new St.BoxLayout({
-                        vertical: true,
-                        y_align: Clutter.ActorAlign.CENTER,
-                        style: 'spacing: 2px;',
-                    });
-                    const providers = this._visibleProviders ?? [];
-                    const activeIdx = providers.findIndex(p => providerKey(p) === this._activeId);
-                    for (let i = 0; i < barCount; i++) {
-                        const p = providers[(activeIdx + i) % providers.length];
-                        if (!p)
-                            break;
-                        const snap = this._usage.get(providerKey(p));
-                        const pct = snap ? this._snapshotPercent(snap) : 0;
-                        const usedPct = snap ? this._snapshotUsedPercent(snap) : 0;
-                        stack.add_child(buildBar(pct, this._colorForUsedPercent(usedPct)));
-                    }
-                    this._panelBox.add_child(stack);
-                }
-            } else if (component === 'percent') {
-                this._panelBox.add_child(this._panelPercent);
-            } else if (component === 'logo') {
-                this._panelBox.add_child(icon);
-            } else if (component === 'text') {
-                this._panelBox.add_child(this._panelLabel);
+        const buildProviderBars = (providerId, snap) => {
+            let windows = [];
+            if (barsPerProvider === 1) {
+                const selected = this._selectedPanelWindow(snap, providerId);
+                if (selected)
+                    windows = [selected];
+            } else {
+                windows = this._panelUsageWindows(providerId, snap);
             }
+            if (!windows.length)
+                windows = [{usedPercent: 0}];
+
+            const barsToShow = Math.min(barsPerProvider, windows.length);
+            const effectiveBarLayout = barsToShow === 1 ? 'horizontal' : barLayout;
+            const stack = new St.BoxLayout({
+                vertical: effectiveBarLayout === 'vertical',
+                style_class: 'ai-usage-panel-provider-stack',
+                y_align: Clutter.ActorAlign.CENTER,
+                x_align: Clutter.ActorAlign.CENTER,
+            });
+            stack.set_y_align(Clutter.ActorAlign.CENTER);
+            stack.set_x_align(Clutter.ActorAlign.CENTER);
+            stack.add_style_class_name(effectiveBarLayout === 'vertical' ? 'vertical' : 'horizontal');
+            stack.add_style_class_name(`bars-${barsToShow}`);
+
+            for (const window of windows.slice(0, barsToShow)) {
+                const pct = this._displayPercent(window);
+                const usedPct = Math.max(0, Math.min(100, Number(window.usedPercent) || 0));
+                stack.add_child(buildBar(pct, this._colorForUsedPercent(usedPct)));
+            }
+
+            const frame = new St.Bin({
+                style_class: 'ai-usage-panel-provider-frame',
+                xAlign: Clutter.ActorAlign.CENTER,
+                yAlign: Clutter.ActorAlign.CENTER,
+                y_align: Clutter.ActorAlign.CENTER,
+                y_expand: true,
+            });
+            frame.set_child(stack);
+            return frame;
+        };
+
+        const buildProviderBox = (providerId, snap) => {
+            const shownPercent = this._snapshotPercent(snap, providerId);
+            const usedPercent = this._snapshotUsedPercent(snap, providerId);
+            const color = this._colorForUsedPercent(usedPercent);
+
+            const providerBox = new St.BoxLayout({
+                style_class: 'ai-usage-panel-provider-box',
+                y_align: Clutter.ActorAlign.CENTER,
+                y_expand: true,
+                style: 'spacing: 6px;',
+            });
+            providerBox.set_y_align(Clutter.ActorAlign.CENTER);
+            providerBox.set_y_expand(true);
+
+            const label = new St.Label({
+                text: this._providerName(this._providerForKey(providerId) || providerId),
+                style_class: 'ai-usage-panel-label',
+                y_align: Clutter.ActorAlign.CENTER,
+            });
+            label.set_style(`color: ${neutralColor};`);
+
+            const percentLabel = new St.Label({
+                text: `${Math.round(shownPercent)}%`,
+                style_class: 'ai-usage-panel-label',
+                y_align: Clutter.ActorAlign.CENTER,
+            });
+            percentLabel.set_style(`color: ${neutralColor};`);
+
+            const icon = this._providerIcon(providerBaseId(this._providerForKey(providerId)) || providerId, 16);
+            icon.add_style_class_name('ai-usage-panel-icon');
+            icon.set_y_align(Clutter.ActorAlign.CENTER);
+
+            for (const component of components) {
+                if (component === 'bar') {
+                    providerBox.add_child(buildProviderBars(providerId, snap));
+                } else if (component === 'percent') {
+                    providerBox.add_child(percentLabel);
+                } else if (component === 'logo') {
+                    providerBox.add_child(icon);
+                } else if (component === 'text') {
+                    providerBox.add_child(label);
+                }
+            }
+
+            if (!components.length) {
+                providerBox.add_child(buildBar(shownPercent, color));
+            }
+
+            return providerBox;
+        };
+
+        this._panelBox.set_style(`spacing: ${providerSpacing}px;`);
+
+        const providers = this._visibleProviders ?? [];
+        const activeIdx = Math.max(0, providers.findIndex(p => providerKey(p) === this._activeId));
+        const totalProviders = Math.min(providerCount, providers.length || 1);
+
+        for (let i = 0; i < totalProviders; i++) {
+            const provider = providers.length ? providers[(activeIdx + i) % providers.length] : null;
+            const providerId = provider ? providerKey(provider) : this._activeId;
+            const snap = providerId ? this._usage.get(providerId) : snapshot;
+            if (!providerId)
+                continue;
+            this._panelBox.add_child(buildProviderBox(providerId, snap));
         }
+
+        return;
     }
 
     _panelName() {
@@ -640,18 +761,19 @@ export default class AIUsageBarExtension extends Extension {
 
         if (!isChild) {
             const meta = new St.BoxLayout({style_class: 'ai-usage-provider-meta'});
-            meta.add_child(new St.Label({
+            this._updatedLabel = new St.Label({
                 text: usage.updatedAt ? this._updatedText(usage.updatedAt) : _('Updated just now'),
                 style_class: 'ai-usage-muted',
                 x_expand: true,
-            }));
+            });
+            meta.add_child(this._updatedLabel);
             const nextText = this._nextRefreshText();
-            if (nextText) {
-                meta.add_child(new St.Label({
-                    text: nextText,
-                    style_class: 'ai-usage-muted',
-                }));
-            }
+            this._nextRefreshLabel = new St.Label({
+                text: nextText || '',
+                style_class: 'ai-usage-muted',
+                visible: Boolean(nextText),
+            });
+            meta.add_child(this._nextRefreshLabel);
             this._content.add_child(meta);
         }
 
@@ -896,6 +1018,31 @@ export default class AIUsageBarExtension extends Extension {
         if (TIERS.includes(tier) && usage[tier]?.usedPercent !== undefined)
             return usage[tier];
         return this._automaticPanelWindow(usage, resolvedId);
+    }
+
+    _panelUsageWindows(providerId, snapshot) {
+        const usage = snapshot?.usage;
+        if (!usage)
+            return [];
+
+        const windows = [];
+        for (const tier of TIERS) {
+            const window = usage[tier];
+            if (window && window.usedPercent !== undefined && this._usageWindowVisible(providerId, tier))
+                windows.push(window);
+        }
+        for (const namedWindow of usage.extraRateWindows || []) {
+            const id = namedWindow.id || namedWindow.title || 'extra';
+            if (namedWindow?.window?.usedPercent !== undefined && this._usageWindowVisible(providerId, id))
+                windows.push(namedWindow.window);
+        }
+        if (usage.providerCost && this._usageWindowVisible(providerId, 'extraUsage')) {
+            const costWindow = this._providerCostWindow(usage.providerCost);
+            if (costWindow)
+                windows.push(costWindow);
+        }
+
+        return windows;
     }
 
     _automaticPanelWindow(usage, providerId) {
@@ -1147,11 +1294,15 @@ export default class AIUsageBarExtension extends Extension {
         if (fileName) {
             const file = Gio.File.new_for_path(GLib.build_filenamev([EXTENSION_DIR, 'assets', 'provider-icons', fileName]));
             if (file.query_exists(null)) {
-                return new St.Icon({
+                const icon = new St.Icon({
                     gicon: Gio.FileIcon.new(file),
                     icon_size: size,
                     style_class: 'ai-usage-provider-icon',
                 });
+                const aspect = PROVIDER_ICON_ASPECTS[providerId] || 1;
+                icon.set_height(size);
+                icon.set_width(Math.round(size * aspect));
+                return icon;
             }
         }
 
