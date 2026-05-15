@@ -37,6 +37,7 @@ const PROVIDER_ICON_FILES = {
     'jetbrains-ai-assistant': 'jetbrains-ai-assistant.svg',
     amp: 'amp.svg',
     ollama: 'ollama.svg',
+    warp: 'warp.svg',
     openrouter: 'openrouter.svg',
     perplexity: 'perplexity.svg',
     mistral: 'mistral.svg',
