@@ -40,6 +40,7 @@ const PROVIDER_ICON_FILES = {
     kimi: 'kimi.svg',
     'kimi-k2': 'kimi.svg',
     kilo: 'kilo.svg',
+    kiro: 'kiro.svg',
     amp: 'amp.svg',
     ollama: 'ollama.svg',
     openrouter: 'openrouter.svg',
