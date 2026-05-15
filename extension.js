@@ -18,19 +18,28 @@ const DEFAULT_THRESHOLDS = [
 const EXTENSION_DIR = GLib.path_get_dirname(GLib.filename_from_uri(import.meta.url)[0]);
 const PROVIDER_ICON_FILES = {
     codex: 'codex.svg',
+    openai: 'openai.svg',
     claude: 'claude.svg',
     cursor: 'cursor.svg',
     factory: 'factory.svg',
     gemini: 'gemini.svg',
     copilot: 'copilot.svg',
-};
-const PROVIDER_ICON_ASPECTS = {
-    codex: 256 / 260,
-    claude: 256 / 257,
-    cursor: 466.73 / 532.09,
-    factory: 67 / 65,
-    gemini: 296 / 298,
-    copilot: 256 / 208,
+    'opencode-go': 'opencode-go.svg',
+    antigravity: 'antigravity.svg',
+    zai: 'zai.svg',
+    minimax: 'minimax.svg',
+    kimi: 'kimi.svg',
+    'kimi-k2': 'kimi.svg',
+    amp: 'amp.svg',
+    ollama: 'ollama.svg',
+    openrouter: 'openrouter.svg',
+    perplexity: 'perplexity.svg',
+    mistral: 'mistral.svg',
+    deepseek: 'deepseek.svg',
+    doubao: 'doubao.svg',
+    venice: 'venice.svg',
+    windsurf: 'windsurf.svg',
+    'openai-api': 'openai.svg',
 };
 
 export default class AIUsageBarExtension extends Extension {
@@ -108,6 +117,7 @@ export default class AIUsageBarExtension extends Extension {
             'usage-thresholds',
             'provider-usage-windows',
             'provider-usage-settings',
+            'provider-icon-style',
             'reset-time-format',
             'warning-threshold',
             'danger-threshold',
@@ -363,7 +373,7 @@ export default class AIUsageBarExtension extends Extension {
             style_class: 'ai-usage-provider-tile-box',
             x_align: Clutter.ActorAlign.CENTER,
         });
-        box.add_child(this._providerIcon(baseId, 22));
+        box.add_child(this._providerIcon(provider, 22));
         box.add_child(new St.Label({
             text: this._providerName(provider),
             style_class: 'ai-usage-provider-tile-label',
@@ -511,7 +521,7 @@ export default class AIUsageBarExtension extends Extension {
             });
             percentLabel.set_style(`color: ${neutralColor};`);
 
-            const icon = this._providerIcon(providerBaseId(this._providerForKey(providerId)) || providerId, 16);
+            const icon = this._providerIcon(this._providerForKey(providerId) || providerId, this._panelIconHeight(16));
             icon.add_style_class_name('ai-usage-panel-icon');
             icon.set_y_align(Clutter.ActorAlign.CENTER);
 
@@ -1289,28 +1299,63 @@ export default class AIUsageBarExtension extends Extension {
         return true;
     }
 
-    _providerIcon(providerId, size) {
-        const fileName = PROVIDER_ICON_FILES[providerId];
+    _panelIconHeight(fallback) {
+        const panelHeight = Main.panel?.height || this._indicator?.height || fallback;
+        return Math.max(1, Math.round(panelHeight * 0.55));
+    }
+
+    _providerIcon(provider, height) {
+        const providerId = providerBaseId(provider);
+        const fileName = this._providerIconFile(provider, providerId);
         if (fileName) {
             const file = Gio.File.new_for_path(GLib.build_filenamev([EXTENSION_DIR, 'assets', 'provider-icons', fileName]));
             if (file.query_exists(null)) {
-                const icon = new St.Icon({
-                    gicon: Gio.FileIcon.new(file),
-                    icon_size: size,
+                const scaleFactor = St.ThemeContext.get_for_stage(global.stage).scale_factor;
+                const image = St.TextureCache.get_default().load_file_async(file, -1, height, scaleFactor, 1);
+                image.set_y_align(Clutter.ActorAlign.CENTER);
+
+                return new St.Bin({
+                    child: image,
                     style_class: 'ai-usage-provider-icon',
+                    xAlign: Clutter.ActorAlign.CENTER,
+                    yAlign: Clutter.ActorAlign.CENTER,
+                    y_align: Clutter.ActorAlign.CENTER,
                 });
-                const aspect = PROVIDER_ICON_ASPECTS[providerId] || 1;
-                icon.set_height(size);
-                icon.set_width(Math.round(size * aspect));
-                return icon;
             }
         }
 
         return new St.Icon({
             icon_name: 'applications-science-symbolic',
-            icon_size: size,
+            icon_size: height,
             style_class: 'ai-usage-provider-icon fallback',
         });
+    }
+
+    _providerIconFile(provider, providerId) {
+        const iconId = this._providerIconSource(provider, providerId);
+        const style = this._providerIconStyle(provider);
+        const baseFile = PROVIDER_ICON_FILES[iconId];
+        const colorFile = style === 'color' && baseFile ? baseFile.replace(/\.svg$/, '-color.svg') : null;
+        if (colorFile) {
+            const file = Gio.File.new_for_path(GLib.build_filenamev([EXTENSION_DIR, 'assets', 'provider-icons', colorFile]));
+            if (file.query_exists(null))
+                return colorFile;
+        }
+        return baseFile || null;
+    }
+
+    _providerIconSource(provider, providerId) {
+        if (providerId === 'codex' && this._providerUsageSettings(providerKey(provider)).iconSource === 'openai')
+            return 'openai';
+        return providerId;
+    }
+
+    _providerIconStyle(provider) {
+        const providerStyle = this._providerUsageSettings(providerKey(provider)).iconStyle;
+        if (providerStyle === 'color' || providerStyle === 'monochromatic')
+            return providerStyle;
+        const globalStyle = this._settings.get_string('provider-icon-style');
+        return globalStyle === 'color' ? 'color' : 'monochromatic';
     }
 
     _panelComponents() {

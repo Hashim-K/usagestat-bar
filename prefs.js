@@ -19,6 +19,11 @@ const PANEL_COMPONENTS = [
     ['logo', 'Logo'],
     ['text', 'Text'],
 ];
+const ICON_STYLE_OPTIONS = [
+    ['auto', 'Default'],
+    ['color', 'Color'],
+    ['monochromatic', 'Monochromatic'],
+];
 const DEFAULT_THRESHOLDS = [
     {id: 'warning', label: 'Warning', percent: 75, color: '#f6d32d', notify: false},
     {id: 'danger', label: 'Danger', percent: 90, color: '#ff5f57', notify: false},
@@ -193,6 +198,7 @@ class AppearancePage extends Adw.PreferencesPage {
         });
         this._settings = settings;
         this.add(this._buildPanelGroup());
+        this.add(this._buildIconGroup());
         this._buildComponentGroups();
         this.add(this._buildThresholdGroup());
         this.add(this._buildColorGroup());
@@ -264,6 +270,27 @@ class AppearancePage extends Adw.PreferencesPage {
         multiProviderRow.add_row(providerSpacingRow);
 
         group.add(multiProviderRow);
+
+        return group;
+    }
+
+    _buildIconGroup() {
+        const group = new Adw.PreferencesGroup({
+            title: _('Provider Icons'),
+            description: _('Choose the default logo style. Individual providers can override this.'),
+        });
+
+        const labels = ICON_STYLE_OPTIONS.filter(([value]) => value !== 'auto').map(([, label]) => _(label));
+        const values = ICON_STYLE_OPTIONS.filter(([value]) => value !== 'auto').map(([value]) => value);
+        const selected = values.includes(this._settings.get_string('provider-icon-style'))
+            ? this._settings.get_string('provider-icon-style')
+            : 'monochromatic';
+        const row = combo(labels, labels[values.indexOf(selected)]);
+        row.title = _('Icon style');
+        row.connect('notify::selected', () => {
+            this._settings.set_string('provider-icon-style', values[row.selected] || 'monochromatic');
+        });
+        group.add(row);
 
         return group;
     }
@@ -923,6 +950,9 @@ class ProvidersPage extends Adw.PreferencesPage {
 
         const tierRow = this._usageTierRow(provider);
         row.add_row(tierRow);
+        row.add_row(this._providerIconStyleRow(provider));
+        if (baseId === 'codex')
+            row.add_row(this._codexIconSourceRow(provider));
         row.add_row(this._usageTrackersRow(provider));
 
         this._addTabExtensionRows(row, provider);
@@ -932,6 +962,42 @@ class ProvidersPage extends Adw.PreferencesPage {
         if (draggable)
             this._setupDragAndDrop(listRow);
         return listRow;
+    }
+
+    _providerIconStyleRow(provider) {
+        const labels = ICON_STYLE_OPTIONS.map(([, label]) => _(label));
+        const values = ICON_STYLE_OPTIONS.map(([value]) => value);
+        const selectedValue = values.includes(this._providerUsageSetting(provider, 'iconStyle'))
+            ? this._providerUsageSetting(provider, 'iconStyle')
+            : 'auto';
+        const row = combo(labels, labels[values.indexOf(selectedValue)]);
+        row.title = _('Icon style');
+        row.subtitle = _('Default follows the global Appearance setting.');
+        row.connect('notify::selected', () => {
+            const value = values[row.selected] || 'auto';
+            this._setProviderUsageSetting(provider, 'iconStyle', value === 'auto' ? null : value);
+        });
+        return row;
+    }
+
+    _codexIconSourceRow(provider) {
+        const options = [
+            ['codex', _('Codex')],
+            ['openai', _('OpenAI')],
+        ];
+        const values = options.map(([value]) => value);
+        const labels = options.map(([, label]) => label);
+        const selectedValue = values.includes(this._providerUsageSetting(provider, 'iconSource'))
+            ? this._providerUsageSetting(provider, 'iconSource')
+            : 'codex';
+        const row = combo(labels, labels[values.indexOf(selectedValue)]);
+        row.title = _('Codex icon');
+        row.subtitle = _('Use the Codex logo or the OpenAI logo for this provider.');
+        row.connect('notify::selected', () => {
+            const value = values[row.selected] || 'codex';
+            this._setProviderUsageSetting(provider, 'iconSource', value === 'codex' ? null : value);
+        });
+        return row;
     }
 
     _usageTierRow(provider) {
