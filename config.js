@@ -20,7 +20,6 @@ export const PROVIDERS = [
     ['kimi-k2', 'Kimi K2'],
     ['amp', 'Amp'],
     ['ollama', 'Ollama'],
-    ['synthetic', 'Synthetic'],
     ['warp', 'Warp'],
     ['openrouter', 'OpenRouter'],
     ['perplexity', 'Perplexity'],
