@@ -28,6 +28,7 @@ const PROVIDER_ICON_FILES = {
     codex: 'codex.svg',
     openai: 'openai.svg',
     claude: 'claude.svg',
+    claudecode: 'claudecode.svg',
     cursor: 'cursor.svg',
     factory: 'factory.svg',
     gemini: 'gemini.svg',
@@ -38,6 +39,7 @@ const PROVIDER_ICON_FILES = {
     minimax: 'minimax.svg',
     kimi: 'kimi.svg',
     'kimi-k2': 'kimi.svg',
+    kilo: 'kilo.svg',
     amp: 'amp.svg',
     ollama: 'ollama.svg',
     openrouter: 'openrouter.svg',
@@ -978,6 +980,8 @@ class ProvidersPage extends Adw.PreferencesPage {
         row.add_row(this._providerIconStyleRow(provider));
         if (baseId === 'codex')
             row.add_row(this._codexIconSourceRow(provider));
+        if (baseId === 'claude')
+            row.add_row(this._claudeIconSourceRow(provider));
         row.add_row(this._usageTrackersRow(provider));
 
         this._addTabExtensionRows(row, provider);
@@ -1022,6 +1026,27 @@ class ProvidersPage extends Adw.PreferencesPage {
         row.connect('notify::selected', () => {
             const value = values[row.selected] || 'codex';
             this._setProviderUsageSetting(provider, 'iconSource', value === 'codex' ? null : value);
+            this._renderProviders(providerKey(provider));
+        });
+        return row;
+    }
+
+    _claudeIconSourceRow(provider) {
+        const options = [
+            ['claude', _('Claude')],
+            ['claudecode', _('Claude Code')],
+        ];
+        const values = options.map(([value]) => value);
+        const labels = options.map(([, label]) => label);
+        const selectedValue = values.includes(this._providerUsageSetting(provider, 'iconSource'))
+            ? this._providerUsageSetting(provider, 'iconSource')
+            : 'claude';
+        const row = combo(labels, labels[values.indexOf(selectedValue)]);
+        row.title = _('Claude icon');
+        row.subtitle = _('Use the Claude logo or the Claude Code logo for this provider.');
+        row.connect('notify::selected', () => {
+            const value = values[row.selected] || 'claude';
+            this._setProviderUsageSetting(provider, 'iconSource', value === 'claude' ? null : value);
             this._renderProviders(providerKey(provider));
         });
         return row;
@@ -1118,9 +1143,12 @@ class ProvidersPage extends Adw.PreferencesPage {
         }
 
         const baseId = providerBaseId(provider);
-        const iconId = baseId === 'codex' && this._providerUsageSetting(provider, 'iconSource') === 'openai'
+        const iconSource = this._providerUsageSetting(provider, 'iconSource');
+        const iconId = baseId === 'codex' && iconSource === 'openai'
             ? 'openai'
-            : baseId;
+            : baseId === 'claude' && iconSource === 'claudecode'
+                ? 'claudecode'
+                : baseId;
         const baseFile = PROVIDER_ICON_FILES[iconId];
         const style = this._providerUsageSetting(provider, 'iconStyle') || this._settings.get_string('provider-icon-style');
         const colorFile = style === 'color' && baseFile ? baseFile.replace(/\.svg$/, '-color.svg') : null;

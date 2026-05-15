@@ -20,6 +20,7 @@ const PROVIDER_ICON_FILES = {
     codex: 'codex.svg',
     openai: 'openai.svg',
     claude: 'claude.svg',
+    claudecode: 'claudecode.svg',
     cursor: 'cursor.svg',
     factory: 'factory.svg',
     gemini: 'gemini.svg',
@@ -30,6 +31,7 @@ const PROVIDER_ICON_FILES = {
     minimax: 'minimax.svg',
     kimi: 'kimi.svg',
     'kimi-k2': 'kimi.svg',
+    kilo: 'kilo.svg',
     amp: 'amp.svg',
     ollama: 'ollama.svg',
     openrouter: 'openrouter.svg',
@@ -1358,6 +1360,8 @@ export default class AIUsageBarExtension extends Extension {
     _providerIconSource(provider, providerId) {
         if (providerId === 'codex' && this._providerUsageSettings(providerKey(provider)).iconSource === 'openai')
             return 'openai';
+        if (providerId === 'claude' && this._providerUsageSettings(providerKey(provider)).iconSource === 'claudecode')
+            return 'claudecode';
         return providerId;
     }
 
