@@ -76,6 +76,7 @@ const PROVIDER_LOGIN_URLS = {
     ollama: 'https://ollama.com/settings',
     'openai-api': 'https://platform.openai.com/usage',
     'opencode-go': 'https://opencode.ai/auth',
+    synthetic: 'https://synthetic.new/landing/home',
 };
 
 function combo(strings, selectedValue) {
@@ -2023,7 +2024,7 @@ class ProvidersPage extends Adw.PreferencesPage {
     }
 
     _apiKeyProviders() {
-        return new Set(['codex', 'claude', 'gemini', 'copilot', 'zai', 'minimax', 'kimi', 'kimi-k2', 'kilo', 'warp', 'openrouter', 'deepseek', 'codebuff', 'doubao', 'mistral', 'openai-api']);
+        return new Set(['codex', 'claude', 'gemini', 'copilot', 'zai', 'minimax', 'kimi', 'kimi-k2', 'kilo', 'warp', 'openrouter', 'synthetic', 'deepseek', 'codebuff', 'doubao', 'mistral', 'openai-api']);
     }
 
     _name(provider) {
