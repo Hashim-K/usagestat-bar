@@ -61,6 +61,26 @@ export default class AIUsageBarExtension extends Extension {
         this._panelBox.add_child(this._panelLabel);
         this._indicator.add_child(this._panelBox);
 
+        this._indicator.connect('scroll-event', (_actor, event) => {
+            if (!this._settings.get_boolean('scroll-to-switch-provider'))
+                return Clutter.EVENT_PROPAGATE;
+            const providers = this._visibleProviders;
+            if (!providers?.length)
+                return Clutter.EVENT_PROPAGATE;
+            const current = providers.findIndex(p => providerKey(p) === this._activeId);
+            const dir = event.get_scroll_direction();
+            let next;
+            if (dir === Clutter.ScrollDirection.UP || dir === Clutter.ScrollDirection.LEFT)
+                next = (current - 1 + providers.length) % providers.length;
+            else if (dir === Clutter.ScrollDirection.DOWN || dir === Clutter.ScrollDirection.RIGHT)
+                next = (current + 1) % providers.length;
+            else
+                return Clutter.EVENT_PROPAGATE;
+            this._activeId = providerKey(providers[next]);
+            this._render();
+            return Clutter.EVENT_STOP;
+        });
+
         this._buildMenu();
         this._attachIndicator(true);
 
@@ -82,6 +102,8 @@ export default class AIUsageBarExtension extends Extension {
             'danger-color',
             'limit-color',
             'neutral-color',
+            'show-pace',
+            'show-status-link',
         ]) {
             this._signals.push(this._settings.connect(`changed::${key}`, () => this._onSettingsChanged(key)));
         }
@@ -425,6 +447,7 @@ export default class AIUsageBarExtension extends Extension {
         if (usage.providerCost && this._usageWindowVisible(providerId, 'extraUsage'))
             this._renderProviderCost(usage.providerCost);
 
+        this._renderPace(snapshot);
         this._renderMetricLines(providerId, usage);
 
         if (snapshot.credits?.remaining !== undefined)
@@ -482,6 +505,7 @@ export default class AIUsageBarExtension extends Extension {
         }
         if (usage.providerCost && this._usageWindowVisible(key, 'extraUsage'))
             this._renderProviderCost(usage.providerCost);
+        this._renderPace(snapshot);
         this._renderMetricLines(key, usage);
     }
 
@@ -571,15 +595,32 @@ export default class AIUsageBarExtension extends Extension {
         for (const chipText of [plan, mode, peakText].filter(Boolean))
             headerBox.add_child(new St.Label({text: chipText, style_class: 'ai-usage-chip'}));
 
+        if (this._settings.get_boolean('show-status-link') && snapshot.statusPageUrl) {
+            headerBox.add_child(new St.Widget({x_expand: true}));
+            headerBox.add_child(this._iconButton('web-browser-symbolic', () => {
+                try {
+                    Gio.app_info_launch_default_for_uri(snapshot.statusPageUrl, null);
+                } catch {}
+                this._indicator.menu.close();
+            }));
+        }
+
         this._content.add_child(headerBox);
 
         if (!isChild) {
             const meta = new St.BoxLayout({style_class: 'ai-usage-provider-meta'});
             meta.add_child(new St.Label({
-                text: this._providerUpdatedText(usage.updatedAt),
+                text: usage.updatedAt ? this._updatedText(usage.updatedAt) : _('Updated just now'),
                 style_class: 'ai-usage-muted',
                 x_expand: true,
             }));
+            const nextText = this._nextRefreshText();
+            if (nextText) {
+                meta.add_child(new St.Label({
+                    text: nextText,
+                    style_class: 'ai-usage-muted',
+                }));
+            }
             this._content.add_child(meta);
         }
 
@@ -663,6 +704,69 @@ export default class AIUsageBarExtension extends Extension {
             style_class: 'ai-usage-muted',
         }));
         row.add_child(footer);
+        this._content.add_child(row);
+    }
+
+    _renderPace(snapshot) {
+        if (!this._settings.get_boolean('show-pace'))
+            return;
+        const pace = snapshot?.pace;
+        if (!pace?.stage)
+            return;
+
+        const stageLabels = {
+            well_under: _('Well under pace'),
+            under: _('Under pace'),
+            slightly_under: _('Slightly under pace'),
+            on_track: _('On track'),
+            slightly_over: _('Slightly over pace'),
+            over: _('Over pace'),
+            well_over: _('Well over pace'),
+        };
+        const stageColors = {
+            well_under: '#33d17a',
+            under: '#33d17a',
+            slightly_under: this._settings.get_string('accent-color'),
+            on_track: this._settings.get_string('accent-color'),
+            slightly_over: this._settings.get_string('warning-color'),
+            over: this._settings.get_string('danger-color'),
+            well_over: this._settings.get_string('danger-color'),
+        };
+
+        const stageLabel = stageLabels[pace.stage] || pace.stage;
+        const color = stageColors[pace.stage] || this._settings.get_string('accent-color');
+
+        const row = new St.BoxLayout({style_class: 'ai-usage-window'});
+        row.add_child(new St.Label({
+            text: _('Pace:'),
+            style_class: 'ai-usage-muted',
+            y_align: Clutter.ActorAlign.CENTER,
+        }));
+        row.add_child(new St.Label({
+            text: ` ${stageLabel}`,
+            style: `color: ${color};`,
+            y_align: Clutter.ActorAlign.CENTER,
+        }));
+
+        const delta = Number(pace.deltaPercent);
+        if (Number.isFinite(delta) && pace.stage !== 'on_track') {
+            const sign = delta >= 0 ? '+' : '−';
+            row.add_child(new St.Label({
+                text: `  ${sign}${Math.abs(delta).toFixed(1)}%`,
+                style_class: 'ai-usage-muted',
+                y_align: Clutter.ActorAlign.CENTER,
+            }));
+        }
+
+        if (!pace.willLastToReset && Number(pace.etaSeconds) > 0) {
+            const eta = this._relativeResetText(Math.round(Number(pace.etaSeconds)));
+            row.add_child(new St.Label({
+                text: _(' · runs out in %s').format(eta),
+                style_class: 'ai-usage-danger',
+                y_align: Clutter.ActorAlign.CENTER,
+            }));
+        }
+
         this._content.add_child(row);
     }
 
@@ -1096,11 +1200,18 @@ export default class AIUsageBarExtension extends Extension {
         return map;
     }
 
-    _providerUpdatedText(value) {
-        const usageText = value ? this._updatedText(value) : _('Updated just now');
+    _nextRefreshText() {
         if (!this._lastRefreshAt)
-            return usageText;
-        return _('%s · Refreshed %s').format(usageText, this._lastRefreshAt.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'}));
+            return null;
+        const intervalMinutes = this._settings.get_int('refresh-interval');
+        if (intervalMinutes <= 0)
+            return null;
+        const secondsUntil = Math.max(0, Math.round(
+            (this._lastRefreshAt.getTime() + intervalMinutes * 60 * 1000 - Date.now()) / 1000,
+        ));
+        if (secondsUntil < 30)
+            return _('Refreshing soon');
+        return _('Next in %s').format(this._relativeResetText(secondsUntil));
     }
 
     _updatedText(value) {

@@ -100,6 +100,7 @@ class GeneralPage extends Adw.PreferencesPage {
         this.add(this._buildPanelComponentsGroup());
         this.add(this._buildThresholdGroup());
         this.add(this._buildColorGroup());
+        this.add(this._buildPopupGroup());
     }
 
     _buildPanelGroup() {
@@ -171,6 +172,14 @@ class GeneralPage extends Adw.PreferencesPage {
             this._settings.set_string('reset-time-format', resetValues[resetRow.selected] || 'smart');
         });
         group.add(resetRow);
+
+        const scrollRow = new Adw.SwitchRow({
+            title: _('Scroll to switch provider'),
+            subtitle: _('Scroll on the panel indicator to cycle through active providers.'),
+            active: this._settings.get_boolean('scroll-to-switch-provider'),
+        });
+        this._settings.bind('scroll-to-switch-provider', scrollRow, 'active', Gio.SettingsBindFlags.DEFAULT);
+        group.add(scrollRow);
 
         return group;
     }
@@ -294,6 +303,31 @@ class GeneralPage extends Adw.PreferencesPage {
         order.splice(targetIndex, 0, component);
         this._settings.set_string('panel-components', order.join(',') || 'bar');
         this._renderPanelComponentLists();
+    }
+
+    _buildPopupGroup() {
+        const group = new Adw.PreferencesGroup({
+            title: _('Popup'),
+            description: _('Control what appears in the usage popup for each provider.'),
+        });
+
+        const paceRow = new Adw.SwitchRow({
+            title: _('Show pace indicator'),
+            subtitle: _('Whether usage is ahead or behind the expected burn rate.'),
+            active: this._settings.get_boolean('show-pace'),
+        });
+        this._settings.bind('show-pace', paceRow, 'active', Gio.SettingsBindFlags.DEFAULT);
+        group.add(paceRow);
+
+        const statusLinkRow = new Adw.SwitchRow({
+            title: _('Show status page link'),
+            subtitle: _('Button in the provider header that opens the provider\'s status page.'),
+            active: this._settings.get_boolean('show-status-link'),
+        });
+        this._settings.bind('show-status-link', statusLinkRow, 'active', Gio.SettingsBindFlags.DEFAULT);
+        group.add(statusLinkRow);
+
+        return group;
     }
 
     _buildThresholdGroup() {

@@ -89,5 +89,17 @@
       <default>'#e6edf3'</default>
       <summary>Panel text and meter outline color</summary>
     </key>
+    <key name="scroll-to-switch-provider" type="b">
+      <default>true</default>
+      <summary>Scroll on panel indicator to switch active provider</summary>
+    </key>
+    <key name="show-pace" type="b">
+      <default>true</default>
+      <summary>Show pace tracking indicator in the popup</summary>
+    </key>
+    <key name="show-status-link" type="b">
+      <default>true</default>
+      <summary>Show provider status page link button in the popup header</summary>
+    </key>
   </schema>
 </schemalist>
