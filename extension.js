@@ -1308,7 +1308,7 @@ export default class AIUsageBarExtension extends Extension {
         const providerId = providerBaseId(provider);
         const fileName = this._providerIconFile(provider, providerId);
         if (fileName) {
-            const file = Gio.File.new_for_path(GLib.build_filenamev([EXTENSION_DIR, 'assets', 'provider-icons', fileName]));
+            const file = this._providerIconGFile(fileName);
             if (file.query_exists(null)) {
                 const icon = new St.Icon({
                     gicon: Gio.FileIcon.new(file),
@@ -1331,16 +1331,28 @@ export default class AIUsageBarExtension extends Extension {
     }
 
     _providerIconFile(provider, providerId) {
+        if (provider && typeof provider === 'object' && provider.iconPath) {
+            const customFile = Gio.File.new_for_path(provider.iconPath);
+            if (customFile.query_exists(null))
+                return provider.iconPath;
+        }
+
         const iconId = this._providerIconSource(provider, providerId);
         const style = this._providerIconStyle(provider);
         const baseFile = PROVIDER_ICON_FILES[iconId];
         const colorFile = style === 'color' && baseFile ? baseFile.replace(/\.svg$/, '-color.svg') : null;
         if (colorFile) {
-            const file = Gio.File.new_for_path(GLib.build_filenamev([EXTENSION_DIR, 'assets', 'provider-icons', colorFile]));
+            const file = this._providerIconGFile(colorFile);
             if (file.query_exists(null))
                 return colorFile;
         }
         return baseFile || null;
+    }
+
+    _providerIconGFile(fileName) {
+        if (GLib.path_is_absolute(fileName))
+            return Gio.File.new_for_path(fileName);
+        return Gio.File.new_for_path(GLib.build_filenamev([EXTENSION_DIR, 'assets', 'provider-icons', fileName]));
     }
 
     _providerIconSource(provider, providerId) {

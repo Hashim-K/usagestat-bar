@@ -24,6 +24,31 @@ const ICON_STYLE_OPTIONS = [
     ['color', 'Color'],
     ['monochromatic', 'Monochromatic'],
 ];
+const PROVIDER_ICON_FILES = {
+    codex: 'codex.svg',
+    openai: 'openai.svg',
+    claude: 'claude.svg',
+    cursor: 'cursor.svg',
+    factory: 'factory.svg',
+    gemini: 'gemini.svg',
+    copilot: 'copilot.svg',
+    'opencode-go': 'opencode-go.svg',
+    antigravity: 'antigravity.svg',
+    zai: 'zai.svg',
+    minimax: 'minimax.svg',
+    kimi: 'kimi.svg',
+    'kimi-k2': 'kimi.svg',
+    amp: 'amp.svg',
+    ollama: 'ollama.svg',
+    openrouter: 'openrouter.svg',
+    perplexity: 'perplexity.svg',
+    mistral: 'mistral.svg',
+    deepseek: 'deepseek.svg',
+    doubao: 'doubao.svg',
+    venice: 'venice.svg',
+    windsurf: 'windsurf.svg',
+    'openai-api': 'openai.svg',
+};
 const DEFAULT_THRESHOLDS = [
     {id: 'warning', label: 'Warning', percent: 75, color: '#f6d32d', notify: false},
     {id: 'danger', label: 'Danger', percent: 90, color: '#ff5f57', notify: false},
@@ -920,6 +945,7 @@ class ProvidersPage extends Adw.PreferencesPage {
                 tooltip_text: _('Drag to reorder'),
             }));
         }
+        row.add_prefix(this._providerIconPreview(provider, 24));
 
         const validator = this._sourceValidator(provider);
         const enabled = new Gtk.Switch({
@@ -976,6 +1002,7 @@ class ProvidersPage extends Adw.PreferencesPage {
         row.connect('notify::selected', () => {
             const value = values[row.selected] || 'auto';
             this._setProviderUsageSetting(provider, 'iconStyle', value === 'auto' ? null : value);
+            this._renderProviders(providerKey(provider));
         });
         return row;
     }
@@ -996,8 +1023,120 @@ class ProvidersPage extends Adw.PreferencesPage {
         row.connect('notify::selected', () => {
             const value = values[row.selected] || 'codex';
             this._setProviderUsageSetting(provider, 'iconSource', value === 'codex' ? null : value);
+            this._renderProviders(providerKey(provider));
         });
         return row;
+    }
+
+    _customIconRow(provider) {
+        const row = new Adw.ActionRow({
+            title: _('Custom icon SVG'),
+            subtitle: provider.iconPath || _('Using default fallback icon'),
+        });
+
+        const entry = new Gtk.Entry({
+            text: provider.iconPath || '',
+            placeholder_text: '/path/to/icon.svg',
+            hexpand: true,
+            valign: Gtk.Align.CENTER,
+        });
+        entry.connect('changed', () => {
+            this._assignOptional(provider, 'iconPath', entry.get_text());
+            row.set_subtitle(provider.iconPath || _('Using default fallback icon'));
+            this._save();
+        });
+        row.add_suffix(entry);
+
+        const browseButton = new Gtk.Button({
+            label: _('Browse'),
+            valign: Gtk.Align.CENTER,
+        });
+        browseButton.connect('clicked', () => {
+            const filter = new Gtk.FileFilter();
+            filter.set_name(_('SVG icons'));
+            filter.add_suffix('svg');
+            const dialog = new Gtk.FileChooserNative({
+                title: _('Choose custom icon'),
+                transient_for: this.get_root(),
+                action: Gtk.FileChooserAction.OPEN,
+                accept_label: _('Choose'),
+                cancel_label: _('Cancel'),
+            });
+            dialog.add_filter(filter);
+            dialog.connect('response', (_dialog, response) => {
+                if (response === Gtk.ResponseType.ACCEPT) {
+                    const file = dialog.get_file();
+                    if (file) {
+                        entry.set_text(file.get_path());
+                        this._renderProviders(providerKey(provider));
+                    }
+                }
+                dialog.destroy();
+            });
+            dialog.show();
+        });
+        row.add_suffix(browseButton);
+
+        const clearButton = new Gtk.Button({
+            icon_name: 'edit-clear-symbolic',
+            tooltip_text: _('Clear custom icon'),
+            valign: Gtk.Align.CENTER,
+        });
+        clearButton.connect('clicked', () => {
+            entry.set_text('');
+            this._renderProviders(providerKey(provider));
+        });
+        row.add_suffix(clearButton);
+        row.activatable_widget = entry;
+        return row;
+    }
+
+    _providerIconPreview(provider, size) {
+        const fileName = this._providerIconFile(provider);
+        if (fileName) {
+            const file = this._providerIconGFile(fileName);
+            if (file.query_exists(null)) {
+                return new Gtk.Image({
+                    gicon: Gio.FileIcon.new(file),
+                    pixel_size: size,
+                    valign: Gtk.Align.CENTER,
+                });
+            }
+        }
+
+        return new Gtk.Image({
+            icon_name: 'applications-science-symbolic',
+            pixel_size: size,
+            valign: Gtk.Align.CENTER,
+        });
+    }
+
+    _providerIconFile(provider) {
+        if (this._isCustomProvider(provider) && provider.iconPath) {
+            const customFile = Gio.File.new_for_path(provider.iconPath);
+            if (customFile.query_exists(null))
+                return provider.iconPath;
+        }
+
+        const baseId = providerBaseId(provider);
+        const iconId = baseId === 'codex' && this._providerUsageSetting(provider, 'iconSource') === 'openai'
+            ? 'openai'
+            : baseId;
+        const baseFile = PROVIDER_ICON_FILES[iconId];
+        const style = this._providerUsageSetting(provider, 'iconStyle') || this._settings.get_string('provider-icon-style');
+        const colorFile = style === 'color' && baseFile ? baseFile.replace(/\.svg$/, '-color.svg') : null;
+        if (colorFile) {
+            const file = this._providerIconGFile(colorFile);
+            if (file.query_exists(null))
+                return colorFile;
+        }
+        return baseFile || null;
+    }
+
+    _providerIconGFile(fileName) {
+        if (GLib.path_is_absolute(fileName))
+            return Gio.File.new_for_path(fileName);
+        return Gio.File.new_for_path(GLib.build_filenamev([GLib.path_get_dirname(GLib.filename_from_uri(import.meta.url)[0]), 'assets', 'provider-icons', fileName]));
     }
 
     _usageTierRow(provider) {
@@ -1506,6 +1645,8 @@ class ProvidersPage extends Adw.PreferencesPage {
         const baseId = providerBaseId(provider);
 
         if (this._isCustomProvider(provider)) {
+            row.add_row(this._customIconRow(provider));
+
             const commandRow = entryRow(_('CLI command'), provider.customCommand || '', _('Command that prints ai-usage-style usage JSON'));
             commandRow._entry.connect('changed', () => {
                 this._assignOptional(provider, 'customCommand', commandRow._entry.get_text());
