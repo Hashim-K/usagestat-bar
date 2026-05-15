@@ -1310,17 +1310,16 @@ export default class AIUsageBarExtension extends Extension {
         if (fileName) {
             const file = Gio.File.new_for_path(GLib.build_filenamev([EXTENSION_DIR, 'assets', 'provider-icons', fileName]));
             if (file.query_exists(null)) {
-                const scaleFactor = St.ThemeContext.get_for_stage(global.stage).scale_factor;
-                const image = St.TextureCache.get_default().load_file_async(file, -1, height, scaleFactor, 1);
-                image.set_y_align(Clutter.ActorAlign.CENTER);
-
-                return new St.Bin({
-                    child: image,
+                const icon = new St.Icon({
+                    gicon: Gio.FileIcon.new(file),
+                    icon_size: height,
                     style_class: 'ai-usage-provider-icon',
-                    xAlign: Clutter.ActorAlign.CENTER,
-                    yAlign: Clutter.ActorAlign.CENTER,
                     y_align: Clutter.ActorAlign.CENTER,
                 });
+                const {width, height: viewBoxHeight} = this._svgViewBox(file);
+                icon.set_height(height);
+                icon.set_width(Math.round(height * (width / viewBoxHeight)));
+                return icon;
             }
         }
 
@@ -1356,6 +1355,25 @@ export default class AIUsageBarExtension extends Extension {
             return providerStyle;
         const globalStyle = this._settings.get_string('provider-icon-style');
         return globalStyle === 'color' ? 'color' : 'monochromatic';
+    }
+
+    _svgViewBox(file) {
+        try {
+            const [ok, bytes] = file.load_contents(null);
+            if (!ok)
+                return {width: 1, height: 1};
+            const text = new TextDecoder().decode(bytes);
+            const match = text.match(/viewBox=["']\s*[-\d.]+\s+[-\d.]+\s+([\d.]+)\s+([\d.]+)\s*["']/);
+            if (!match)
+                return {width: 1, height: 1};
+            const width = Number(match[1]);
+            const height = Number(match[2]);
+            if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0)
+                return {width: 1, height: 1};
+            return {width, height};
+        } catch {
+            return {width: 1, height: 1};
+        }
     }
 
     _panelComponents() {
