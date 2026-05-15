@@ -104,6 +104,7 @@ export default class AIUsageBarExtension extends Extension {
             'neutral-color',
             'show-pace',
             'show-status-link',
+            'panel-bar-count',
         ]) {
             this._signals.push(this._settings.connect(`changed::${key}`, () => this._onSettingsChanged(key)));
         }
@@ -372,6 +373,8 @@ export default class AIUsageBarExtension extends Extension {
         const usedPercent = this._snapshotUsedPercent(snapshot);
         const color = this._colorForUsedPercent(usedPercent);
         const components = this._panelComponents();
+        const neutralColor = this._settings.get_string('neutral-color');
+        const barCount = Math.min(3, Math.max(1, this._settings.get_int('panel-bar-count')));
 
         let child;
         while ((child = this._panelBox.get_first_child()))
@@ -379,24 +382,52 @@ export default class AIUsageBarExtension extends Extension {
 
         this._panelLabel.set_text(this._panelName());
         this._panelPercent.set_text(`${Math.round(shownPercent)}%`);
-        this._meter.set_style(`border-color: ${this._settings.get_string('neutral-color')};`);
-        this._meterFill.set_width(Math.round(shownPercent * 0.18));
-        this._meterFill.set_style(`background-color: ${color};`);
-        this._panelLabel.set_style(`color: ${this._settings.get_string('neutral-color')};`);
-        this._panelPercent.set_style(`color: ${this._settings.get_string('neutral-color')};`);
+        this._panelLabel.set_style(`color: ${neutralColor};`);
+        this._panelPercent.set_style(`color: ${neutralColor};`);
 
         const icon = this._providerIcon(providerBaseId(this._activeProviderConfig()) || this._activeId, 16);
         icon.add_style_class_name('ai-usage-panel-icon');
 
+        const buildBar = (pct, barColor) => {
+            const fill = new St.Widget({style_class: 'ai-usage-panel-meter-fill'});
+            fill.set_width(Math.round(pct * 0.18));
+            fill.set_style(`background-color: ${barColor};`);
+            const meter = new St.BoxLayout({style_class: 'ai-usage-panel-meter'});
+            meter.set_style(`border-color: ${neutralColor};`);
+            meter.add_child(fill);
+            return meter;
+        };
+
         for (const component of components) {
-            if (component === 'bar')
-                this._panelBox.add_child(this._meter);
-            else if (component === 'percent')
+            if (component === 'bar') {
+                if (barCount === 1) {
+                    this._panelBox.add_child(buildBar(shownPercent, color));
+                } else {
+                    const stack = new St.BoxLayout({
+                        vertical: true,
+                        y_align: Clutter.ActorAlign.CENTER,
+                        style: 'spacing: 2px;',
+                    });
+                    const providers = this._visibleProviders ?? [];
+                    const activeIdx = providers.findIndex(p => providerKey(p) === this._activeId);
+                    for (let i = 0; i < barCount; i++) {
+                        const p = providers[(activeIdx + i) % providers.length];
+                        if (!p)
+                            break;
+                        const snap = this._usage.get(providerKey(p));
+                        const pct = snap ? this._snapshotPercent(snap) : 0;
+                        const usedPct = snap ? this._snapshotUsedPercent(snap) : 0;
+                        stack.add_child(buildBar(pct, this._colorForUsedPercent(usedPct)));
+                    }
+                    this._panelBox.add_child(stack);
+                }
+            } else if (component === 'percent') {
                 this._panelBox.add_child(this._panelPercent);
-            else if (component === 'logo')
+            } else if (component === 'logo') {
                 this._panelBox.add_child(icon);
-            else if (component === 'text')
+            } else if (component === 'text') {
                 this._panelBox.add_child(this._panelLabel);
+            }
         }
     }
 

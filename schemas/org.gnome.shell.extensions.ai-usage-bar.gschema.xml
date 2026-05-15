@@ -89,6 +89,10 @@
       <default>'#e6edf3'</default>
       <summary>Panel text and meter outline color</summary>
     </key>
+    <key name="panel-bar-count" type="i">
+      <default>1</default>
+      <summary>Number of provider bars shown simultaneously in the panel</summary>
+    </key>
     <key name="scroll-to-switch-provider" type="b">
       <default>true</default>
       <summary>Scroll on panel indicator to switch active provider</summary>

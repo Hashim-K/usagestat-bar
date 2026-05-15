@@ -87,64 +87,31 @@ function hexFromRgba(rgba) {
     return `#${channel(rgba.red)}${channel(rgba.green)}${channel(rgba.blue)}`;
 }
 
-const GeneralPage = GObject.registerClass(
-class GeneralPage extends Adw.PreferencesPage {
+const BehaviourPage = GObject.registerClass(
+class BehaviourPage extends Adw.PreferencesPage {
     _init(settings) {
         super._init({
-            title: _('Display'),
-            icon_name: 'preferences-desktop-display-symbolic',
+            title: _('Behaviour'),
+            icon_name: 'preferences-system-symbolic',
         });
-
         this._settings = settings;
-        this.add(this._buildPanelGroup());
-        this.add(this._buildPanelComponentsGroup());
-        this.add(this._buildThresholdGroup());
-        this.add(this._buildColorGroup());
+        this.add(this._buildRefreshGroup());
+        this.add(this._buildInteractionGroup());
         this.add(this._buildPopupGroup());
     }
 
-    _buildPanelGroup() {
+    _buildRefreshGroup() {
         const group = new Adw.PreferencesGroup({
-            title: _('Panel'),
-            description: _('GNOME-specific placement and compact display controls.'),
+            title: _('Data'),
         });
 
         const refreshRow = new Adw.SpinRow({
             title: _('Refresh interval'),
             subtitle: _('Minutes between ai-usage CLI refreshes'),
-            adjustment: new Gtk.Adjustment({
-                lower: 1,
-                upper: 1440,
-                step_increment: 1,
-                value: this._settings.get_int('refresh-interval'),
-            }),
+            adjustment: new Gtk.Adjustment({lower: 1, upper: 1440, step_increment: 1, value: this._settings.get_int('refresh-interval')}),
         });
         this._settings.bind('refresh-interval', refreshRow.adjustment, 'value', Gio.SettingsBindFlags.DEFAULT);
         group.add(refreshRow);
-
-        const positionRow = combo([_('Left'), _('Center'), _('Right')], {
-            left: _('Left'),
-            center: _('Center'),
-            right: _('Right'),
-        }[this._settings.get_string('panel-position')] || _('Right'));
-        positionRow.title = _('Panel position');
-        positionRow.connect('notify::selected', () => {
-            this._settings.set_string('panel-position', ['left', 'center', 'right'][positionRow.selected] || 'right');
-        });
-        group.add(positionRow);
-
-        const indexRow = new Adw.SpinRow({
-            title: _('Position index'),
-            subtitle: _('Lower values sit closer to the panel edge for that box'),
-            adjustment: new Gtk.Adjustment({
-                lower: 0,
-                upper: 20,
-                step_increment: 1,
-                value: this._settings.get_int('panel-index'),
-            }),
-        });
-        this._settings.bind('panel-index', indexRow.adjustment, 'value', Gio.SettingsBindFlags.DEFAULT);
-        group.add(indexRow);
 
         const displayModeRow = combo([_('Remaining'), _('Used')], this._settings.get_string('display-mode') === 'used' ? _('Used') : _('Remaining'));
         displayModeRow.title = _('Meter meaning');
@@ -160,11 +127,10 @@ class GeneralPage extends Adw.PreferencesPage {
             ['weekday-time', _('Day and time')],
             ['date-time', _('Date and time')],
         ];
-        const resetValues = resetOptions.map(([value]) => value);
-        const resetLabels = resetOptions.map(([, label]) => label);
+        const resetValues = resetOptions.map(([v]) => v);
+        const resetLabels = resetOptions.map(([, l]) => l);
         const selectedReset = resetValues.includes(this._settings.get_string('reset-time-format'))
-            ? this._settings.get_string('reset-time-format')
-            : 'smart';
+            ? this._settings.get_string('reset-time-format') : 'smart';
         const resetRow = combo(resetLabels, resetLabels[resetValues.indexOf(selectedReset)]);
         resetRow.title = _('Reset display');
         resetRow.subtitle = _('Smart includes weekday for weekly resets.');
@@ -172,6 +138,14 @@ class GeneralPage extends Adw.PreferencesPage {
             this._settings.set_string('reset-time-format', resetValues[resetRow.selected] || 'smart');
         });
         group.add(resetRow);
+
+        return group;
+    }
+
+    _buildInteractionGroup() {
+        const group = new Adw.PreferencesGroup({
+            title: _('Interaction'),
+        });
 
         const scrollRow = new Adw.SwitchRow({
             title: _('Scroll to switch provider'),
@@ -184,131 +158,10 @@ class GeneralPage extends Adw.PreferencesPage {
         return group;
     }
 
-    _buildPanelComponentsGroup() {
-        const group = new Adw.PreferencesGroup({
-            title: _('Top Bar Components'),
-            description: _('Enable components and drag enabled items to set their order.'),
-        });
-
-        this._enabledComponentList = new Gtk.ListBox({selection_mode: Gtk.SelectionMode.NONE});
-        this._enabledComponentList.add_css_class('boxed-list');
-        this._disabledComponentList = new Gtk.ListBox({selection_mode: Gtk.SelectionMode.NONE});
-        this._disabledComponentList.add_css_class('boxed-list');
-
-        this._renderPanelComponentLists();
-
-        group.add(new Adw.PreferencesRow({child: this._enabledComponentList}));
-        const disabledGroup = new Adw.PreferencesGroup({title: _('Disabled Components')});
-        disabledGroup.add(new Adw.PreferencesRow({child: this._disabledComponentList}));
-
-        this.add(group);
-        return disabledGroup;
-    }
-
-    _panelComponentOrder() {
-        const valid = new Set(PANEL_COMPONENTS.map(([id]) => id));
-        const enabled = this._settings.get_string('panel-components')
-            .split(',')
-            .map(part => part.trim())
-            .filter(part => valid.has(part));
-        return [...new Set(enabled)];
-    }
-
-    _renderPanelComponentLists() {
-        while (this._enabledComponentList.get_first_child())
-            this._enabledComponentList.remove(this._enabledComponentList.get_first_child());
-        while (this._disabledComponentList.get_first_child())
-            this._disabledComponentList.remove(this._disabledComponentList.get_first_child());
-
-        const enabled = this._panelComponentOrder();
-        const enabledSet = new Set(enabled);
-
-        for (const componentId of enabled)
-            this._enabledComponentList.append(this._buildPanelComponentRow(componentId, true));
-
-        for (const [componentId] of PANEL_COMPONENTS) {
-            if (!enabledSet.has(componentId))
-                this._disabledComponentList.append(this._buildPanelComponentRow(componentId, false));
-        }
-    }
-
-    _buildPanelComponentRow(componentId, enabled) {
-        const listRow = new Gtk.ListBoxRow();
-        listRow._componentId = componentId;
-
-        const row = new Adw.ActionRow({
-            title: this._componentLabel(componentId),
-            subtitle: enabled ? _('Shown in the top bar') : _('Hidden'),
-        });
-
-        if (enabled) {
-            row.add_prefix(new Gtk.Image({
-                icon_name: 'list-drag-handle-symbolic',
-                tooltip_text: _('Drag to reorder'),
-            }));
-        }
-
-        const toggle = new Gtk.Switch({
-            active: enabled,
-            valign: Gtk.Align.CENTER,
-        });
-        toggle.connect('notify::active', () => this._setPanelComponentEnabled(componentId, toggle.active));
-        row.add_suffix(toggle);
-        listRow.set_child(row);
-
-        if (enabled)
-            this._setupPanelComponentDragAndDrop(listRow);
-
-        return listRow;
-    }
-
-    _componentLabel(componentId) {
-        return _(PANEL_COMPONENTS.find(([id]) => id === componentId)?.[1] || componentId);
-    }
-
-    _setPanelComponentEnabled(componentId, enabled) {
-        const order = this._panelComponentOrder().filter(id => id !== componentId);
-        if (enabled)
-            order.push(componentId);
-        this._settings.set_string('panel-components', order.join(',') || 'bar');
-        this._renderPanelComponentLists();
-    }
-
-    _setupPanelComponentDragAndDrop(listRow) {
-        const drag = new Gtk.DragSource({actions: Gdk.DragAction.MOVE});
-        drag.connect('prepare', () => {
-            const value = new GObject.Value();
-            value.init(GObject.TYPE_STRING);
-            value.set_string(listRow._componentId);
-            return Gdk.ContentProvider.new_for_value(value);
-        });
-        listRow.add_controller(drag);
-
-        const drop = Gtk.DropTarget.new(GObject.TYPE_STRING, Gdk.DragAction.MOVE);
-        drop.connect('drop', (target, sourceId) => {
-            this._movePanelComponent(String(sourceId), listRow._componentId);
-            return true;
-        });
-        listRow.add_controller(drop);
-    }
-
-    _movePanelComponent(sourceId, targetId) {
-        const order = this._panelComponentOrder();
-        const sourceIndex = order.indexOf(sourceId);
-        const targetIndex = order.indexOf(targetId);
-        if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex)
-            return;
-
-        const [component] = order.splice(sourceIndex, 1);
-        order.splice(targetIndex, 0, component);
-        this._settings.set_string('panel-components', order.join(',') || 'bar');
-        this._renderPanelComponentLists();
-    }
-
     _buildPopupGroup() {
         const group = new Adw.PreferencesGroup({
             title: _('Popup'),
-            description: _('Control what appears in the usage popup for each provider.'),
+            description: _('What appears in the usage popup for each provider.'),
         });
 
         const paceRow = new Adw.SwitchRow({
@@ -328,6 +181,150 @@ class GeneralPage extends Adw.PreferencesPage {
         group.add(statusLinkRow);
 
         return group;
+    }
+});
+
+const AppearancePage = GObject.registerClass(
+class AppearancePage extends Adw.PreferencesPage {
+    _init(settings) {
+        super._init({
+            title: _('Appearance'),
+            icon_name: 'preferences-desktop-display-symbolic',
+        });
+        this._settings = settings;
+        this.add(this._buildPanelGroup());
+        this._buildComponentGroups();
+        this.add(this._buildThresholdGroup());
+        this.add(this._buildColorGroup());
+    }
+
+    _buildPanelGroup() {
+        const group = new Adw.PreferencesGroup({
+            title: _('Panel'),
+            description: _('Placement and display controls.'),
+        });
+
+        const positionRow = combo([_('Left'), _('Center'), _('Right')], {
+            left: _('Left'), center: _('Center'), right: _('Right'),
+        }[this._settings.get_string('panel-position')] || _('Right'));
+        positionRow.title = _('Panel position');
+        positionRow.connect('notify::selected', () => {
+            this._settings.set_string('panel-position', ['left', 'center', 'right'][positionRow.selected] || 'right');
+        });
+        group.add(positionRow);
+
+        const indexRow = new Adw.SpinRow({
+            title: _('Position index'),
+            subtitle: _('Lower values sit closer to the panel edge for that box'),
+            adjustment: new Gtk.Adjustment({lower: 0, upper: 20, step_increment: 1, value: this._settings.get_int('panel-index')}),
+        });
+        this._settings.bind('panel-index', indexRow.adjustment, 'value', Gio.SettingsBindFlags.DEFAULT);
+        group.add(indexRow);
+
+        const barCountRow = new Adw.SpinRow({
+            title: _('Bars shown'),
+            subtitle: _('Number of provider bars shown simultaneously in the panel.'),
+            adjustment: new Gtk.Adjustment({lower: 1, upper: 3, step_increment: 1, value: this._settings.get_int('panel-bar-count')}),
+        });
+        this._settings.bind('panel-bar-count', barCountRow.adjustment, 'value', Gio.SettingsBindFlags.DEFAULT);
+        group.add(barCountRow);
+
+        return group;
+    }
+
+    _buildComponentGroups() {
+        const group = new Adw.PreferencesGroup({
+            title: _('Top Bar Components'),
+            description: _('Enable components and drag enabled items to set their order.'),
+        });
+
+        this._enabledComponentList = new Gtk.ListBox({selection_mode: Gtk.SelectionMode.NONE});
+        this._enabledComponentList.add_css_class('boxed-list');
+        this._disabledComponentList = new Gtk.ListBox({selection_mode: Gtk.SelectionMode.NONE});
+        this._disabledComponentList.add_css_class('boxed-list');
+
+        this._renderPanelComponentLists();
+
+        group.add(new Adw.PreferencesRow({child: this._enabledComponentList}));
+        this.add(group);
+
+        const disabledGroup = new Adw.PreferencesGroup({title: _('Disabled Components')});
+        disabledGroup.add(new Adw.PreferencesRow({child: this._disabledComponentList}));
+        this.add(disabledGroup);
+    }
+
+    _panelComponentOrder() {
+        const valid = new Set(PANEL_COMPONENTS.map(([id]) => id));
+        const enabled = this._settings.get_string('panel-components')
+            .split(',').map(part => part.trim()).filter(part => valid.has(part));
+        return [...new Set(enabled)];
+    }
+
+    _renderPanelComponentLists() {
+        while (this._enabledComponentList.get_first_child())
+            this._enabledComponentList.remove(this._enabledComponentList.get_first_child());
+        while (this._disabledComponentList.get_first_child())
+            this._disabledComponentList.remove(this._disabledComponentList.get_first_child());
+
+        const enabled = this._panelComponentOrder();
+        const enabledSet = new Set(enabled);
+
+        for (const componentId of enabled)
+            this._enabledComponentList.append(this._buildPanelComponentRow(componentId, true));
+        for (const [componentId] of PANEL_COMPONENTS) {
+            if (!enabledSet.has(componentId))
+                this._disabledComponentList.append(this._buildPanelComponentRow(componentId, false));
+        }
+    }
+
+    _buildPanelComponentRow(componentId, enabled) {
+        const listRow = new Gtk.ListBoxRow();
+        listRow._componentId = componentId;
+        const row = new Adw.ActionRow({
+            title: _(PANEL_COMPONENTS.find(([id]) => id === componentId)?.[1] || componentId),
+            subtitle: enabled ? _('Shown in the top bar') : _('Hidden'),
+        });
+        if (enabled) {
+            row.add_prefix(new Gtk.Image({
+                icon_name: 'list-drag-handle-symbolic',
+                tooltip_text: _('Drag to reorder'),
+            }));
+        }
+        const toggle = new Gtk.Switch({active: enabled, valign: Gtk.Align.CENTER});
+        toggle.connect('notify::active', () => {
+            const order = this._panelComponentOrder().filter(id => id !== componentId);
+            if (toggle.active)
+                order.push(componentId);
+            this._settings.set_string('panel-components', order.join(',') || 'bar');
+            this._renderPanelComponentLists();
+        });
+        row.add_suffix(toggle);
+        listRow.set_child(row);
+        if (enabled) {
+            const drag = new Gtk.DragSource({actions: Gdk.DragAction.MOVE});
+            drag.connect('prepare', () => {
+                const value = new GObject.Value();
+                value.init(GObject.TYPE_STRING);
+                value.set_string(listRow._componentId);
+                return Gdk.ContentProvider.new_for_value(value);
+            });
+            listRow.add_controller(drag);
+            const drop = Gtk.DropTarget.new(GObject.TYPE_STRING, Gdk.DragAction.MOVE);
+            drop.connect('drop', (_target, sourceId) => {
+                const order = this._panelComponentOrder();
+                const si = order.indexOf(String(sourceId));
+                const ti = order.indexOf(componentId);
+                if (si >= 0 && ti >= 0 && si !== ti) {
+                    const [c] = order.splice(si, 1);
+                    order.splice(ti, 0, c);
+                    this._settings.set_string('panel-components', order.join(',') || 'bar');
+                    this._renderPanelComponentLists();
+                }
+                return true;
+            });
+            listRow.add_controller(drop);
+        }
+        return listRow;
     }
 
     _buildThresholdGroup() {
@@ -1948,10 +1945,10 @@ export default class AIUsageBarPreferences extends ExtensionPreferences {
     fillPreferencesWindow(window) {
         const settings = this.getSettings();
         const targetProviderId = settings.get_string('preferences-provider');
-        const generalPage = new GeneralPage(settings);
         const providersPage = new ProvidersPage(settings);
         window.set_default_size(760, 760);
-        window.add(generalPage);
+        window.add(new BehaviourPage(settings));
+        window.add(new AppearancePage(settings));
         window.add(providersPage);
         window.add(new MaintenancePage(settings));
         if (targetProviderId)
