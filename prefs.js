@@ -41,6 +41,8 @@ const PROVIDER_ICON_FILES = {
     'kimi-k2': 'kimi.svg',
     kilo: 'kilo.svg',
     kiro: 'kiro.svg',
+    augment: 'augment.svg',
+    'jetbrains-ai-assistant': 'jetbrains-ai-assistant.svg',
     amp: 'amp.svg',
     ollama: 'ollama.svg',
     openrouter: 'openrouter.svg',
