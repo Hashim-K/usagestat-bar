@@ -2,7 +2,7 @@
 <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
 <svg xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0.00 0.00 128.00 128.00">
 <g stroke-width="2.00" fill="none" stroke-linecap="butt">
-<path stroke="#ffffff" vector-effect="non-scaling-stroke" d="
+<path stroke="currentColor" vector-effect="non-scaling-stroke" d="
   M 27.46 27.54
   C 23.31 31.70 16.50 34.46 10.57 34.99
   Q 10.24 35.02 10.04 35.39
@@ -29,7 +29,7 @@
   Q 34.94 10.32 34.91 10.65
   C 34.38 16.58 31.62 23.38 27.46 27.54"
 />
-<path stroke="#ffffff" vector-effect="non-scaling-stroke" d="
+<path stroke="currentColor" vector-effect="non-scaling-stroke" d="
   M 103.9557 64.7548
   A 0.70 0.70 0.0 0 0 103.2569 64.0536
   L 64.7970 63.9864
@@ -41,7 +41,7 @@
   L 103.9557 64.7548"
 />
 </g>
-<path fill="#ffffff" d="
+<path fill="currentColor" d="
   M 113.99 0.00
   Q 125.60 2.32 128.00 13.94
   L 128.00 113.98

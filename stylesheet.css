@@ -82,6 +82,7 @@
 
 .ai-usage-panel-icon {
   icon-shadow: none;
+  color: inherit;
 }
 
 .ai-usage-menu {
@@ -131,6 +132,7 @@
 }
 
 .ai-usage-provider-icon {
+  color: inherit;
   icon-shadow: none;
   opacity: 0.72;
 }
