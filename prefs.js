@@ -720,6 +720,9 @@ class ProvidersPage extends Adw.PreferencesPage {
         this._validationInFlight = new Map();
         this._validationDebounceIds = new Map();
         this._manifests = new Map();
+        this._settings.connect('changed::provider-icon-style', () => this._refreshProviderIcons());
+        this._styleManager = Adw.StyleManager.get_default();
+        this._styleManager.connect('notify::dark', () => this._refreshProviderIcons());
         this._save();
         this._loadProviderManifests();
 
@@ -941,6 +944,21 @@ class ProvidersPage extends Adw.PreferencesPage {
         disabled.sort((a, b) => this._name(a).localeCompare(this._name(b)));
         for (const provider of disabled)
             this._disabledList.append(this._buildProviderListRow(provider, expandedId, false));
+    }
+
+    _refreshProviderIcons() {
+        this._renderProviders(this._expandedProviderId());
+    }
+
+    _expandedProviderId() {
+        for (const list of [this._enabledList, this._disabledList]) {
+            for (let child = list.get_first_child(); child; child = child.get_next_sibling()) {
+                const row = child.get_child?.();
+                if (row?.get_expanded?.())
+                    return child._providerKey || null;
+            }
+        }
+        return null;
     }
 
     _orderedProviders() {
