@@ -160,7 +160,7 @@ class BehaviourPage extends Adw.PreferencesPage {
 
         const refreshRow = new Adw.SpinRow({
             title: _('Refresh interval'),
-            subtitle: _('Minutes between ai-usage CLI refreshes'),
+            subtitle: _('Minutes between usagestat CLI refreshes'),
             adjustment: new Gtk.Adjustment({lower: 1, upper: 1440, step_increment: 1, value: this._settings.get_int('refresh-interval')}),
         });
         this._settings.bind('refresh-interval', refreshRow.adjustment, 'value', Gio.SettingsBindFlags.DEFAULT);
@@ -997,7 +997,7 @@ class ProvidersPage extends Adw.PreferencesPage {
         const nameRow = entryRow(_('Name'), '', _('Optional display name'));
         row.add_row(nameRow);
 
-        const commandRow = entryRow(_('CLI command'), '', _('Command that prints ai-usage-style usage JSON'));
+        const commandRow = entryRow(_('CLI command'), '', _('Command that prints usagestat-style usage JSON'));
         row.add_row(commandRow);
 
         const sourceRow = combo(SOURCE_OPTIONS, 'auto');
@@ -1432,7 +1432,7 @@ class ProvidersPage extends Adw.PreferencesPage {
                 return file;
 
             const themed = text.replace(/currentColor/g, color);
-            const cacheDir = Gio.File.new_for_path(GLib.build_filenamev([GLib.get_user_cache_dir(), 'ai-usage-bar', 'provider-icons']));
+            const cacheDir = Gio.File.new_for_path(GLib.build_filenamev([GLib.get_user_cache_dir(), 'usagestat-bar', 'provider-icons']));
             if (!cacheDir.query_exists(null))
                 cacheDir.make_directory_with_parents(null);
             const sourcePath = file.get_path() || 'provider-icon';
@@ -1451,7 +1451,7 @@ class ProvidersPage extends Adw.PreferencesPage {
             }
             return themedFile;
         } catch (error) {
-            logError(error, 'AI Usage Bar: failed to theme provider icon');
+            logError(error, 'UsageStat Bar: failed to theme provider icon');
             return file;
         }
     }
@@ -1825,7 +1825,7 @@ class ProvidersPage extends Adw.PreferencesPage {
         if (this._isCustomProvider(provider))
             return ['bash', '-lc', provider.customCommand || ''];
 
-        const argv = ['ai-usage', '--json-only', 'usage', '--provider', providerBaseId(provider)];
+        const argv = ['usagestat', '--json-only', 'usage', '--provider', providerBaseId(provider)];
         if (provider.source && provider.source !== 'auto')
             argv.push('--source', provider.source);
         return argv;
@@ -1964,7 +1964,7 @@ class ProvidersPage extends Adw.PreferencesPage {
         if (this._isCustomProvider(provider)) {
             row.add_row(this._customIconRow(provider));
 
-            const commandRow = entryRow(_('CLI command'), provider.customCommand || '', _('Command that prints ai-usage-style usage JSON'));
+            const commandRow = entryRow(_('CLI command'), provider.customCommand || '', _('Command that prints usagestat-style usage JSON'));
             commandRow._entry.connect('changed', () => {
                 this._assignOptional(provider, 'customCommand', commandRow._entry.get_text());
                 this._scheduleValidation(provider, validator?.label);
@@ -2071,7 +2071,7 @@ class ProvidersPage extends Adw.PreferencesPage {
         try {
             const binary = findAiUsage();
             if (!binary)
-                throw new Error(_('ai-usage CLI was not found on PATH or in common install locations.'));
+                throw new Error(_('usagestat CLI was not found on PATH or in common install locations.'));
 
             const {stdout, stderr, status} = await this._runCookieImportCommand([
                 binary,
@@ -2196,7 +2196,7 @@ class ProvidersPage extends Adw.PreferencesPage {
         try {
             Gio.app_info_launch_default_for_uri(url, null);
         } catch (error) {
-            logError(error, 'AI Usage Bar: failed to open provider login');
+            logError(error, 'UsageStat Bar: failed to open provider login');
             this._showError(_('Could not open browser'), error.message || String(error));
         }
     }
@@ -2292,9 +2292,9 @@ class ProvidersPage extends Adw.PreferencesPage {
 
     _sourceSubtitle(providerId, source) {
         if (providerId === 'codex' && source === 'auto')
-            return _('Uses ai-usage provider defaults.');
+            return _('Uses usagestat provider defaults.');
         if (source === 'auto')
-            return _('Uses ai-usage provider defaults.');
+            return _('Uses usagestat provider defaults.');
         if (source === 'api')
             return _('Uses a provider API token.');
         if (source === 'web')
@@ -2305,7 +2305,7 @@ class ProvidersPage extends Adw.PreferencesPage {
             return _('Uses OAuth login state, with optional account or token path hints.');
         if (source === 'local')
             return _('Uses local files, databases, caches, or services.');
-        return _('Uses ai-usage %s source.').format(source);
+        return _('Uses usagestat %s source.').format(source);
     }
 
     _apiKeyProviders() {
@@ -2383,21 +2383,21 @@ class MaintenancePage extends Adw.PreferencesPage {
 
     _buildGroup() {
         const group = new Adw.PreferencesGroup({
-            title: _('ai-usage CLI'),
+            title: _('usagestat CLI'),
         });
 
         for (const [title, command] of [
-            [_('Validate config'), 'ai-usage config validate'],
-            [_('Dump normalized config'), 'ai-usage config dump'],
-            [_('List providers'), 'ai-usage list --all --plain'],
-            [_('Show enabled usage'), 'ai-usage usage'],
-            [_('Show all usage JSON'), 'ai-usage --json usage --provider all'],
-            [_('Provider status'), 'ai-usage status --provider all --plain'],
-            [_('Cost summary'), 'ai-usage cost --provider all'],
-            [_('Export live usage JSON'), 'ai-usage export --provider all --format json'],
-            [_('Export live usage CSV'), 'ai-usage export --provider all --format csv'],
-            [_('Clear snapshots cache'), 'ai-usage cache clear --snapshots'],
-            [_('ai-usage help'), 'ai-usage --help'],
+            [_('Validate config'), 'usagestat config validate'],
+            [_('Dump normalized config'), 'usagestat config dump'],
+            [_('List providers'), 'usagestat list --all --plain'],
+            [_('Show enabled usage'), 'usagestat usage'],
+            [_('Show all usage JSON'), 'usagestat --json usage --provider all'],
+            [_('Provider status'), 'usagestat status --provider all --plain'],
+            [_('Cost summary'), 'usagestat cost --provider all'],
+            [_('Export live usage JSON'), 'usagestat export --provider all --format json'],
+            [_('Export live usage CSV'), 'usagestat export --provider all --format csv'],
+            [_('Clear snapshots cache'), 'usagestat cache clear --snapshots'],
+            [_('usagestat help'), 'usagestat --help'],
         ]) {
             const row = new Adw.ActionRow({
                 title,
@@ -2413,7 +2413,7 @@ class MaintenancePage extends Adw.PreferencesPage {
         }
 
         const docsRow = new Adw.ActionRow({
-            title: _('ai-usage docs'),
+            title: _('usagestat docs'),
             subtitle: _('Provider setup and config schema'),
         });
         const docsButton = new Gtk.Button({
@@ -2421,7 +2421,7 @@ class MaintenancePage extends Adw.PreferencesPage {
             valign: Gtk.Align.CENTER,
         });
         docsButton.connect('clicked', () => {
-            Gio.app_info_launch_default_for_uri('https://github.com/hashim-k/ai-usage-backend', null);
+            Gio.app_info_launch_default_for_uri('https://github.com/hashim-k/usagestat', null);
         });
         docsRow.add_suffix(docsButton);
         group.add(docsRow);
@@ -2446,7 +2446,7 @@ class MaintenancePage extends Adw.PreferencesPage {
                 Gio.Subprocess.new(argv, Gio.SubprocessFlags.NONE);
                 return;
             } catch (error) {
-                logError(error, `AI Usage Bar: failed to launch ${argv[0]}`);
+                logError(error, `UsageStat Bar: failed to launch ${argv[0]}`);
             }
         }
 

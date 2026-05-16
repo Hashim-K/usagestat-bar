@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-uuid="ai-usage-bar@hashimkarim"
+uuid="usagestat-bar@hashimkarim"
 out="${uuid}.shell-extension.zip"
 
 glib-compile-schemas schemas/

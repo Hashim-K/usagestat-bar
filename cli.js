@@ -6,13 +6,13 @@ const COMMAND_TIMEOUT_SECONDS = 90;
 
 export function findAiUsage() {
     const paths = [
-        GLib.getenv('AI_USAGE_CLI'),
-        `${GLib.get_home_dir()}/.local/bin/ai-usage`,
-        '/home/linuxbrew/.linuxbrew/bin/ai-usage',
-        `${GLib.get_home_dir()}/.linuxbrew/bin/ai-usage`,
-        '/opt/homebrew/bin/ai-usage',
-        '/usr/local/bin/ai-usage',
-        '/usr/bin/ai-usage',
+        GLib.getenv('USAGESTAT_CLI'),
+        `${GLib.get_home_dir()}/.local/bin/usagestat`,
+        '/home/linuxbrew/.linuxbrew/bin/usagestat',
+        `${GLib.get_home_dir()}/.linuxbrew/bin/usagestat`,
+        '/opt/homebrew/bin/usagestat',
+        '/usr/local/bin/usagestat',
+        '/usr/bin/usagestat',
     ].filter(Boolean);
 
     for (const path of paths) {
@@ -22,7 +22,7 @@ export function findAiUsage() {
 
     try {
         const proc = Gio.Subprocess.new(
-            ['bash', '-lc', 'command -v ai-usage'],
+            ['bash', '-lc', 'command -v usagestat'],
             Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE,
         );
         const [, stdout] = proc.communicate_utf8(null, null);
@@ -77,7 +77,7 @@ export async function fetchProviderUsage(provider, cancellable) {
 
     const binary = findAiUsage();
     if (!binary)
-        throw new Error('ai-usage CLI was not found on PATH or in common install locations.');
+        throw new Error('usagestat CLI was not found on PATH or in common install locations.');
 
     const argv = [
         binary,
@@ -93,11 +93,11 @@ export async function fetchProviderUsage(provider, cancellable) {
 
     const stdout = result.stdout.trim();
     if (!stdout) {
-        const detail = result.stderr.trim().split('\n')[0] || `ai-usage exited with status ${result.status}`;
+        const detail = result.stderr.trim().split('\n')[0] || `usagestat exited with status ${result.status}`;
         throw new Error(detail);
     }
 
-    const payload = parseUsageJson(stdout, 'ai-usage');
+    const payload = parseUsageJson(stdout, 'usagestat');
     if (payload?.error) {
         const message = payload.error.message || payload.error.code || JSON.stringify(payload.error);
         throw new Error(message);

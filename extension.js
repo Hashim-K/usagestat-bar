@@ -78,24 +78,24 @@ export default class AIUsageBarExtension extends Extension {
         this._lastRefreshAt = null;
         this._cancellable = new Gio.Cancellable();
 
-        this._indicator = new PanelMenu.Button(0.5, _('AI Usage Bar'), false);
-        this._indicator.add_style_class_name('ai-usage-panel-button');
+        this._indicator = new PanelMenu.Button(0.5, _('UsageStat Bar'), false);
+        this._indicator.add_style_class_name('usagestat-panel-button');
 
         this._panelBox = new St.BoxLayout({
-            style_class: 'ai-usage-panel',
+            style_class: 'usagestat-panel',
             y_align: Clutter.ActorAlign.CENTER,
         });
-        this._meter = new St.BoxLayout({style_class: 'ai-usage-panel-meter'});
-        this._meterFill = new St.Widget({style_class: 'ai-usage-panel-meter-fill'});
+        this._meter = new St.BoxLayout({style_class: 'usagestat-panel-meter'});
+        this._meterFill = new St.Widget({style_class: 'usagestat-panel-meter-fill'});
         this._meter.add_child(this._meterFill);
         this._panelPercent = new St.Label({
             text: _('0%'),
-            style_class: 'ai-usage-panel-label',
+            style_class: 'usagestat-panel-label',
             y_align: Clutter.ActorAlign.CENTER,
         });
         this._panelLabel = new St.Label({
             text: _('AI'),
-            style_class: 'ai-usage-panel-label',
+            style_class: 'usagestat-panel-label',
             y_align: Clutter.ActorAlign.CENTER,
         });
         this._panelBox.add_child(this._meter);
@@ -234,12 +234,12 @@ export default class AIUsageBarExtension extends Extension {
     }
 
     _buildMenu() {
-        this._indicator.menu.box.add_style_class_name('ai-usage-menu');
+        this._indicator.menu.box.add_style_class_name('usagestat-menu');
 
-        this._header = new St.BoxLayout({style_class: 'ai-usage-header'});
+        this._header = new St.BoxLayout({style_class: 'usagestat-header'});
         this._title = new St.Label({
-            text: _('AI Usage Bar'),
-            style_class: 'ai-usage-title',
+            text: _('UsageStat Bar'),
+            style_class: 'usagestat-title',
             x_expand: true,
             y_align: Clutter.ActorAlign.CENTER,
         });
@@ -252,13 +252,13 @@ export default class AIUsageBarExtension extends Extension {
         }));
         this._indicator.menu.box.add_child(this._header);
 
-        this._switcher = new St.BoxLayout({style_class: 'ai-usage-provider-switcher', reactive: true});
+        this._switcher = new St.BoxLayout({style_class: 'usagestat-provider-switcher', reactive: true});
         this._widgetSignals.push([this._switcher, this._switcher.connect('scroll-event', (_actor, event) => this._switchPopupProviderFromScroll(event))]);
         this._indicator.menu.box.add_child(this._switcher);
 
         this._content = new St.BoxLayout({
             vertical: true,
-            style_class: 'ai-usage-content',
+            style_class: 'usagestat-content',
             reactive: true,
         });
         this._widgetSignals.push([this._content, this._content.connect('scroll-event', (_actor, event) => this._switchPopupProviderFromScroll(event))]);
@@ -268,7 +268,7 @@ export default class AIUsageBarExtension extends Extension {
     _iconButton(iconName, callback) {
         const button = new St.Button({
             child: new St.Icon({icon_name: iconName, icon_size: 16}),
-            style_class: 'ai-usage-icon-button',
+            style_class: 'usagestat-icon-button',
             can_focus: true,
         });
         button.connect('clicked', callback);
@@ -353,7 +353,7 @@ export default class AIUsageBarExtension extends Extension {
             this._loading = false;
             this._lastRefreshAt = new Date();
             if (this._title)
-                this._title.set_text(_('AI Usage Bar'));
+                this._title.set_text(_('UsageStat Bar'));
             this._render();
         }
     }
@@ -401,7 +401,7 @@ export default class AIUsageBarExtension extends Extension {
         if (!this._visibleProviders.length) {
             this._renderMessage(
                 _('No providers enabled'),
-                _('Enable providers in preferences or edit ~/.config/ai-usage/config.toml.'),
+                _('Enable providers in preferences or edit ~/.config/usagestat/config.toml.'),
             );
             return;
         }
@@ -411,8 +411,8 @@ export default class AIUsageBarExtension extends Extension {
 
         if (!findAiUsage() && this._providerNeedsCli(this._activeProviderConfig())) {
             this._renderMessage(
-                _('ai-usage CLI not found'),
-                _('Install ai-usage, add it to PATH, or set AI_USAGE_CLI before GNOME Shell starts.'),
+                _('usagestat CLI not found'),
+                _('Install usagestat, add it to PATH, or set USAGESTAT_CLI before GNOME Shell starts.'),
             );
             return;
         }
@@ -430,20 +430,20 @@ export default class AIUsageBarExtension extends Extension {
 
         const box = new St.BoxLayout({
             vertical: true,
-            style_class: 'ai-usage-provider-tile-box',
+            style_class: 'usagestat-provider-tile-box',
             x_align: Clutter.ActorAlign.CENTER,
         });
         box.add_child(this._providerIcon(provider, 22));
         box.add_child(new St.Label({
             text: this._providerName(provider),
-            style_class: 'ai-usage-provider-tile-label',
+            style_class: 'usagestat-provider-tile-label',
             x_align: Clutter.ActorAlign.CENTER,
         }));
 
-        const track = new St.BoxLayout({style_class: 'ai-usage-provider-mini-track'});
+        const track = new St.BoxLayout({style_class: 'usagestat-provider-mini-track'});
         const waiting = this._loading && !snapshot && !this._errors.has(id);
         const fill = new St.Widget({
-            style_class: waiting ? 'ai-usage-provider-mini-fill loading' : 'ai-usage-provider-mini-fill',
+            style_class: waiting ? 'usagestat-provider-mini-fill loading' : 'usagestat-provider-mini-fill',
             style: `background-color: ${this._errors.has(id) ? this._settings.get_string('danger-color') : color};`,
         });
         fill.set_width(waiting ? 18 : this._barFillWidth(this._errors.has(id) ? 100 : percent, 68));
@@ -461,7 +461,7 @@ export default class AIUsageBarExtension extends Extension {
         const tileStatusColor = {green: '#33d17a', orange: '#f6d32d', red: '#ff5f57'}[tileStatus] || '#f6d32d';
 
         const tileInfoRow = new St.BoxLayout({
-            style_class: 'ai-usage-provider-tile-info',
+            style_class: 'usagestat-provider-tile-info',
             x_align: Clutter.ActorAlign.CENTER,
         });
         tileInfoRow.add_child(new St.Widget({
@@ -472,7 +472,7 @@ export default class AIUsageBarExtension extends Extension {
 
         const button = new St.Button({
             child: box,
-            style_class: active ? 'ai-usage-provider-tile active' : 'ai-usage-provider-tile',
+            style_class: active ? 'usagestat-provider-tile active' : 'usagestat-provider-tile',
             can_focus: true,
         });
         button.connect('clicked', () => {
@@ -525,10 +525,10 @@ export default class AIUsageBarExtension extends Extension {
         this._panelBox.set_y_expand(true);
 
         const buildBar = (pct, barColor) => {
-            const fill = new St.Widget({style_class: 'ai-usage-panel-meter-fill'});
+            const fill = new St.Widget({style_class: 'usagestat-panel-meter-fill'});
             fill.set_width(Math.round(pct * 0.18));
             fill.set_style(`background-color: ${barColor};`);
-            const meter = new St.BoxLayout({style_class: 'ai-usage-panel-meter'});
+            const meter = new St.BoxLayout({style_class: 'usagestat-panel-meter'});
             meter.set_y_align(Clutter.ActorAlign.CENTER);
             meter.set_style(`border-color: ${neutralColor};`);
             meter.add_child(fill);
@@ -551,7 +551,7 @@ export default class AIUsageBarExtension extends Extension {
             const effectiveBarLayout = barsToShow === 1 ? 'horizontal' : barLayout;
             const stack = new St.BoxLayout({
                 vertical: effectiveBarLayout === 'vertical',
-                style_class: 'ai-usage-panel-provider-stack',
+                style_class: 'usagestat-panel-provider-stack',
                 y_align: Clutter.ActorAlign.CENTER,
                 x_align: Clutter.ActorAlign.CENTER,
             });
@@ -567,7 +567,7 @@ export default class AIUsageBarExtension extends Extension {
             }
 
             const frame = new St.Bin({
-                style_class: 'ai-usage-panel-provider-frame',
+                style_class: 'usagestat-panel-provider-frame',
                 xAlign: Clutter.ActorAlign.CENTER,
                 yAlign: Clutter.ActorAlign.CENTER,
                 y_align: Clutter.ActorAlign.CENTER,
@@ -583,7 +583,7 @@ export default class AIUsageBarExtension extends Extension {
             const color = this._colorForUsedPercent(usedPercent);
 
             const providerBox = new St.BoxLayout({
-                style_class: 'ai-usage-panel-provider-box',
+                style_class: 'usagestat-panel-provider-box',
                 y_align: Clutter.ActorAlign.CENTER,
                 y_expand: true,
                 style: 'spacing: 6px;',
@@ -593,20 +593,20 @@ export default class AIUsageBarExtension extends Extension {
 
             const label = new St.Label({
                 text: this._providerName(this._providerForKey(providerId) || providerId),
-                style_class: 'ai-usage-panel-label',
+                style_class: 'usagestat-panel-label',
                 y_align: Clutter.ActorAlign.CENTER,
             });
             label.set_style(`color: ${neutralColor};`);
 
             const percentLabel = new St.Label({
                 text: `${Math.round(shownPercent)}%`,
-                style_class: 'ai-usage-panel-label',
+                style_class: 'usagestat-panel-label',
                 y_align: Clutter.ActorAlign.CENTER,
             });
             percentLabel.set_style(`color: ${neutralColor};`);
 
             const icon = this._providerIcon(this._providerForKey(providerId) || providerId, this._panelIconHeight(16));
-            icon.add_style_class_name('ai-usage-panel-icon');
+            icon.add_style_class_name('usagestat-panel-icon');
             icon.set_y_align(Clutter.ActorAlign.CENTER);
 
             for (const component of components) {
@@ -704,7 +704,7 @@ export default class AIUsageBarExtension extends Extension {
         if (error) {
             this._content.add_child(new St.Label({
                 text: error,
-                style_class: 'ai-usage-message-body',
+                style_class: 'usagestat-message-body',
             }));
             return;
         }
@@ -752,21 +752,21 @@ export default class AIUsageBarExtension extends Extension {
         const snapshot = this._usage.get(key);
         const error = this._errors.get(key);
 
-        this._content.add_child(new St.Widget({style_class: 'ai-usage-separator'}));
+        this._content.add_child(new St.Widget({style_class: 'usagestat-separator'}));
         
         if (error || snapshot) {
             this._renderProviderHeader(snapshot || {}, key, true);
         } else {
             this._content.add_child(new St.Label({
                 text: this._providerName(provider),
-                style_class: 'ai-usage-provider-heading',
+                style_class: 'usagestat-provider-heading',
             }));
         }
 
         if (error) {
             this._content.add_child(new St.Label({
                 text: error,
-                style_class: 'ai-usage-message-body',
+                style_class: 'usagestat-message-body',
             }));
             return;
         }
@@ -774,7 +774,7 @@ export default class AIUsageBarExtension extends Extension {
         if (!snapshot) {
             this._content.add_child(new St.Label({
                 text: this._loading ? _('Fetching usage...') : _('No usage fetched yet.'),
-                style_class: 'ai-usage-muted',
+                style_class: 'usagestat-muted',
             }));
             return;
         }
@@ -799,40 +799,40 @@ export default class AIUsageBarExtension extends Extension {
     _renderLoadingProvider(providerId) {
         this._content.add_child(new St.Label({
             text: this._providerName(this._providerForKey(providerId) || providerId),
-            style_class: 'ai-usage-provider-heading',
+            style_class: 'usagestat-provider-heading',
         }));
 
-        const meta = new St.BoxLayout({style_class: 'ai-usage-provider-meta'});
+        const meta = new St.BoxLayout({style_class: 'usagestat-provider-meta'});
         meta.add_child(new St.Label({
             text: _('Fetching usage...'),
-            style_class: 'ai-usage-muted',
+            style_class: 'usagestat-muted',
             x_expand: true,
         }));
         meta.add_child(new St.Icon({
             icon_name: 'process-working-symbolic',
             icon_size: 14,
-            style_class: 'ai-usage-loading-icon',
+            style_class: 'usagestat-loading-icon',
         }));
         this._content.add_child(meta);
-        this._content.add_child(new St.Widget({style_class: 'ai-usage-separator'}));
+        this._content.add_child(new St.Widget({style_class: 'usagestat-separator'}));
 
         for (const title of [_('Session'), _('Weekly'), _('Extra usage')])
             this._renderLoadingWindow(title);
     }
 
     _renderLoadingWindow(title) {
-        const row = new St.BoxLayout({vertical: true, style_class: 'ai-usage-window'});
-        row.add_child(new St.Label({text: title, style_class: 'ai-usage-window-title'}));
+        const row = new St.BoxLayout({vertical: true, style_class: 'usagestat-window'});
+        row.add_child(new St.Label({text: title, style_class: 'usagestat-window-title'}));
 
-        const track = new St.BoxLayout({style_class: 'ai-usage-track loading'});
-        const fill = new St.Widget({style_class: 'ai-usage-track-fill loading'});
+        const track = new St.BoxLayout({style_class: 'usagestat-track loading'});
+        const fill = new St.Widget({style_class: 'usagestat-track-fill loading'});
         fill.set_width(54);
         track.add_child(fill);
         row.add_child(track);
 
         row.add_child(new St.Label({
             text: _('Loading...'),
-            style_class: 'ai-usage-muted',
+            style_class: 'usagestat-muted',
         }));
         this._content.add_child(row);
     }
@@ -860,7 +860,7 @@ export default class AIUsageBarExtension extends Extension {
         }[state] || '#f6d32d';
 
         const headerBox = new St.BoxLayout({
-            style_class: 'ai-usage-provider-heading-box',
+            style_class: 'usagestat-provider-heading-box',
         });
 
         const leftGroup = new St.BoxLayout({x_expand: true});
@@ -870,7 +870,7 @@ export default class AIUsageBarExtension extends Extension {
         }));
         leftGroup.add_child(new St.Label({
             text: this._providerHeading(snapshot, providerId),
-            style_class: 'ai-usage-provider-heading',
+            style_class: 'usagestat-provider-heading',
             y_align: Clutter.ActorAlign.CENTER,
         }));
 
@@ -880,7 +880,7 @@ export default class AIUsageBarExtension extends Extension {
         const peakText = peakBadge?.text;
 
         for (const chipText of [plan, mode, peakText].filter(Boolean))
-            leftGroup.add_child(new St.Label({text: chipText, style_class: 'ai-usage-chip', y_align: Clutter.ActorAlign.CENTER}));
+            leftGroup.add_child(new St.Label({text: chipText, style_class: 'usagestat-chip', y_align: Clutter.ActorAlign.CENTER}));
 
         headerBox.add_child(leftGroup);
 
@@ -893,7 +893,7 @@ export default class AIUsageBarExtension extends Extension {
                 icon_size: 16,
                 y_align: Clutter.ActorAlign.CENTER,
             });
-            const statusBtn = new St.Button({child: statusIcon, style_class: 'ai-usage-icon-button', can_focus: true});
+            const statusBtn = new St.Button({child: statusIcon, style_class: 'usagestat-icon-button', can_focus: true});
             statusBtn.connect('clicked', () => {
                 try {
                     Gio.app_info_launch_default_for_uri(snapshot.statusPageUrl, null);
@@ -906,17 +906,17 @@ export default class AIUsageBarExtension extends Extension {
         this._content.add_child(headerBox);
 
         if (!isChild) {
-            const meta = new St.BoxLayout({style_class: 'ai-usage-provider-meta'});
+            const meta = new St.BoxLayout({style_class: 'usagestat-provider-meta'});
             this._updatedLabel = new St.Label({
                 text: usage.updatedAt ? this._updatedText(usage.updatedAt) : _('Updated just now'),
-                style_class: 'ai-usage-muted',
+                style_class: 'usagestat-muted',
                 x_expand: true,
             });
             meta.add_child(this._updatedLabel);
             const nextText = this._nextRefreshText();
             this._nextRefreshLabel = new St.Label({
                 text: nextText || '',
-                style_class: 'ai-usage-muted',
+                style_class: 'usagestat-muted',
                 visible: Boolean(nextText),
             });
             meta.add_child(this._nextRefreshLabel);
@@ -929,21 +929,21 @@ export default class AIUsageBarExtension extends Extension {
             snapshot.status?.description,
         ].filter(Boolean).join('  |  ');
         if (detail)
-            this._content.add_child(new St.Label({text: detail, style_class: 'ai-usage-detail'}));
+            this._content.add_child(new St.Label({text: detail, style_class: 'usagestat-detail'}));
 
         if (!isChild)
-            this._content.add_child(new St.Widget({style_class: 'ai-usage-separator'}));
+            this._content.add_child(new St.Widget({style_class: 'usagestat-separator'}));
     }
 
     _renderUsageWindow(title, window) {
         const percent = this._displayPercent(window);
         const color = this._colorForPercent(percent);
-        const row = new St.BoxLayout({vertical: true, style_class: 'ai-usage-window'});
-        row.add_child(new St.Label({text: title, style_class: 'ai-usage-window-title'}));
+        const row = new St.BoxLayout({vertical: true, style_class: 'usagestat-window'});
+        row.add_child(new St.Label({text: title, style_class: 'usagestat-window-title'}));
 
-        const track = new St.BoxLayout({style_class: 'ai-usage-track'});
+        const track = new St.BoxLayout({style_class: 'usagestat-track'});
         const fill = new St.Widget({
-            style_class: 'ai-usage-track-fill',
+            style_class: 'usagestat-track-fill',
             style: `background-color: ${color};`,
         });
         fill.set_width(this._barFillWidth(percent, 390));
@@ -953,12 +953,12 @@ export default class AIUsageBarExtension extends Extension {
         const footer = new St.BoxLayout();
         footer.add_child(new St.Label({
             text: this._formatPercent(percent),
-            style_class: 'ai-usage-window-percent',
+            style_class: 'usagestat-window-percent',
             x_expand: true,
         }));
         footer.add_child(new St.Label({
             text: this._resetText(window),
-            style_class: 'ai-usage-muted',
+            style_class: 'usagestat-muted',
         }));
         row.add_child(footer);
         this._content.add_child(row);
@@ -980,12 +980,12 @@ export default class AIUsageBarExtension extends Extension {
         const percent = this._displayPercent(window);
         const color = this._colorForPercent(percent);
 
-        const row = new St.BoxLayout({vertical: true, style_class: 'ai-usage-window'});
-        row.add_child(new St.Label({text: title, style_class: 'ai-usage-window-title'}));
+        const row = new St.BoxLayout({vertical: true, style_class: 'usagestat-window'});
+        row.add_child(new St.Label({text: title, style_class: 'usagestat-window-title'}));
 
-        const track = new St.BoxLayout({style_class: 'ai-usage-track'});
+        const track = new St.BoxLayout({style_class: 'usagestat-track'});
         const fill = new St.Widget({
-            style_class: 'ai-usage-track-fill',
+            style_class: 'usagestat-track-fill',
             style: `background-color: ${color};`,
         });
         fill.set_width(this._barFillWidth(percent, 390));
@@ -995,12 +995,12 @@ export default class AIUsageBarExtension extends Extension {
         const footer = new St.BoxLayout();
         footer.add_child(new St.Label({
             text: this._providerCostText(cost),
-            style_class: 'ai-usage-window-percent',
+            style_class: 'usagestat-window-percent',
             x_expand: true,
         }));
         footer.add_child(new St.Label({
             text: _('%s%% used').format(Math.round(usedPercent)),
-            style_class: 'ai-usage-muted',
+            style_class: 'usagestat-muted',
         }));
         row.add_child(footer);
         this._content.add_child(row);
@@ -1035,10 +1035,10 @@ export default class AIUsageBarExtension extends Extension {
         const stageLabel = stageLabels[pace.stage] || pace.stage;
         const color = stageColors[pace.stage] || this._settings.get_string('accent-color');
 
-        const row = new St.BoxLayout({style_class: 'ai-usage-window'});
+        const row = new St.BoxLayout({style_class: 'usagestat-window'});
         row.add_child(new St.Label({
             text: _('Pace:'),
-            style_class: 'ai-usage-muted',
+            style_class: 'usagestat-muted',
             y_align: Clutter.ActorAlign.CENTER,
         }));
         row.add_child(new St.Label({
@@ -1052,7 +1052,7 @@ export default class AIUsageBarExtension extends Extension {
             const sign = delta >= 0 ? '+' : '−';
             row.add_child(new St.Label({
                 text: `  ${sign}${Math.abs(delta).toFixed(1)}%`,
-                style_class: 'ai-usage-muted',
+                style_class: 'usagestat-muted',
                 y_align: Clutter.ActorAlign.CENTER,
             }));
         }
@@ -1061,7 +1061,7 @@ export default class AIUsageBarExtension extends Extension {
             const eta = this._relativeResetText(Math.round(Number(pace.etaSeconds)));
             row.add_child(new St.Label({
                 text: _(' · runs out in %s').format(eta),
-                style_class: 'ai-usage-danger',
+                style_class: 'usagestat-danger',
                 y_align: Clutter.ActorAlign.CENTER,
             }));
         }
@@ -1072,7 +1072,7 @@ export default class AIUsageBarExtension extends Extension {
     _renderCreditLine(text) {
         this._content.add_child(new St.Label({
             text,
-            style_class: 'ai-usage-credits',
+            style_class: 'usagestat-credits',
         }));
     }
 
@@ -1125,11 +1125,11 @@ export default class AIUsageBarExtension extends Extension {
     _renderMessage(title, body, isError = false) {
         this._content.add_child(new St.Label({
             text: title,
-            style_class: isError ? 'ai-usage-message-title danger' : 'ai-usage-message-title',
+            style_class: isError ? 'usagestat-message-title danger' : 'usagestat-message-title',
         }));
         this._content.add_child(new St.Label({
             text: body,
-            style_class: 'ai-usage-message-body',
+            style_class: 'usagestat-message-body',
         }));
     }
 
@@ -1450,7 +1450,7 @@ export default class AIUsageBarExtension extends Extension {
                 const icon = new St.Icon({
                     gicon: Gio.FileIcon.new(renderFile),
                     icon_size: height,
-                    style_class: 'ai-usage-provider-icon',
+                    style_class: 'usagestat-provider-icon',
                     y_align: Clutter.ActorAlign.CENTER,
                 });
                 const {width, height: viewBoxHeight} = this._svgViewBox(renderFile);
@@ -1463,7 +1463,7 @@ export default class AIUsageBarExtension extends Extension {
         return new St.Icon({
             icon_name: 'applications-science-symbolic',
             icon_size: height,
-            style_class: 'ai-usage-provider-icon fallback',
+            style_class: 'usagestat-provider-icon fallback',
         });
     }
 
@@ -1510,7 +1510,7 @@ export default class AIUsageBarExtension extends Extension {
                 return file;
 
             const themed = text.replace(/currentColor/g, color);
-            const cacheDir = Gio.File.new_for_path(GLib.build_filenamev([GLib.get_user_cache_dir(), 'ai-usage-bar', 'provider-icons']));
+            const cacheDir = Gio.File.new_for_path(GLib.build_filenamev([GLib.get_user_cache_dir(), 'usagestat-bar', 'provider-icons']));
             if (!cacheDir.query_exists(null))
                 cacheDir.make_directory_with_parents(null);
             const sourcePath = file.get_path() || 'provider-icon';
@@ -1529,7 +1529,7 @@ export default class AIUsageBarExtension extends Extension {
             }
             return themedFile;
         } catch (error) {
-            logError(error, 'AI Usage Bar: failed to theme provider icon');
+            logError(error, 'UsageStat Bar: failed to theme provider icon');
             return file;
         }
     }

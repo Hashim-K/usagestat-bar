@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <schemalist>
-  <schema id="org.gnome.shell.extensions.ai-usage-bar" path="/org/gnome/shell/extensions/ai-usage-bar/">
+  <schema id="org.gnome.shell.extensions.usagestat-bar" path="/org/gnome/shell/extensions/usagestat-bar/">
     <key name="refresh-interval" type="i">
       <default>15</default>
       <summary>Refresh interval in minutes</summary>

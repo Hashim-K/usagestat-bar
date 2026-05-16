@@ -1,6 +1,6 @@
-# AI Usage Bar
+# UsageStat Bar
 
-GNOME Shell extension that shows normalized AI provider usage in the panel. Reads from the `ai-usage` CLI and lets you toggle providers from preferences.
+GNOME Shell extension that shows normalized AI provider usage in the panel. Reads from the `usagestat` CLI and lets you toggle providers from preferences.
 
 ## Install
 
@@ -10,10 +10,10 @@ Install from [extensions.gnome.org](https://extensions.gnome.org) once listed, o
 
 ### Manual
 
-1. Install the `ai-usage` CLI:
+1. Install the `usagestat` CLI:
 
 ```bash
-cargo install ai-usage
+cargo install usagestat
 ```
 
 2. Install the extension:
@@ -27,17 +27,17 @@ cargo install ai-usage
 4. Enable the extension:
 
 ```bash
-gnome-extensions enable ai-usage-bar@hashimkarim
+gnome-extensions enable usagestat-bar@hashimkarim
 ```
 
-If the CLI is installed somewhere unusual, set `AI_USAGE_CLI=/path/to/ai-usage` before GNOME Shell starts.
+If the CLI is installed somewhere unusual, set `USAGESTAT_CLI=/path/to/usagestat` before GNOME Shell starts.
 
 ## What It Does
 
 - Shows a compact panel usage meter with remaining/used modes.
 - Supports GNOME panel placement: left, center, right, plus position index.
 - Configurable normal, warning, danger, and neutral colors.
-- Uses the installed `ai-usage` CLI — provider support follows the backend plugin set.
+- Uses the installed `usagestat` CLI — provider support follows the backend plugin set.
 - Toggle and reorder providers from preferences.
 - Keeps config private when saving.
 

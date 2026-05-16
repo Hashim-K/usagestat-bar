@@ -40,7 +40,7 @@ const PROVIDER_IDS = new Set(PROVIDERS.map(([id]) => id));
 const DEPRECATED_PROVIDER_IDS = new Set(["mock"]);
 
 export function configPath() {
-    return GLib.build_filenamev([GLib.get_home_dir(), '.config', 'ai-usage', 'config.toml']);
+    return GLib.build_filenamev([GLib.get_home_dir(), '.config', 'usagestat', 'config.toml']);
 }
 
 export function defaultConfig() {
@@ -112,7 +112,7 @@ export function loadConfig() {
             return defaultConfig();
         return ensureProviderShape(parseConfigToml(new TextDecoder().decode(contents)));
     } catch (error) {
-        logError(error, 'AI Usage Bar: failed to read ~/.config/ai-usage/config.toml');
+        logError(error, 'UsageStat Bar: failed to read ~/.config/usagestat/config.toml');
         return defaultConfig();
     }
 }
@@ -135,7 +135,7 @@ export function saveConfig(config) {
     try {
         Gio.Subprocess.new(['chmod', '600', configPath()], Gio.SubprocessFlags.NONE);
     } catch (error) {
-        logError(error, 'AI Usage Bar: failed to chmod config');
+        logError(error, 'UsageStat Bar: failed to chmod config');
     }
 }
 
