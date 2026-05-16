@@ -1,52 +1,76 @@
 # AI Usage Bar
 
-GNOME Shell extension for the `ai-usage` CLI. It shows normalized provider usage from `ai-usage --json-only usage --provider ...` and edits enabled provider state in `~/.config/ai-usage/config.toml`.
+GNOME Shell extension that shows normalized AI provider usage in the panel. Reads from the `ai-usage` CLI and lets you toggle providers from preferences.
 
 ## Install
 
+### From GNOME Extensions
+
+Install from [extensions.gnome.org](https://extensions.gnome.org/extension/ai-usage-bar) once listed, or use the GNOME Extension Manager app.
+
+### Manual
+
+1. Install the `ai-usage` CLI:
+
 ```bash
-cargo install --path /path/to/ai-usage-backend/crates/ai-usage-cli
+cargo install ai-usage
+```
+
+2. Install the extension:
+
+```bash
 ./install.sh
+gnome-extensions enable ai-usage-bar@hashimkarim
 ```
 
 Restart GNOME Shell on X11 with `Alt+F2`, `r`, Enter. On Wayland, log out and back in.
+
+If the CLI is installed somewhere unusual, set `AI_USAGE_CLI=/path/to/ai-usage` before GNOME Shell starts.
 
 ## What It Does
 
 - Shows a compact panel usage meter with remaining/used modes.
 - Supports GNOME panel placement: left, center, right, plus position index.
-- Adds configurable normal, warning, danger, and neutral colors.
-- Uses the installed `ai-usage` CLI, so provider support follows the backend plugin set.
-- Edits enabled provider state in `~/.config/ai-usage/config.toml` from preferences.
-- Keeps the config file private when saving.
+- Configurable normal, warning, danger, and neutral colors.
+- Uses the installed `ai-usage` CLI — provider support follows the backend plugin set.
+- Toggle and reorder providers from preferences.
+- Keeps config private when saving.
 
-If the CLI is installed somewhere unusual, set `AI_USAGE_CLI=/path/to/ai-usage` before GNOME Shell starts.
+## Development
 
-## Development Test
-
-For active development, link the extension directory to this repo:
+Link the repo into the extensions directory for live reloading:
 
 ```bash
 ./dev-link.sh
 ```
 
-Code changes are picked up on the next extension reload. Schema changes still need:
+Schema changes still need:
 
 ```bash
 glib-compile-schemas schemas
 ```
 
-Do not delete `schemas/gschemas.compiled` while using the symlinked dev install; GNOME loads it from this repo.
-
-On Wayland, test in a nested GNOME Shell without disrupting the current session:
+On Wayland, test in a nested GNOME Shell:
 
 ```bash
 ./install.sh
 ./test-nested.sh
 ```
 
-For the live desktop session, a brand-new extension UUID is discovered only after GNOME Shell reloads. On Wayland, log out and back in, then run:
+Build the submission zip:
 
 ```bash
-gnome-extensions enable ai-usage-bar@local
+./build.sh
 ```
+
+## Donate
+
+If this extension is useful to you:
+
+- [PayPal](https://paypal.me/hashimkarim)
+- [GitHub Sponsors](https://github.com/sponsors/Hashim-K)
+- [Ko-fi](https://ko-fi.com/hashimkarim)
+
+## License
+
+[MIT](LICENSE)

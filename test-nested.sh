@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-uuid="ai-usage-bar@local"
+uuid="ai-usage-bar@hashimkarim"
 log_file="$(mktemp)"
 
 cleanup() {
