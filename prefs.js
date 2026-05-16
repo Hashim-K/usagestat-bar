@@ -2461,14 +2461,34 @@ class MaintenancePage extends Adw.PreferencesPage {
     }
 
     _terminalCandidates(script) {
+        const q = s => this._shellQuote(s);
         const byId = {
-            kgx: ['kgx', '--', 'bash', '-lc', script],
-            'gnome-terminal': ['gnome-terminal', '--', 'bash', '-lc', script],
-            'x-terminal-emulator': ['x-terminal-emulator', '-e', 'bash', '-lc', script],
-            konsole: ['konsole', '-e', 'bash', '-lc', script],
-            'xfce4-terminal': ['xfce4-terminal', '-e', `bash -lc ${this._shellQuote(script)}`],
-            alacritty: ['alacritty', '-e', 'bash', '-lc', script],
-            kitty: ['kitty', 'bash', '-lc', script],
+            kgx:                  ['kgx', '--', 'bash', '-lc', script],
+            ptyxis:               ['ptyxis', '--', 'bash', '-lc', script],
+            'gnome-terminal':     ['gnome-terminal', '--', 'bash', '-lc', script],
+            'x-terminal-emulator':['x-terminal-emulator', '-e', 'bash', '-lc', script],
+            konsole:              ['konsole', '-e', 'bash', '-lc', script],
+            yakuake:              ['yakuake', '-e', 'bash', '-lc', script],
+            'xfce4-terminal':     ['xfce4-terminal', '-e', `bash -lc ${q(script)}`],
+            alacritty:            ['alacritty', '-e', 'bash', '-lc', script],
+            kitty:                ['kitty', 'bash', '-lc', script],
+            ghostty:              ['ghostty', '-e', 'bash', '-lc', script],
+            foot:                 ['foot', 'bash', '-lc', script],
+            xterm:                ['xterm', '-e', 'bash', '-lc', script],
+            urxvt:                ['urxvt', '-e', 'bash', '-lc', script],
+            wezterm:              ['wezterm', 'start', 'bash', '-lc', script],
+            terminator:           ['terminator', '-e', `bash -lc ${q(script)}`],
+            tilix:                ['tilix', '-e', 'bash', '-lc', script],
+            'lxterminal':         ['lxterminal', '-e', `bash -lc ${q(script)}`],
+            'mate-terminal':      ['mate-terminal', '-e', `bash -lc ${q(script)}`],
+            guake:                ['guake', `--execute-command=bash -lc ${q(script)}`],
+            st:                   ['st', '-e', 'bash', '-lc', script],
+            terminology:          ['terminology', '-e', 'bash', '-lc', script],
+            sakura:               ['sakura', '-e', 'bash', '-lc', script],
+            contour:              ['contour', 'terminal', 'bash', '-lc', script],
+            rio:                  ['rio', '-e', 'bash', '-lc', script],
+            qterminal:            ['qterminal', '-e', `bash -lc ${q(script)}`],
+            'cool-retro-term':    ['cool-retro-term', '-e', 'bash', '-lc', script],
         };
         const preferred = this._settings.get_string('tools-terminal');
         const order = this._terminalOptions().map(([id]) => id);
@@ -2479,13 +2499,32 @@ class MaintenancePage extends Adw.PreferencesPage {
 
     _terminalOptions() {
         return [
-            ['kgx', _('GNOME Console')],
-            ['gnome-terminal', _('GNOME Terminal')],
-            ['x-terminal-emulator', _('System default terminal')],
-            ['konsole', _('Konsole')],
-            ['xfce4-terminal', _('Xfce Terminal')],
-            ['alacritty', _('Alacritty')],
-            ['kitty', _('Kitty')],
+            ['kgx',                   _('GNOME Console')],
+            ['ptyxis',                _('Ptyxis')],
+            ['gnome-terminal',        _('GNOME Terminal')],
+            ['x-terminal-emulator',   _('System default terminal')],
+            ['konsole',               _('Konsole')],
+            ['yakuake',               _('Yakuake')],
+            ['xfce4-terminal',        _('Xfce Terminal')],
+            ['alacritty',             _('Alacritty')],
+            ['kitty',                 _('Kitty')],
+            ['ghostty',               _('Ghostty')],
+            ['foot',                  _('Foot')],
+            ['xterm',                 _('XTerm')],
+            ['urxvt',                 _('rxvt-unicode')],
+            ['wezterm',               _('WezTerm')],
+            ['terminator',            _('Terminator')],
+            ['tilix',                 _('Tilix')],
+            ['lxterminal',            _('LXTerminal')],
+            ['mate-terminal',         _('MATE Terminal')],
+            ['guake',                 _('Guake')],
+            ['st',                    _('st')],
+            ['terminology',           _('Terminology')],
+            ['sakura',                _('Sakura')],
+            ['contour',               _('Contour')],
+            ['rio',                   _('Rio')],
+            ['qterminal',             _('QTerminal')],
+            ['cool-retro-term',       _('Cool Retro Term')],
         ].filter(([id]) => GLib.find_program_in_path(id));
     }
 
