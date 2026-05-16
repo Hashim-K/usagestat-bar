@@ -109,6 +109,10 @@
       <default>6</default>
       <summary>Spacing between providers in the panel</summary>
     </key>
+    <key name="panel-pinned-providers" type="s">
+      <default>'[]'</default>
+      <summary>Ordered provider keys pinned into the panel</summary>
+    </key>
     <key name="scroll-to-switch-provider" type="b">
       <default>true</default>
       <summary>Scroll on panel indicator to switch active provider</summary>

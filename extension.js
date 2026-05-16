@@ -103,7 +103,7 @@ export default class AIUsageBarExtension extends Extension {
         this._indicator.connect('scroll-event', (_actor, event) => {
             if (!this._settings.get_boolean('scroll-to-switch-provider'))
                 return Clutter.EVENT_PROPAGATE;
-            const providers = this._visibleProviders;
+            const providers = this._unpinnedProviders();
             if (!providers?.length)
                 return Clutter.EVENT_PROPAGATE;
             const current = providers.findIndex(p => providerKey(p) === this._activeId);
@@ -123,10 +123,16 @@ export default class AIUsageBarExtension extends Extension {
         this._buildMenu();
         this._clockTickId = null;
         this._indicator.menu.connect('open-state-changed', (_menu, open) => {
-            if (open)
+            if (open) {
+                const pinned = this._pinnedProviderKeys();
+                if (pinned.length && this._activeId !== pinned[0]) {
+                    this._activeId = pinned[0];
+                    this._render();
+                }
                 this._startClockTick();
-            else
+            } else {
                 this._stopClockTick();
+            }
         });
         this._attachIndicator(true);
 
@@ -155,6 +161,7 @@ export default class AIUsageBarExtension extends Extension {
             'panel-usage-bar-count',
             'panel-usage-bar-layout',
             'panel-provider-spacing',
+            'panel-pinned-providers',
         ]) {
             this._signals.push(this._settings.connect(`changed::${key}`, () => this._onSettingsChanged(key)));
         }
@@ -265,8 +272,9 @@ export default class AIUsageBarExtension extends Extension {
             this._providers = [];
         if (!this._visibleProviders.length)
             this._visibleProviders = [];
-        if (!this._activeId || !this._visibleProviders.some(provider => providerKey(provider) === this._activeId))
-            this._activeId = this._visibleProviders[0] ? providerKey(this._visibleProviders[0]) : null;
+        const unpinned = this._unpinnedProviders();
+        if (!this._activeId || !unpinned.some(provider => providerKey(provider) === this._activeId))
+            this._activeId = unpinned[0] ? providerKey(unpinned[0]) : (this._visibleProviders[0] ? providerKey(this._visibleProviders[0]) : null);
     }
 
     _setupRefresh() {
@@ -568,12 +576,11 @@ export default class AIUsageBarExtension extends Extension {
 
         this._panelBox.set_style(`spacing: ${providerSpacing}px;`);
 
-        const providers = this._visibleProviders ?? [];
-        const activeIdx = Math.max(0, providers.findIndex(p => providerKey(p) === this._activeId));
-        const totalProviders = Math.min(providerCount, providers.length || 1);
+        const panelProviders = this._panelProviders(providerCount);
+        const totalProviders = Math.min(providerCount, panelProviders.length || 1);
 
         for (let i = 0; i < totalProviders; i++) {
-            const provider = providers.length ? providers[(activeIdx + i) % providers.length] : null;
+            const provider = panelProviders.length ? panelProviders[i] : null;
             const providerId = provider ? providerKey(provider) : this._activeId;
             const snap = providerId ? this._usage.get(providerId) : snapshot;
             if (!providerId)
@@ -588,6 +595,48 @@ export default class AIUsageBarExtension extends Extension {
         if (this._activeId)
             return this._providerName(this._activeProviderConfig() || this._activeId);
         return this._visibleProviders.length > 1 ? _('AI') : this._providerName(this._visibleProviders[0]?.id);
+    }
+
+    _panelProviders(providerCount) {
+        const visible = this._visibleProviders ?? [];
+        if (!visible.length)
+            return [];
+
+        const pinnedKeys = this._pinnedProviderKeys().slice(0, Math.max(0, providerCount - 1));
+        const pinned = pinnedKeys
+            .map(key => this._providerForKey(key))
+            .filter(provider => provider && !provider.tabParent);
+        const unpinned = visible.filter(provider => !pinnedKeys.includes(providerKey(provider)));
+        if (!unpinned.length)
+            return pinned;
+
+        const activeIdx = Math.max(0, unpinned.findIndex(p => providerKey(p) === this._activeId));
+        const unpinnedCount = Math.max(0, providerCount - pinned.length);
+        const rotating = [];
+        for (let i = 0; i < Math.min(unpinnedCount, unpinned.length); i++)
+            rotating.push(unpinned[(activeIdx + i) % unpinned.length]);
+        return [...pinned, ...rotating];
+    }
+
+    _unpinnedProviders() {
+        const pinned = new Set(this._pinnedProviderKeys());
+        return (this._visibleProviders ?? []).filter(provider => !pinned.has(providerKey(provider)));
+    }
+
+    _pinnedProviderKeys() {
+        const visible = new Set((this._visibleProviders ?? []).map(provider => providerKey(provider)));
+        const maxPinned = Math.max(0, Math.min(this._settings.get_int('panel-bar-count') - 1, visible.size - 1));
+        try {
+            const parsed = JSON.parse(this._settings.get_string('panel-pinned-providers'));
+            if (!Array.isArray(parsed))
+                return [];
+            const seen = new Set();
+            return parsed
+                .filter(key => typeof key === 'string' && visible.has(key) && !seen.has(key) && seen.add(key))
+                .slice(0, maxPinned);
+        } catch {
+            return [];
+        }
     }
 
     _renderProvider(providerId) {
