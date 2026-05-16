@@ -69,6 +69,7 @@ export default class AIUsageBarExtension extends Extension {
     enable() {
         this._settings = this.getSettings();
         this._signals = [];
+        this._widgetSignals = [];
         this._usage = new Map();
         this._errors = new Map();
         this._thresholdStates = new Map();
@@ -101,16 +102,16 @@ export default class AIUsageBarExtension extends Extension {
         this._panelBox.add_child(this._panelLabel);
         this._indicator.add_child(this._panelBox);
 
-        this._indicator.connect('scroll-event', (_actor, event) => {
+        this._widgetSignals.push([this._indicator, this._indicator.connect('scroll-event', (_actor, event) => {
             if (!this._settings.get_boolean('scroll-to-switch-provider'))
                 return Clutter.EVENT_PROPAGATE;
             return this._switchProviderFromScroll(event, this._unpinnedProviders());
-        });
+        })]);
 
         this._buildMenu();
         this._applyPopupAlignment();
         this._clockTickId = null;
-        this._indicator.menu.connect('open-state-changed', (_menu, open) => {
+        this._widgetSignals.push([this._indicator.menu, this._indicator.menu.connect('open-state-changed', (_menu, open) => {
             if (open) {
                 const pinned = this._pinnedProviderKeys();
                 if (pinned.length && this._activeId !== pinned[0]) {
@@ -121,7 +122,7 @@ export default class AIUsageBarExtension extends Extension {
             } else {
                 this._stopClockTick();
             }
-        });
+        })]);
         this._attachIndicator(true);
 
         for (const key of [
@@ -177,6 +178,31 @@ export default class AIUsageBarExtension extends Extension {
             this._signals = [];
             this._settings = null;
         }
+        for (const [obj, id] of (this._widgetSignals || []))
+            obj.disconnect(id);
+        this._widgetSignals = null;
+        this._updatedLabel?.destroy();
+        this._updatedLabel = null;
+        this._nextRefreshLabel?.destroy();
+        this._nextRefreshLabel = null;
+        this._content?.destroy();
+        this._content = null;
+        this._switcher?.destroy();
+        this._switcher = null;
+        this._title?.destroy();
+        this._title = null;
+        this._header?.destroy();
+        this._header = null;
+        this._meterFill?.destroy();
+        this._meterFill = null;
+        this._meter?.destroy();
+        this._meter = null;
+        this._panelPercent?.destroy();
+        this._panelPercent = null;
+        this._panelLabel?.destroy();
+        this._panelLabel = null;
+        this._panelBox?.destroy();
+        this._panelBox = null;
         if (this._indicator) {
             this._indicator.destroy();
             this._indicator = null;
@@ -227,7 +253,7 @@ export default class AIUsageBarExtension extends Extension {
         this._indicator.menu.box.add_child(this._header);
 
         this._switcher = new St.BoxLayout({style_class: 'ai-usage-provider-switcher', reactive: true});
-        this._switcher.connect('scroll-event', (_actor, event) => this._switchPopupProviderFromScroll(event));
+        this._widgetSignals.push([this._switcher, this._switcher.connect('scroll-event', (_actor, event) => this._switchPopupProviderFromScroll(event))]);
         this._indicator.menu.box.add_child(this._switcher);
 
         this._content = new St.BoxLayout({
@@ -235,7 +261,7 @@ export default class AIUsageBarExtension extends Extension {
             style_class: 'ai-usage-content',
             reactive: true,
         });
-        this._content.connect('scroll-event', (_actor, event) => this._switchPopupProviderFromScroll(event));
+        this._widgetSignals.push([this._content, this._content.connect('scroll-event', (_actor, event) => this._switchPopupProviderFromScroll(event))]);
         this._indicator.menu.box.add_child(this._content);
     }
 
