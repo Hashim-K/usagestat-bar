@@ -42,6 +42,7 @@ const PROVIDER_ICON_FILES = {
     perplexity: 'perplexity.svg',
     mistral: 'mistral.svg',
     deepseek: 'deepseek.svg',
+    codebuff: 'codebuff.svg',
     doubao: 'doubao.svg',
     venice: 'venice.svg',
     windsurf: 'windsurf.svg',
