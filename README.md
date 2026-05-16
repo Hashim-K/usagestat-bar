@@ -6,7 +6,7 @@ GNOME Shell extension that shows normalized AI provider usage in the panel. Read
 
 ### From GNOME Extensions
 
-Install from [extensions.gnome.org](https://extensions.gnome.org/extension/ai-usage-bar) once listed, or use the GNOME Extension Manager app.
+Install from [extensions.gnome.org](https://extensions.gnome.org) once listed, or use the GNOME Extension Manager app.
 
 ### Manual
 
@@ -20,10 +20,15 @@ cargo install ai-usage
 
 ```bash
 ./install.sh
-gnome-extensions enable ai-usage-bar@hashimkarim
 ```
 
-Restart GNOME Shell on X11 with `Alt+F2`, `r`, Enter. On Wayland, log out and back in.
+3. Restart GNOME Shell — on X11: `Alt+F2`, `r`, Enter. On Wayland: log out and back in.
+
+4. Enable the extension:
+
+```bash
+gnome-extensions enable ai-usage-bar@hashimkarim
+```
 
 If the CLI is installed somewhere unusual, set `AI_USAGE_CLI=/path/to/ai-usage` before GNOME Shell starts.
 

@@ -5,7 +5,7 @@
   "shell-version": ["45", "46", "47", "48", "49", "50"],
   "settings-schema": "org.gnome.shell.extensions.ai-usage-bar",
   "gettext-domain": "ai-usage-bar",
-  "url": "https://extensions.gnome.org/accounts/profile/hashimkarim",
+  "url": "https://github.com/Hashim-K/ai-usage-bar",
   "author": "Hashim Karim",
   "donations": {
     "paypal": "hashimkarim",

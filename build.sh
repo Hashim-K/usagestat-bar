@@ -17,6 +17,6 @@ zip -r "$out" \
     schemas/ \
     assets/ \
     LICENSE \
-    -x "schemas/.fuse_hidden*"
+    -x "schemas/.fuse_hidden*" "schemas/gschemas.compiled"
 
 echo "Built: $out"
