@@ -71,6 +71,16 @@ If this extension is useful to you:
 - [GitHub Sponsors](https://github.com/sponsors/Hashim-K)
 - [Ko-fi](https://ko-fi.com/hashimkarim)
 
+## Acknowledgements
+
+Inspired by and built on ideas from:
+
+- [CodexBar](https://github.com/steipete/CodexBar) — macOS menu bar app for Codex usage
+- [codexbar-gnome](https://github.com/InledGroup/codexbar-gnome) — GNOME port of CodexBar
+- [Win-CodexBar](https://github.com/Finesssee/Win-CodexBar) — Windows port of CodexBar
+- [openusage](https://github.com/robinebers/openusage) — usage tracking extension
+- [crossusage](https://github.com/barramee27/crossusage) — cross-provider usage tracking
+
 ## License
 
 [MIT](LICENSE)
