@@ -37,6 +37,7 @@ export const PROVIDERS = [
 
 export const PROVIDER_NAMES = Object.fromEntries(PROVIDERS);
 const PROVIDER_IDS = new Set(PROVIDERS.map(([id]) => id));
+const DEPRECATED_PROVIDER_IDS = new Set(["mock"]);
 
 export function configPath() {
     return GLib.build_filenamev([GLib.get_home_dir(), '.config', 'ai-usage', 'config.toml']);
@@ -67,6 +68,9 @@ export function ensureProviderShape(config) {
             continue;
 
         const id = providerAlias(provider.id.trim());
+        if (DEPRECATED_PROVIDER_IDS.has(id))
+            continue;
+
         const nextProvider = {
             ...provider,
             id,
