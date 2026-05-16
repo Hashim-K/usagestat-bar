@@ -104,21 +104,7 @@ export default class AIUsageBarExtension extends Extension {
         this._indicator.connect('scroll-event', (_actor, event) => {
             if (!this._settings.get_boolean('scroll-to-switch-provider'))
                 return Clutter.EVENT_PROPAGATE;
-            const providers = this._unpinnedProviders();
-            if (!providers?.length)
-                return Clutter.EVENT_PROPAGATE;
-            const current = providers.findIndex(p => providerKey(p) === this._activeId);
-            const dir = event.get_scroll_direction();
-            let next;
-            if (dir === Clutter.ScrollDirection.UP || dir === Clutter.ScrollDirection.LEFT)
-                next = (current - 1 + providers.length) % providers.length;
-            else if (dir === Clutter.ScrollDirection.DOWN || dir === Clutter.ScrollDirection.RIGHT)
-                next = (current + 1) % providers.length;
-            else
-                return Clutter.EVENT_PROPAGATE;
-            this._activeId = providerKey(providers[next]);
-            this._render();
-            return Clutter.EVENT_STOP;
+            return this._switchProviderFromScroll(event, this._unpinnedProviders());
         });
 
         this._buildMenu();
@@ -163,6 +149,7 @@ export default class AIUsageBarExtension extends Extension {
             'panel-usage-bar-layout',
             'panel-provider-spacing',
             'panel-pinned-providers',
+            'scroll-popup-to-switch-provider',
         ]) {
             this._signals.push(this._settings.connect(`changed::${key}`, () => this._onSettingsChanged(key)));
         }
@@ -238,12 +225,14 @@ export default class AIUsageBarExtension extends Extension {
         this._indicator.menu.box.add_child(this._header);
 
         this._switcher = new St.BoxLayout({style_class: 'ai-usage-provider-switcher'});
+        this._switcher.connect('scroll-event', (_actor, event) => this._switchPopupProviderFromScroll(event));
         this._indicator.menu.box.add_child(this._switcher);
 
         this._content = new St.BoxLayout({
             vertical: true,
             style_class: 'ai-usage-content',
         });
+        this._content.connect('scroll-event', (_actor, event) => this._switchPopupProviderFromScroll(event));
         this._indicator.menu.box.add_child(this._content);
     }
 
@@ -452,6 +441,29 @@ export default class AIUsageBarExtension extends Extension {
             this._render();
         });
         this._switcher.add_child(button);
+    }
+
+    _switchProviderFromScroll(event, providers) {
+        if (!providers?.length)
+            return Clutter.EVENT_PROPAGATE;
+        const current = Math.max(0, providers.findIndex(p => providerKey(p) === this._activeId));
+        const dir = event.get_scroll_direction();
+        let next;
+        if (dir === Clutter.ScrollDirection.UP || dir === Clutter.ScrollDirection.LEFT)
+            next = (current - 1 + providers.length) % providers.length;
+        else if (dir === Clutter.ScrollDirection.DOWN || dir === Clutter.ScrollDirection.RIGHT)
+            next = (current + 1) % providers.length;
+        else
+            return Clutter.EVENT_PROPAGATE;
+        this._activeId = providerKey(providers[next]);
+        this._render();
+        return Clutter.EVENT_STOP;
+    }
+
+    _switchPopupProviderFromScroll(event) {
+        if (!this._settings.get_boolean('scroll-popup-to-switch-provider'))
+            return Clutter.EVENT_PROPAGATE;
+        return this._switchProviderFromScroll(event, this._visibleProviders);
     }
 
     _activeSnapshot() {

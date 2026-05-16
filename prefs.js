@@ -208,6 +208,14 @@ class BehaviourPage extends Adw.PreferencesPage {
         this._settings.bind('scroll-to-switch-provider', scrollRow, 'active', Gio.SettingsBindFlags.DEFAULT);
         group.add(scrollRow);
 
+        const popupScrollRow = new Adw.SwitchRow({
+            title: _('Scroll popup to switch provider'),
+            subtitle: _('Scroll inside the popup to cycle through every provider, including pinned providers.'),
+            active: this._settings.get_boolean('scroll-popup-to-switch-provider'),
+        });
+        this._settings.bind('scroll-popup-to-switch-provider', popupScrollRow, 'active', Gio.SettingsBindFlags.DEFAULT);
+        group.add(popupScrollRow);
+
         return group;
     }
 
