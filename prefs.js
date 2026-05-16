@@ -278,6 +278,16 @@ class AppearancePage extends Adw.PreferencesPage {
         });
         group.add(positionRow);
 
+        const alignmentRow = combo([_('Left'), _('Center'), _('Right')], {
+            left: _('Left'), center: _('Center'), right: _('Right'),
+        }[this._settings.get_string('popup-alignment')] || _('Center'));
+        alignmentRow.title = _('Popup alignment');
+        alignmentRow.subtitle = _('How the popup menu aligns to the panel indicator.');
+        alignmentRow.connect('notify::selected', () => {
+            this._settings.set_string('popup-alignment', ['left', 'center', 'right'][alignmentRow.selected] || 'center');
+        });
+        group.add(alignmentRow);
+
         const indexRow = new Adw.SpinRow({
             title: _('Position index'),
             subtitle: _('Lower values sit closer to the panel edge for that box'),

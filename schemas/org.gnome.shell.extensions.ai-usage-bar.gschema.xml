@@ -113,6 +113,10 @@
       <default>'[]'</default>
       <summary>Ordered provider keys pinned into the panel</summary>
     </key>
+    <key name="popup-alignment" type="s">
+      <default>'center'</default>
+      <summary>Horizontal alignment of popup menu below indicator</summary>
+    </key>
     <key name="scroll-to-switch-provider" type="b">
       <default>true</default>
       <summary>Scroll on panel indicator to switch active provider</summary>

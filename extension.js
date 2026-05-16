@@ -77,7 +77,7 @@ export default class AIUsageBarExtension extends Extension {
         this._lastRefreshAt = null;
         this._cancellable = new Gio.Cancellable();
 
-        this._indicator = new PanelMenu.Button(0.0, _('AI Usage Bar'), false);
+        this._indicator = new PanelMenu.Button(0.5, _('AI Usage Bar'), false);
         this._indicator.add_style_class_name('ai-usage-panel-button');
 
         this._panelBox = new St.BoxLayout({
@@ -108,6 +108,7 @@ export default class AIUsageBarExtension extends Extension {
         });
 
         this._buildMenu();
+        this._applyPopupAlignment();
         this._clockTickId = null;
         this._indicator.menu.connect('open-state-changed', (_menu, open) => {
             if (open) {
@@ -150,6 +151,7 @@ export default class AIUsageBarExtension extends Extension {
             'panel-provider-spacing',
             'panel-pinned-providers',
             'scroll-popup-to-switch-provider',
+            'popup-alignment',
         ]) {
             this._signals.push(this._settings.connect(`changed::${key}`, () => this._onSettingsChanged(key)));
         }
@@ -252,7 +254,17 @@ export default class AIUsageBarExtension extends Extension {
             this._attachIndicator();
         if (key === 'refresh-interval')
             this._setupRefresh();
+        if (key === 'popup-alignment')
+            this._applyPopupAlignment();
         this._render();
+    }
+
+    _applyPopupAlignment() {
+        const value = {left: 0.0, center: 0.5, right: 1.0}[
+            this._settings.get_string('popup-alignment')
+        ] ?? 0.5;
+        this._indicator.menu._arrowAlignment = value;
+        this._indicator.menu._boxPointer.setSourceAlignment(value);
     }
 
     _loadProviders() {
