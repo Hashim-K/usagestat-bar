@@ -427,7 +427,7 @@ class AppearancePage extends Adw.PreferencesPage {
         });
         listRow.add_controller(drag);
 
-        const drop = new Gtk.DropTarget({gtypes: [GObject.TYPE_STRING], actions: Gdk.DragAction.MOVE});
+        const drop = Gtk.DropTarget.new(GObject.TYPE_STRING, Gdk.DragAction.MOVE);
         drop.connect('drop', (_target, sourceId) => {
             this._movePinnedProvider(String(sourceId), listRow._providerKey);
             return true;
