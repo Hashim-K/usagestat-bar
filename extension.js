@@ -30,6 +30,7 @@ const PROVIDER_ICON_FILES = {
     factory: 'factory.svg',
     gemini: 'gemini.svg',
     copilot: 'copilot.svg',
+    githubcopilot: 'githubcopilot.svg',
     opencode: 'opencode-go.svg',
     opencodego: 'opencode-go.svg',
     'opencode-go': 'opencode-go.svg',
@@ -272,9 +273,10 @@ export default class AIUsageBarExtension extends Extension {
             this._providers = [];
         if (!this._visibleProviders.length)
             this._visibleProviders = [];
-        const unpinned = this._unpinnedProviders();
-        if (!this._activeId || !unpinned.some(provider => providerKey(provider) === this._activeId))
-            this._activeId = unpinned[0] ? providerKey(unpinned[0]) : (this._visibleProviders[0] ? providerKey(this._visibleProviders[0]) : null);
+        if (!this._activeId || !this._visibleProviders.some(provider => providerKey(provider) === this._activeId)) {
+            const pinned = this._pinnedProviderKeys();
+            this._activeId = pinned[0] || (this._visibleProviders[0] ? providerKey(this._visibleProviders[0]) : null);
+        }
     }
 
     _setupRefresh() {
@@ -1474,6 +1476,8 @@ export default class AIUsageBarExtension extends Extension {
             return 'openai';
         if (providerId === 'claude' && this._providerUsageSettings(providerKey(provider)).iconSource === 'claudecode')
             return 'claudecode';
+        if (providerId === 'copilot' && this._providerUsageSettings(providerKey(provider)).iconSource === 'githubcopilot')
+            return 'githubcopilot';
         return providerId;
     }
 

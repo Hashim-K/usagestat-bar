@@ -38,6 +38,7 @@ const PROVIDER_ICON_FILES = {
     factory: 'factory.svg',
     gemini: 'gemini.svg',
     copilot: 'copilot.svg',
+    githubcopilot: 'githubcopilot.svg',
     opencode: 'opencode-go.svg',
     opencodego: 'opencode-go.svg',
     'opencode-go': 'opencode-go.svg',
@@ -244,6 +245,9 @@ class AppearancePage extends Adw.PreferencesPage {
             icon_name: 'preferences-desktop-display-symbolic',
         });
         this._settings = settings;
+        this._config = loadConfig();
+        this._settings.connect('changed::panel-bar-count', () => this._renderPinnedProviders());
+        this.connect('map', () => this._renderPinnedProviders());
         this.add(this._buildPanelGroup());
         this.add(this._buildIconGroup());
         this._buildComponentGroups();
@@ -282,6 +286,16 @@ class AppearancePage extends Adw.PreferencesPage {
         this._settings.bind('panel-bar-count', barCountRow.adjustment, 'value', Gio.SettingsBindFlags.DEFAULT);
         group.add(barCountRow);
 
+        this._pinnedList = new Gtk.ListBox({selection_mode: Gtk.SelectionMode.NONE});
+        this._pinnedList.add_css_class('boxed-list');
+        const pinnedRow = new Adw.ExpanderRow({
+            title: _('Pinned providers'),
+            subtitle: _('Fixed providers shown before the scrolling provider slots.'),
+        });
+        pinnedRow.add_row(new Adw.PreferencesRow({child: this._pinnedList}));
+        group.add(pinnedRow);
+        this._renderPinnedProviders();
+
         const multiProviderRow = new Adw.ExpanderRow({
             title: _('Multi-provider display'),
             subtitle: _('Adjust layout when showing multiple providers.'),
@@ -319,6 +333,145 @@ class AppearancePage extends Adw.PreferencesPage {
         group.add(multiProviderRow);
 
         return group;
+    }
+
+    _renderPinnedProviders() {
+        if (!this._pinnedList)
+            return;
+        while (this._pinnedList.get_first_child())
+            this._pinnedList.remove(this._pinnedList.get_first_child());
+
+        const maxPinned = this._maxPinnedProviders();
+        const pinned = this._pinnedProviderKeys();
+        const enabled = this._enabledProviders();
+
+        if (!enabled.length) {
+            this._pinnedList.append(this._disabledPinnedRow(_('No enabled providers'), _('Enable providers before pinning them.')));
+            return;
+        }
+
+        if (!pinned.length) {
+            this._pinnedList.append(this._disabledPinnedRow(
+                _('No pinned providers'),
+                maxPinned > 0 ? _('Pin providers below. The popup opens on the first pinned provider.') : _('Show at least two providers before pinning.'),
+            ));
+        } else {
+            for (const key of pinned) {
+                const provider = enabled.find(item => providerKey(item) === key);
+                if (!provider)
+                    continue;
+                const listRow = new Gtk.ListBoxRow();
+                listRow._providerKey = key;
+                const row = new Adw.ActionRow({
+                    title: providerDisplayName(provider),
+                    subtitle: _('Drag to reorder pinned providers.'),
+                });
+                row.add_prefix(new Gtk.Image({icon_name: 'list-drag-handle-symbolic'}));
+                const unpin = new Gtk.Button({
+                    icon_name: 'window-close-symbolic',
+                    tooltip_text: _('Unpin provider'),
+                    valign: Gtk.Align.CENTER,
+                });
+                unpin.connect('clicked', () => {
+                    this._savePinnedProviderKeys(this._pinnedProviderKeys().filter(id => id !== key));
+                    this._renderPinnedProviders();
+                });
+                row.add_suffix(unpin);
+                listRow.set_child(row);
+                this._setupPinnedDragAndDrop(listRow);
+                this._pinnedList.append(listRow);
+            }
+        }
+
+        for (const provider of enabled) {
+            const key = providerKey(provider);
+            if (pinned.includes(key))
+                continue;
+            const row = new Adw.SwitchRow({
+                title: providerDisplayName(provider),
+                subtitle: maxPinned > 0 ? _('Pin this provider into the panel.') : _('Show at least two providers before pinning.'),
+                active: false,
+                sensitive: pinned.length < maxPinned,
+            });
+            row.connect('notify::active', () => {
+                if (!row.active)
+                    return;
+                this._savePinnedProviderKeys([...this._pinnedProviderKeys(), key]);
+                this._renderPinnedProviders();
+            });
+            this._pinnedList.append(row);
+        }
+    }
+
+    _disabledPinnedRow(title, subtitle) {
+        const row = new Adw.ActionRow({title, subtitle});
+        row.sensitive = false;
+        return row;
+    }
+
+    _setupPinnedDragAndDrop(listRow) {
+        const drag = new Gtk.DragSource({actions: Gdk.DragAction.MOVE});
+        drag.connect('prepare', () => {
+            const value = new GObject.Value();
+            value.init(GObject.TYPE_STRING);
+            value.set_string(listRow._providerKey);
+            return Gdk.ContentProvider.new_for_value(value);
+        });
+        listRow.add_controller(drag);
+
+        const drop = new Gtk.DropTarget({gtypes: [GObject.TYPE_STRING], actions: Gdk.DragAction.MOVE});
+        drop.connect('drop', (_target, sourceId) => {
+            this._movePinnedProvider(String(sourceId), listRow._providerKey);
+            return true;
+        });
+        listRow.add_controller(drop);
+    }
+
+    _movePinnedProvider(sourceId, targetId) {
+        if (sourceId === targetId)
+            return;
+        const pinned = this._pinnedProviderKeys();
+        const sourceIndex = pinned.indexOf(sourceId);
+        const targetIndex = pinned.indexOf(targetId);
+        if (sourceIndex < 0 || targetIndex < 0)
+            return;
+        const [provider] = pinned.splice(sourceIndex, 1);
+        pinned.splice(targetIndex, 0, provider);
+        this._savePinnedProviderKeys(pinned);
+        this._renderPinnedProviders();
+    }
+
+    _pinnedProviderKeys() {
+        const enabled = new Set(this._enabledProviders().map(provider => providerKey(provider)));
+        const seen = new Set();
+        try {
+            const parsed = JSON.parse(this._settings.get_string('panel-pinned-providers'));
+            if (!Array.isArray(parsed))
+                return [];
+            return parsed
+                .filter(key => typeof key === 'string' && enabled.has(key) && !seen.has(key) && seen.add(key))
+                .slice(0, this._maxPinnedProviders());
+        } catch {
+            return [];
+        }
+    }
+
+    _savePinnedProviderKeys(keys) {
+        const enabled = new Set(this._enabledProviders().map(provider => providerKey(provider)));
+        const seen = new Set();
+        const normalized = keys
+            .filter(key => typeof key === 'string' && enabled.has(key) && !seen.has(key) && seen.add(key))
+            .slice(0, this._maxPinnedProviders());
+        this._settings.set_string('panel-pinned-providers', JSON.stringify(normalized));
+    }
+
+    _enabledProviders() {
+        this._config = loadConfig();
+        return this._config.providers.filter(provider => provider.enabled !== false && !provider.tabParent);
+    }
+
+    _maxPinnedProviders() {
+        return Math.max(0, Math.min(this._settings.get_int('panel-bar-count') - 1, this._enabledProviders().length - 1));
     }
 
     _buildIconGroup() {
@@ -721,10 +874,6 @@ class ProvidersPage extends Adw.PreferencesPage {
         this._validationDebounceIds = new Map();
         this._manifests = new Map();
         this._settings.connect('changed::provider-icon-style', () => this._refreshProviderIcons());
-        this._settings.connect('changed::panel-bar-count', () => {
-            this._savePinnedProviderKeys(this._pinnedProviderKeys());
-            this._renderProviders(this._expandedProviderId());
-        });
         this._styleManager = Adw.StyleManager.get_default();
         this._styleManager.connect('notify::dark', () => this._refreshProviderIcons());
         this._save();
@@ -734,11 +883,6 @@ class ProvidersPage extends Adw.PreferencesPage {
             selection_mode: Gtk.SelectionMode.NONE,
         });
         this._enabledList.add_css_class('boxed-list');
-
-        this._pinnedList = new Gtk.ListBox({
-            selection_mode: Gtk.SelectionMode.NONE,
-        });
-        this._pinnedList.add_css_class('boxed-list');
 
         this._disabledList = new Gtk.ListBox({
             selection_mode: Gtk.SelectionMode.NONE,
@@ -751,13 +895,6 @@ class ProvidersPage extends Adw.PreferencesPage {
         });
         this._enabledGroup.add(new Adw.PreferencesRow({child: this._enabledList}));
         this.add(this._enabledGroup);
-
-        this._pinnedGroup = new Adw.PreferencesGroup({
-            title: _('Pinned Panel Providers'),
-            description: _('Pinned providers stay fixed in the panel. Scroll cycles through the remaining slot.'),
-        });
-        this._pinnedGroup.add(new Adw.PreferencesRow({child: this._pinnedList}));
-        this.add(this._pinnedGroup);
 
         this._addSourceGroup = new Adw.PreferencesGroup({
             title: _('Add Provider Source'),
@@ -940,14 +1077,11 @@ class ProvidersPage extends Adw.PreferencesPage {
             return 0;
         });
         saveConfig(this._config);
-        this._savePinnedProviderKeys(this._pinnedProviderKeys());
     }
 
     _renderProviders(expandedId = null) {
         while (this._enabledList.get_first_child())
             this._enabledList.remove(this._enabledList.get_first_child());
-        while (this._pinnedList.get_first_child())
-            this._pinnedList.remove(this._pinnedList.get_first_child());
         while (this._disabledList.get_first_child())
             this._disabledList.remove(this._disabledList.get_first_child());
 
@@ -963,8 +1097,6 @@ class ProvidersPage extends Adw.PreferencesPage {
         disabled.sort((a, b) => this._name(a).localeCompare(this._name(b)));
         for (const provider of disabled)
             this._disabledList.append(this._buildProviderListRow(provider, expandedId, false));
-
-        this._renderPinnedProviders();
     }
 
     _refreshProviderIcons() {
@@ -980,117 +1112,6 @@ class ProvidersPage extends Adw.PreferencesPage {
             }
         }
         return null;
-    }
-
-    _renderPinnedProviders() {
-        const maxPinned = this._maxPinnedProviders();
-        const pinned = this._pinnedProviderKeys();
-        this._pinnedGroup.description = maxPinned > 0
-            ? _('Pin up to %d provider(s). The popup opens on the first pinned provider.').format(maxPinned)
-            : _('Increase providers shown above 1 to pin providers.');
-
-        if (!pinned.length) {
-            const row = new Adw.ActionRow({
-                title: _('No pinned providers'),
-                subtitle: maxPinned > 0 ? _('Use Pin in panel on an enabled provider.') : _('Only one provider is shown, so pinning is disabled.'),
-            });
-            row.sensitive = false;
-            this._pinnedList.append(row);
-            return;
-        }
-
-        for (const key of pinned) {
-            const provider = this._config.providers.find(item => providerKey(item) === key);
-            if (!provider)
-                continue;
-            const listRow = new Gtk.ListBoxRow();
-            listRow._providerKey = key;
-            const row = new Adw.ActionRow({
-                title: this._name(provider),
-                subtitle: _('Drag to reorder pinned providers.'),
-            });
-            row.add_prefix(new Gtk.Image({icon_name: 'list-drag-handle-symbolic'}));
-            row.add_prefix(this._providerIconPreview(provider, 20));
-            const unpin = new Gtk.Button({
-                icon_name: 'window-close-symbolic',
-                tooltip_text: _('Unpin provider'),
-                valign: Gtk.Align.CENTER,
-            });
-            unpin.connect('clicked', () => {
-                this._savePinnedProviderKeys(this._pinnedProviderKeys().filter(id => id !== key));
-                this._renderProviders(key);
-            });
-            row.add_suffix(unpin);
-            listRow.set_child(row);
-            this._setupPinnedDragAndDrop(listRow);
-            this._pinnedList.append(listRow);
-        }
-    }
-
-    _setupPinnedDragAndDrop(listRow) {
-        const drag = new Gtk.DragSource({actions: Gdk.DragAction.MOVE});
-        drag.connect('prepare', () => {
-            const value = new GObject.Value();
-            value.init(GObject.TYPE_STRING);
-            value.set_string(listRow._providerKey);
-            return Gdk.ContentProvider.new_for_value(value);
-        });
-        listRow.add_controller(drag);
-
-        const drop = new Gtk.DropTarget({gtypes: [GObject.TYPE_STRING], actions: Gdk.DragAction.MOVE});
-        drop.connect('drop', (_target, sourceId) => {
-            this._movePinnedProvider(String(sourceId), listRow._providerKey);
-            return true;
-        });
-        listRow.add_controller(drop);
-    }
-
-    _movePinnedProvider(sourceId, targetId) {
-        if (sourceId === targetId)
-            return;
-        const pinned = this._pinnedProviderKeys();
-        const sourceIndex = pinned.indexOf(sourceId);
-        const targetIndex = pinned.indexOf(targetId);
-        if (sourceIndex < 0 || targetIndex < 0)
-            return;
-        const [provider] = pinned.splice(sourceIndex, 1);
-        pinned.splice(targetIndex, 0, provider);
-        this._savePinnedProviderKeys(pinned);
-        this._renderProviders(sourceId);
-    }
-
-    _pinnedProviderKeys() {
-        const enabled = new Set(this._enabledProviderKeys());
-        const seen = new Set();
-        try {
-            const parsed = JSON.parse(this._settings.get_string('panel-pinned-providers'));
-            if (!Array.isArray(parsed))
-                return [];
-            return parsed
-                .filter(key => typeof key === 'string' && enabled.has(key) && !seen.has(key) && seen.add(key))
-                .slice(0, this._maxPinnedProviders());
-        } catch {
-            return [];
-        }
-    }
-
-    _savePinnedProviderKeys(keys) {
-        const enabled = new Set(this._enabledProviderKeys());
-        const seen = new Set();
-        const normalized = keys
-            .filter(key => typeof key === 'string' && enabled.has(key) && !seen.has(key) && seen.add(key))
-            .slice(0, this._maxPinnedProviders());
-        this._settings.set_string('panel-pinned-providers', JSON.stringify(normalized));
-    }
-
-    _enabledProviderKeys() {
-        return this._config.providers
-            .filter(provider => provider.enabled !== false && !provider.tabParent)
-            .map(provider => providerKey(provider));
-    }
-
-    _maxPinnedProviders() {
-        return Math.max(0, Math.min(this._settings.get_int('panel-bar-count') - 1, this._enabledProviderKeys().length - 1));
     }
 
     _orderedProviders() {
@@ -1148,13 +1169,13 @@ class ProvidersPage extends Adw.PreferencesPage {
 
         const tierRow = this._usageTierRow(provider);
         row.add_row(tierRow);
-        if (provider.enabled !== false && !provider.tabParent)
-            row.add_row(this._providerPinRow(provider));
         row.add_row(this._providerIconStyleRow(provider));
         if (baseId === 'codex')
             row.add_row(this._codexIconSourceRow(provider));
         if (baseId === 'claude')
             row.add_row(this._claudeIconSourceRow(provider));
+        if (baseId === 'copilot')
+            row.add_row(this._copilotIconSourceRow(provider));
         row.add_row(this._usageTrackersRow(provider));
 
         this._addTabExtensionRows(row, provider);
@@ -1164,28 +1185,6 @@ class ProvidersPage extends Adw.PreferencesPage {
         if (draggable)
             this._setupDragAndDrop(listRow);
         return listRow;
-    }
-
-    _providerPinRow(provider) {
-        const key = providerKey(provider);
-        const pinned = this._pinnedProviderKeys();
-        const maxPinned = this._maxPinnedProviders();
-        const row = new Adw.SwitchRow({
-            title: _('Pin in panel'),
-            subtitle: maxPinned > 0
-                ? _('Pins this provider into one of the fixed panel slots.')
-                : _('Increase providers shown above 1 before pinning.'),
-            active: pinned.includes(key),
-            sensitive: pinned.includes(key) || pinned.length < maxPinned,
-        });
-        row.connect('notify::active', () => {
-            const next = this._pinnedProviderKeys().filter(id => id !== key);
-            if (row.active)
-                next.push(key);
-            this._savePinnedProviderKeys(next);
-            this._renderProviders(key);
-        });
-        return row;
     }
 
     _providerIconStyleRow(provider) {
@@ -1242,6 +1241,27 @@ class ProvidersPage extends Adw.PreferencesPage {
         row.connect('notify::selected', () => {
             const value = values[row.selected] || 'claude';
             this._setProviderUsageSetting(provider, 'iconSource', value === 'claude' ? null : value);
+            this._renderProviders(providerKey(provider));
+        });
+        return row;
+    }
+
+    _copilotIconSourceRow(provider) {
+        const options = [
+            ['copilot', _('Microsoft Copilot')],
+            ['githubcopilot', _('GitHub Copilot')],
+        ];
+        const values = options.map(([value]) => value);
+        const labels = options.map(([, label]) => label);
+        const selectedValue = values.includes(this._providerUsageSetting(provider, 'iconSource'))
+            ? this._providerUsageSetting(provider, 'iconSource')
+            : 'copilot';
+        const row = combo(labels, labels[values.indexOf(selectedValue)]);
+        row.title = _('Copilot icon');
+        row.subtitle = _('Use the Microsoft Copilot logo or the GitHub Copilot logo.');
+        row.connect('notify::selected', () => {
+            const value = values[row.selected] || 'copilot';
+            this._setProviderUsageSetting(provider, 'iconSource', value === 'copilot' ? null : value);
             this._renderProviders(providerKey(provider));
         });
         return row;
@@ -1344,7 +1364,9 @@ class ProvidersPage extends Adw.PreferencesPage {
             ? 'openai'
             : baseId === 'claude' && iconSource === 'claudecode'
                 ? 'claudecode'
-                : baseId;
+                : baseId === 'copilot' && iconSource === 'githubcopilot'
+                    ? 'githubcopilot'
+                    : baseId;
         const baseFile = PROVIDER_ICON_FILES[iconId] || `${iconId}.svg`;
         const style = this._providerUsageSetting(provider, 'iconStyle') || this._settings.get_string('provider-icon-style');
         const colorFile = style === 'color' && baseFile ? baseFile.replace(/\.svg$/, '-color.svg') : null;
