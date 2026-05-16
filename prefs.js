@@ -1170,7 +1170,7 @@ class ProvidersPage extends Adw.PreferencesPage {
             : baseId === 'claude' && iconSource === 'claudecode'
                 ? 'claudecode'
                 : baseId;
-        const baseFile = PROVIDER_ICON_FILES[iconId];
+        const baseFile = PROVIDER_ICON_FILES[iconId] || `${iconId}.svg`;
         const style = this._providerUsageSetting(provider, 'iconStyle') || this._settings.get_string('provider-icon-style');
         const colorFile = style === 'color' && baseFile ? baseFile.replace(/\.svg$/, '-color.svg') : null;
         if (colorFile) {
@@ -1178,7 +1178,8 @@ class ProvidersPage extends Adw.PreferencesPage {
             if (file.query_exists(null))
                 return colorFile;
         }
-        return baseFile || null;
+        const file = this._providerIconGFile(baseFile);
+        return file.query_exists(null) ? baseFile : null;
     }
 
     _providerIconGFile(fileName) {

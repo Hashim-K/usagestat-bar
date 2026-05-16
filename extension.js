@@ -1361,14 +1361,15 @@ export default class AIUsageBarExtension extends Extension {
 
         const iconId = this._providerIconSource(provider, providerId);
         const style = this._providerIconStyle(provider);
-        const baseFile = PROVIDER_ICON_FILES[iconId];
+        const baseFile = PROVIDER_ICON_FILES[iconId] || `${iconId}.svg`;
         const colorFile = style === 'color' && baseFile ? baseFile.replace(/\.svg$/, '-color.svg') : null;
         if (colorFile) {
             const file = this._providerIconGFile(colorFile);
             if (file.query_exists(null))
                 return colorFile;
         }
-        return baseFile || null;
+        const file = this._providerIconGFile(baseFile);
+        return file.query_exists(null) ? baseFile : null;
     }
 
     _providerIconGFile(fileName) {
