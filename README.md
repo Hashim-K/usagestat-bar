@@ -79,7 +79,7 @@ Inspired by and built on ideas from:
 - [codexbar-gnome](https://github.com/InledGroup/codexbar-gnome) — GNOME port of CodexBar
 - [Win-CodexBar](https://github.com/Finesssee/Win-CodexBar) — Windows port of CodexBar
 - [openusage](https://github.com/robinebers/openusage) — usage tracking extension
-- [crossusage](https://github.com/barramee27/crossusage) — cross-provider usage tracking
+- [crossusage](https://github.com/barramee27/crossusage) — cross-platform fork of openusage
 
 ## License
 
