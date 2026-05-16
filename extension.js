@@ -837,12 +837,12 @@ export default class AIUsageBarExtension extends Extension {
             style_class: 'ai-usage-provider-heading-box',
         });
 
-        headerBox.add_child(new St.Widget({
+        const leftGroup = new St.BoxLayout({x_expand: true});
+        leftGroup.add_child(new St.Widget({
             style: `background-color: ${color}; width: 9px; height: 9px; border-radius: 5px; margin-right: 6px;`,
             y_align: Clutter.ActorAlign.CENTER,
         }));
-
-        headerBox.add_child(new St.Label({
+        leftGroup.add_child(new St.Label({
             text: this._providerHeading(snapshot, providerId),
             style_class: 'ai-usage-provider-heading',
             y_align: Clutter.ActorAlign.CENTER,
@@ -854,16 +854,27 @@ export default class AIUsageBarExtension extends Extension {
         const peakText = peakBadge?.text;
 
         for (const chipText of [plan, mode, peakText].filter(Boolean))
-            headerBox.add_child(new St.Label({text: chipText, style_class: 'ai-usage-chip'}));
+            leftGroup.add_child(new St.Label({text: chipText, style_class: 'ai-usage-chip', y_align: Clutter.ActorAlign.CENTER}));
+
+        headerBox.add_child(leftGroup);
 
         if (this._settings.get_boolean('show-status-link') && snapshot.statusPageUrl) {
-            headerBox.add_child(new St.Widget({x_expand: true}));
-            headerBox.add_child(this._iconButton('web-browser-symbolic', () => {
+            const statusIconFile = Gio.File.new_for_path(
+                GLib.build_filenamev([EXTENSION_DIR, 'assets', 'status-icons', 'uptimekit-light.svg'])
+            );
+            const statusIcon = new St.Icon({
+                gicon: Gio.FileIcon.new(statusIconFile),
+                icon_size: 16,
+                y_align: Clutter.ActorAlign.CENTER,
+            });
+            const statusBtn = new St.Button({child: statusIcon, style_class: 'ai-usage-icon-button', can_focus: true});
+            statusBtn.connect('clicked', () => {
                 try {
                     Gio.app_info_launch_default_for_uri(snapshot.statusPageUrl, null);
                 } catch {}
                 this._indicator.menu.close();
-            }));
+            });
+            headerBox.add_child(statusBtn);
         }
 
         this._content.add_child(headerBox);
