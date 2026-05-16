@@ -224,13 +224,14 @@ export default class AIUsageBarExtension extends Extension {
         }));
         this._indicator.menu.box.add_child(this._header);
 
-        this._switcher = new St.BoxLayout({style_class: 'ai-usage-provider-switcher'});
+        this._switcher = new St.BoxLayout({style_class: 'ai-usage-provider-switcher', reactive: true});
         this._switcher.connect('scroll-event', (_actor, event) => this._switchPopupProviderFromScroll(event));
         this._indicator.menu.box.add_child(this._switcher);
 
         this._content = new St.BoxLayout({
             vertical: true,
             style_class: 'ai-usage-content',
+            reactive: true,
         });
         this._content.connect('scroll-event', (_actor, event) => this._switchPopupProviderFromScroll(event));
         this._indicator.menu.box.add_child(this._content);
@@ -440,6 +441,7 @@ export default class AIUsageBarExtension extends Extension {
             this._activeId = providerKey(provider);
             this._render();
         });
+        button.connect('scroll-event', (_actor, event) => this._switchPopupProviderFromScroll(event));
         this._switcher.add_child(button);
     }
 
