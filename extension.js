@@ -1332,13 +1332,14 @@ export default class AIUsageBarExtension extends Extension {
         if (fileName) {
             const file = this._providerIconGFile(fileName);
             if (file.query_exists(null)) {
+                const renderFile = this._providerIconRenderFile(file, fileName);
                 const icon = new St.Icon({
-                    gicon: Gio.FileIcon.new(file),
+                    gicon: Gio.FileIcon.new(renderFile),
                     icon_size: height,
                     style_class: 'ai-usage-provider-icon',
                     y_align: Clutter.ActorAlign.CENTER,
                 });
-                const {width, height: viewBoxHeight} = this._svgViewBox(file);
+                const {width, height: viewBoxHeight} = this._svgViewBox(renderFile);
                 icon.set_height(height);
                 icon.set_width(Math.round(height * (width / viewBoxHeight)));
                 return icon;
@@ -1376,6 +1377,47 @@ export default class AIUsageBarExtension extends Extension {
         if (GLib.path_is_absolute(fileName))
             return Gio.File.new_for_path(fileName);
         return Gio.File.new_for_path(GLib.build_filenamev([EXTENSION_DIR, 'assets', 'provider-icons', fileName]));
+    }
+
+    _providerIconRenderFile(file, fileName) {
+        if (fileName.endsWith('-color.svg'))
+            return file;
+
+        return this._themedProviderIconFile(file, this._settings.get_string('neutral-color'));
+    }
+
+    _themedProviderIconFile(file, color) {
+        try {
+            const [ok, bytes] = file.load_contents(null);
+            if (!ok)
+                return file;
+            const text = new TextDecoder().decode(bytes);
+            if (!text.includes('currentColor'))
+                return file;
+
+            const themed = text.replace(/currentColor/g, color);
+            const cacheDir = Gio.File.new_for_path(GLib.build_filenamev([GLib.get_user_cache_dir(), 'ai-usage-bar', 'provider-icons']));
+            if (!cacheDir.query_exists(null))
+                cacheDir.make_directory_with_parents(null);
+            const sourcePath = file.get_path() || 'provider-icon';
+            const hash = GLib.compute_checksum_for_string(GLib.ChecksumType.SHA256, `${sourcePath}:${color}:${text}`, -1).slice(0, 16);
+            const basename = GLib.path_get_basename(sourcePath).replace(/\.svg$/i, '');
+            const themedPath = GLib.build_filenamev([cacheDir.get_path(), `${basename}-${hash}.svg`]);
+            const themedFile = Gio.File.new_for_path(themedPath);
+            if (!themedFile.query_exists(null)) {
+                themedFile.replace_contents(
+                    new TextEncoder().encode(themed),
+                    null,
+                    false,
+                    Gio.FileCreateFlags.REPLACE_DESTINATION,
+                    null,
+                );
+            }
+            return themedFile;
+        } catch (error) {
+            logError(error, 'AI Usage Bar: failed to theme provider icon');
+            return file;
+        }
     }
 
     _providerIconSource(provider, providerId) {
