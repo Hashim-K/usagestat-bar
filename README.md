@@ -16,6 +16,12 @@ yay -S usagestat-bin
 brew install hashim-k/tap/usagestat
 ```
 
+**Ubuntu / Debian (PPA):**
+```bash
+sudo add-apt-repository ppa:hashimkarim/usagestat
+sudo apt install usagestat
+```
+
 **Fedora / RHEL / openSUSE (COPR):**
 ```bash
 sudo dnf copr enable hashimkarim/usagestat
