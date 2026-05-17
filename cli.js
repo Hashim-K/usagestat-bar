@@ -81,7 +81,7 @@ export async function fetchProviderUsage(provider, cancellable) {
 
     const argv = [
         binary,
-        '--json-only',
+        '--json',
         'usage',
         '--provider',
         providerId,

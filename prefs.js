@@ -1825,7 +1825,7 @@ class ProvidersPage extends Adw.PreferencesPage {
         if (this._isCustomProvider(provider))
             return ['bash', '-lc', provider.customCommand || ''];
 
-        const argv = ['usagestat', '--json-only', 'usage', '--provider', providerBaseId(provider)];
+        const argv = ['usagestat', '--json', 'usage', '--provider', providerBaseId(provider)];
         if (provider.source && provider.source !== 'auto')
             argv.push('--source', provider.source);
         return argv;

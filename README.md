@@ -4,33 +4,52 @@ GNOME Shell extension that shows normalized AI provider usage in the panel. Read
 
 ## Install
 
-### From GNOME Extensions
+### Step 1 — Install the `usagestat` CLI
+
+**Arch / Manjaro (AUR):**
+```bash
+yay -S usagestat-bin
+```
+
+**Homebrew (any distro):**
+```bash
+brew install hashim-k/tap/usagestat
+```
+
+**Fedora / RHEL / openSUSE (COPR):**
+```bash
+sudo dnf copr enable hashimkarim/usagestat
+sudo dnf install usagestat
+```
+
+**GitHub Release (manual):**
+```bash
+curl -L -o usagestat https://github.com/Hashim-K/usagestat/releases/latest/download/usagestat-linux-x86_64
+chmod +x usagestat
+sudo install -Dm755 usagestat /usr/local/bin/usagestat
+```
+
+### Step 2 — Install the extension
+
+**From GNOME Extensions:**
 
 Install from [extensions.gnome.org](https://extensions.gnome.org) once listed, or use the GNOME Extension Manager app.
 
-### Manual
-
-1. Install the `usagestat` CLI:
-
-```bash
-cargo install usagestat
-```
-
-2. Install the extension:
+**Manual:**
 
 ```bash
 ./install.sh
 ```
 
-3. Restart GNOME Shell — on X11: `Alt+F2`, `r`, Enter. On Wayland: log out and back in.
+Restart GNOME Shell — on X11: `Alt+F2`, `r`, Enter. On Wayland: log out and back in.
 
-4. Enable the extension:
+Then enable:
 
 ```bash
 gnome-extensions enable usagestat-bar@hashimkarim
 ```
 
-If the CLI is installed somewhere unusual, set `USAGESTAT_CLI=/path/to/usagestat` before GNOME Shell starts.
+If the CLI is in a non-standard location, set `USAGESTAT_CLI=/path/to/usagestat` before GNOME Shell starts.
 
 ## What It Does
 
