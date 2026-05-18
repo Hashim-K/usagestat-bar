@@ -4,7 +4,10 @@ import {providerBaseId} from './config.js';
 
 const COMMAND_TIMEOUT_SECONDS = 90;
 
-export function findAiUsage() {
+export function findAiUsage(override = '') {
+    if (override && GLib.file_test(override, GLib.FileTest.IS_EXECUTABLE))
+        return override;
+
     const paths = [
         GLib.getenv('USAGESTAT_CLI'),
         `${GLib.get_home_dir()}/.local/bin/usagestat`,
@@ -70,22 +73,19 @@ function runAsync(argv, cancellable) {
     });
 }
 
-export async function fetchProviderUsage(provider, cancellable) {
+export async function fetchProviderUsage(provider, cancellable, {cliPath = '', pluginDir = ''} = {}) {
     const providerId = providerBaseId(provider);
     if (provider?.customCommand || provider?.custom === true || provider?.source === 'custom')
         return fetchCustomCommandUsage(provider, cancellable);
 
-    const binary = findAiUsage();
+    const binary = findAiUsage(cliPath);
     if (!binary)
         throw new Error('usagestat CLI was not found on PATH or in common install locations.');
 
-    const argv = [
-        binary,
-        '--json',
-        'usage',
-        '--provider',
-        providerId,
-    ];
+    const argv = [binary, '--json'];
+    if (pluginDir)
+        argv.push('--plugin-dir', pluginDir);
+    argv.push('usage', '--provider', providerId);
     if (provider?.source && provider.source !== 'auto')
         argv.push('--source', provider.source);
 

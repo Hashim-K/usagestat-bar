@@ -133,5 +133,13 @@
       <default>true</default>
       <summary>Show provider status page link button in the popup header</summary>
     </key>
+    <key name="usagestat-cli-path" type="s">
+      <default>''</default>
+      <summary>Path to the usagestat CLI binary (empty = auto-detect)</summary>
+    </key>
+    <key name="usagestat-plugin-dir" type="s">
+      <default>''</default>
+      <summary>Plugin directory path passed to usagestat (empty = auto-discover)</summary>
+    </key>
   </schema>
 </schemalist>

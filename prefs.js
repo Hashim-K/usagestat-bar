@@ -6,9 +6,10 @@ import Gtk from 'gi://Gtk';
 import Adw from 'gi://Adw';
 import {ExtensionPreferences, gettext as _} from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
 import {findAiUsage} from './cli.js';
-import {loadConfig, makeProviderInstanceId, providerBaseId, providerDisplayName, providerKey, PROVIDERS, saveConfig} from './config.js';
+import {DEFAULT_HIDDEN_IDS, loadConfig, makeProviderInstanceId, providerBaseId, providerDisplayName, providerKey, PROVIDERS, saveConfig} from './config.js';
 
 const SOURCE_OPTIONS = ['auto', 'web', 'cli', 'oauth', 'api', 'local'];
+const BUILTIN_PROVIDER_IDS = new Set(PROVIDERS.map(([id]) => id));
 const CUSTOM_PROVIDER_VALUE = '__custom_provider__';
 const TIERS = ['primary', 'secondary', 'tertiary', 'quaternary'];
 const VALIDATION_TIMEOUT_SECONDS = 90;
@@ -151,6 +152,247 @@ class BehaviourPage extends Adw.PreferencesPage {
         this.add(this._buildRefreshGroup());
         this.add(this._buildInteractionGroup());
         this.add(this._buildPopupGroup());
+        this.add(this._buildCliGroup());
+    }
+
+    _setEntryRowPlaceholder(row, text) {
+        const input = this._findEditableGtkText(row);
+        if (input)
+            input.set_placeholder_text(text);
+    }
+
+    _findEditableGtkText(parent) {
+        for (let child = parent.get_first_child(); child; child = child.get_next_sibling()) {
+            if (child instanceof Gtk.Text && child.get_editable())
+                return child;
+            const found = this._findEditableGtkText(child);
+            if (found)
+                return found;
+        }
+        return null;
+    }
+
+    _defaultPluginDir() {
+        return GLib.getenv('USAGESTAT_PLUGIN_DIR')
+            || GLib.getenv('AI_USAGE_PLUGIN_DIR')
+            || GLib.build_filenamev([
+                GLib.getenv('XDG_DATA_HOME') || GLib.build_filenamev([GLib.get_home_dir(), '.local', 'share']),
+                'usagestat', 'plugins',
+            ]);
+    }
+
+    _buildCliGroup() {
+        const group = new Adw.PreferencesGroup({title: _('CLI')});
+        group.add(this._buildBinaryExpander());
+        group.add(this._buildPluginExpander());
+        return group;
+    }
+
+    _buildBinaryExpander() {
+        const expander = new Adw.ExpanderRow({title: _('Binary')});
+
+        // Set path row
+        const entryRow = new Adw.EntryRow({
+            title: _('Set path'),
+            text: this._settings.get_string('usagestat-cli-path'),
+            show_apply_button: true,
+            input_hints: Gtk.InputHints.NO_SPELLCHECK,
+        });
+        entryRow.set_input_purpose(Gtk.InputPurpose.URL);
+        entryRow.connect('apply', () => {
+            this._settings.set_string('usagestat-cli-path', entryRow.get_text().trim());
+        });
+        const browseBtn = new Gtk.Button({
+            icon_name: 'document-open-symbolic',
+            valign: Gtk.Align.CENTER,
+            tooltip_text: _('Choose executable'),
+            css_classes: ['flat'],
+        });
+        browseBtn.connect('clicked', () => {
+            const dialog = new Gtk.FileDialog({title: _('Select usagestat executable')});
+            const start = entryRow.get_text().trim() || findAiUsage('') || '';
+            if (start) dialog.set_initial_file(Gio.File.new_for_path(start));
+            dialog.open(this.get_root(), null, (d, res) => {
+                try {
+                    const path = d.open_finish(res)?.get_path() || '';
+                    if (path) { entryRow.set_text(path); this._settings.set_string('usagestat-cli-path', path); }
+                } catch { /* cancelled */ }
+            });
+        });
+        entryRow.add_suffix(browseBtn);
+        expander.add_row(entryRow);
+
+        // Detected path row
+        const detectedRow = new Adw.ActionRow({title: _('Detected path')});
+        const detectedLabel = new Gtk.Label({valign: Gtk.Align.CENTER, css_classes: ['dim-label'], ellipsize: 3});
+        const copyBtn = new Gtk.Button({icon_name: 'edit-copy-symbolic', valign: Gtk.Align.CENTER, tooltip_text: _('Copy'), css_classes: ['flat']});
+        detectedRow.add_suffix(detectedLabel);
+        detectedRow.add_suffix(copyBtn);
+        expander.add_row(detectedRow);
+
+        // Status row
+        const statusRow = new Adw.ActionRow({title: _('Status')});
+        const spinner = new Gtk.Spinner({valign: Gtk.Align.CENTER});
+        const statusIcon = new Gtk.Image({valign: Gtk.Align.CENTER});
+        const statusLabel = new Gtk.Label({valign: Gtk.Align.CENTER});
+        statusRow.add_suffix(spinner);
+        statusRow.add_suffix(statusIcon);
+        statusRow.add_suffix(statusLabel);
+        expander.add_row(statusRow);
+
+        let _resolvedBinary = '';
+        copyBtn.connect('clicked', () => { if (_resolvedBinary) this.get_clipboard().set(_resolvedBinary); });
+
+        const check = () => {
+            _resolvedBinary = findAiUsage(this._settings.get_string('usagestat-cli-path')) || '';
+            detectedLabel.set_label(_resolvedBinary || _('Not found'));
+            copyBtn.set_sensitive(Boolean(_resolvedBinary));
+            expander.set_subtitle(_resolvedBinary || _('Not found'));
+
+            if (!_resolvedBinary) {
+                spinner.stop(); spinner.set_visible(false);
+                statusIcon.set_from_icon_name('dialog-error-symbolic'); statusIcon.set_css_classes(['error']); statusIcon.set_visible(true);
+                statusLabel.set_label(_('Not found')); statusLabel.set_css_classes(['error']);
+                return;
+            }
+            statusIcon.set_visible(false); statusLabel.set_label('');
+            spinner.set_visible(true); spinner.start();
+            try {
+                const proc = Gio.Subprocess.new([_resolvedBinary, '--version'], Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE);
+                proc.communicate_utf8_async(null, null, (_p, res) => {
+                    spinner.stop(); spinner.set_visible(false); statusIcon.set_visible(true);
+                    try {
+                        const [, stdout] = _p.communicate_utf8_finish(res);
+                        const version = (stdout || '').trim().split('\n')[0] || _resolvedBinary;
+                        statusIcon.set_from_icon_name('emblem-ok-symbolic'); statusIcon.set_css_classes(['success']);
+                        statusLabel.set_label(version); statusLabel.set_css_classes(['success']);
+                        expander.set_subtitle(`${version} · ${_resolvedBinary}`);
+                    } catch {
+                        statusIcon.set_from_icon_name('dialog-error-symbolic'); statusIcon.set_css_classes(['error']);
+                        statusLabel.set_label(_('Failed to run')); statusLabel.set_css_classes(['error']);
+                    }
+                });
+            } catch {
+                spinner.stop(); spinner.set_visible(false); statusIcon.set_visible(true);
+                statusIcon.set_from_icon_name('dialog-error-symbolic'); statusIcon.set_css_classes(['error']);
+                statusLabel.set_label(_('Failed to launch')); statusLabel.set_css_classes(['error']);
+            }
+        };
+        this._settings.connect('changed::usagestat-cli-path', check);
+        check();
+        return expander;
+    }
+
+    _buildPluginExpander() {
+        const expander = new Adw.ExpanderRow({title: _('Plugin folder')});
+
+        // Set path row
+        const entryRow = new Adw.EntryRow({
+            title: _('Set path'),
+            text: this._settings.get_string('usagestat-plugin-dir'),
+            show_apply_button: true,
+            input_hints: Gtk.InputHints.NO_SPELLCHECK,
+        });
+        entryRow.set_input_purpose(Gtk.InputPurpose.URL);
+        entryRow.connect('apply', () => {
+            this._settings.set_string('usagestat-plugin-dir', entryRow.get_text().trim());
+        });
+        const browseBtn = new Gtk.Button({
+            icon_name: 'document-open-symbolic',
+            valign: Gtk.Align.CENTER,
+            tooltip_text: _('Choose folder'),
+            css_classes: ['flat'],
+        });
+        browseBtn.connect('clicked', () => {
+            const dialog = new Gtk.FileDialog({title: _('Select usagestat plugin folder')});
+            const start = entryRow.get_text().trim() || this._defaultPluginDir();
+            if (start) dialog.set_initial_folder(Gio.File.new_for_path(start));
+            dialog.select_folder(this.get_root(), null, (d, res) => {
+                try {
+                    const path = d.select_folder_finish(res)?.get_path() || '';
+                    if (path) { entryRow.set_text(path); this._settings.set_string('usagestat-plugin-dir', path); }
+                } catch { /* cancelled */ }
+            });
+        });
+        entryRow.add_suffix(browseBtn);
+        expander.add_row(entryRow);
+
+        // Detected path row
+        const detectedRow = new Adw.ActionRow({title: _('Detected path')});
+        const detectedLabel = new Gtk.Label({valign: Gtk.Align.CENTER, css_classes: ['dim-label'], ellipsize: 3});
+        const copyBtn = new Gtk.Button({icon_name: 'edit-copy-symbolic', valign: Gtk.Align.CENTER, tooltip_text: _('Copy'), css_classes: ['flat']});
+        detectedRow.add_suffix(detectedLabel);
+        detectedRow.add_suffix(copyBtn);
+        expander.add_row(detectedRow);
+        copyBtn.connect('clicked', () => { this.get_clipboard().set(this._defaultPluginDir()); });
+
+        // Status row
+        const statusRow = new Adw.ActionRow({title: _('Status')});
+        const spinner = new Gtk.Spinner({valign: Gtk.Align.CENTER});
+        const statusIcon = new Gtk.Image({valign: Gtk.Align.CENTER});
+        const statusLabel = new Gtk.Label({valign: Gtk.Align.CENTER});
+        statusRow.add_suffix(spinner);
+        statusRow.add_suffix(statusIcon);
+        statusRow.add_suffix(statusLabel);
+        expander.add_row(statusRow);
+
+        const check = () => {
+            const effectiveDir = this._settings.get_string('usagestat-plugin-dir') || this._defaultPluginDir();
+            detectedLabel.set_label(effectiveDir);
+            expander.set_subtitle(effectiveDir);
+
+            const binary = findAiUsage(this._settings.get_string('usagestat-cli-path'));
+            if (!binary) {
+                spinner.stop(); spinner.set_visible(false);
+                statusIcon.set_from_icon_name('dialog-warning-symbolic'); statusIcon.set_css_classes(['warning']); statusIcon.set_visible(true);
+                statusLabel.set_label(_('No binary')); statusLabel.set_css_classes(['dim-label']);
+                return;
+            }
+            statusIcon.set_visible(false); statusLabel.set_label('');
+            spinner.set_visible(true); spinner.start();
+            const argv = [binary, '--json'];
+            const pluginDir = this._settings.get_string('usagestat-plugin-dir');
+            if (pluginDir) argv.push('--plugin-dir', pluginDir);
+            argv.push('list');
+            try {
+                const proc = Gio.Subprocess.new(argv, Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE);
+                proc.communicate_utf8_async(null, null, (_p, res) => {
+                    spinner.stop(); spinner.set_visible(false); statusIcon.set_visible(true);
+                    try {
+                        const [, stdout, stderr] = _p.communicate_utf8_finish(res);
+                        if (_p.get_exit_status() !== 0) {
+                            const detail = (stderr || stdout || '').trim().split('\n')[0] || 'error';
+                            statusIcon.set_from_icon_name('dialog-error-symbolic'); statusIcon.set_css_classes(['error']);
+                            statusLabel.set_label(detail); statusLabel.set_css_classes(['error']);
+                            return;
+                        }
+                        const providers = JSON.parse((stdout || '').trim());
+                        const count = Array.isArray(providers) ? providers.length : 0;
+                        if (count === 0) {
+                            statusIcon.set_from_icon_name('dialog-warning-symbolic'); statusIcon.set_css_classes(['warning']);
+                            statusLabel.set_label(_('No providers found')); statusLabel.set_css_classes(['dim-label']);
+                            expander.set_subtitle(_('No providers found'));
+                        } else {
+                            statusIcon.set_from_icon_name('emblem-ok-symbolic'); statusIcon.set_css_classes(['success']);
+                            const summary = `${count} ${count === 1 ? _('provider') : _('providers')}`;
+                            statusLabel.set_label(summary); statusLabel.set_css_classes(['success']);
+                            expander.set_subtitle(`${summary} · ${effectiveDir}`);
+                        }
+                    } catch {
+                        statusIcon.set_from_icon_name('dialog-error-symbolic'); statusIcon.set_css_classes(['error']);
+                        statusLabel.set_label(_('Failed to parse output')); statusLabel.set_css_classes(['error']);
+                    }
+                });
+            } catch {
+                spinner.stop(); spinner.set_visible(false); statusIcon.set_visible(true);
+                statusIcon.set_from_icon_name('dialog-error-symbolic'); statusIcon.set_css_classes(['error']);
+                statusLabel.set_label(_('Failed to launch')); statusLabel.set_css_classes(['error']);
+            }
+        };
+        this._settings.connect('changed::usagestat-cli-path', check);
+        this._settings.connect('changed::usagestat-plugin-dir', check);
+        check();
+        return expander;
     }
 
     _buildRefreshGroup() {
@@ -892,6 +1134,8 @@ class ProvidersPage extends Adw.PreferencesPage {
         this._validationDebounceIds = new Map();
         this._manifests = new Map();
         this._settings.connect('changed::provider-icon-style', () => this._refreshProviderIcons());
+        this._settings.connect('changed::usagestat-cli-path', () => this._loadProviderManifests());
+        this._settings.connect('changed::usagestat-plugin-dir', () => this._loadProviderManifests());
         this._styleManager = Adw.StyleManager.get_default();
         this._styleManager.connect('notify::dark', () => this._refreshProviderIcons());
         this._save();
@@ -907,6 +1151,11 @@ class ProvidersPage extends Adw.PreferencesPage {
         });
         this._disabledList.add_css_class('boxed-list');
 
+        this._pluginList = new Gtk.ListBox({
+            selection_mode: Gtk.SelectionMode.NONE,
+        });
+        this._pluginList.add_css_class('boxed-list');
+
         this._enabledGroup = new Adw.PreferencesGroup({
             title: _('Enabled Providers'),
             description: _('Drag enabled providers to reorder the switcher.'),
@@ -921,12 +1170,29 @@ class ProvidersPage extends Adw.PreferencesPage {
         this._addSourceGroup.add(this._buildAddProviderSourceRow());
         this.add(this._addSourceGroup);
 
+        this._pluginGroup = new Adw.PreferencesGroup({
+            title: _('Plugin Providers'),
+            description: _('Providers discovered from the plugin folder. Enable to start tracking.'),
+        });
+        this._pluginGroup.add(new Adw.PreferencesRow({child: this._pluginList}));
+        this._pluginGroup.set_visible(false);
+        this.add(this._pluginGroup);
+
         this._disabledGroup = new Adw.PreferencesGroup({
             title: _('Disabled Providers'),
             description: _('Enable a provider to move it into the draggable list.'),
         });
         this._disabledGroup.add(new Adw.PreferencesRow({child: this._disabledList}));
         this.add(this._disabledGroup);
+
+        this._hiddenExpanderRow = new Adw.ExpanderRow({
+            title: _('Hidden'),
+            expanded: false,
+        });
+        this._hiddenGroup = new Adw.PreferencesGroup();
+        this._hiddenGroup.add(this._hiddenExpanderRow);
+        this._hiddenGroup.set_visible(false);
+        this.add(this._hiddenGroup);
 
         this._renderProviders(this._targetProviderId);
         if (this._targetProviderId)
@@ -943,15 +1209,37 @@ class ProvidersPage extends Adw.PreferencesPage {
     }
 
     async _loadProviderManifests() {
-        const binary = findAiUsage();
+        const cliPath = this._settings.get_string('usagestat-cli-path');
+        const pluginDir = this._settings.get_string('usagestat-plugin-dir');
+        const binary = findAiUsage(cliPath);
         if (!binary)
             return;
         try {
-            const result = await this._runValidationCommand([binary, 'list', '--json']);
+            const argv = [binary, '--json'];
+            if (pluginDir)
+                argv.push('--plugin-dir', pluginDir);
+            argv.push('list');
+            const result = await this._runValidationCommand(argv);
             const providers = JSON.parse(result.stdout.trim());
             if (!Array.isArray(providers))
                 return;
             this._manifests = new Map(providers.map(p => [p.id, p]));
+
+            const knownIds = new Set(this._config.providers.map(p => p.id));
+            let added = false;
+            for (const p of providers) {
+                if (!p.id || knownIds.has(p.id))
+                    continue;
+                this._config.providers.push({
+                    id: p.id,
+                    enabled: false,
+                    ...(DEFAULT_HIDDEN_IDS.has(p.id) ? {hidden: true} : {}),
+                });
+                added = true;
+            }
+            if (added)
+                this._save();
+
             this._renderProviders(null);
         } catch {
             // Non-critical; fall back to showing all source options.
@@ -1100,21 +1388,51 @@ class ProvidersPage extends Adw.PreferencesPage {
     _renderProviders(expandedId = null) {
         while (this._enabledList.get_first_child())
             this._enabledList.remove(this._enabledList.get_first_child());
+        while (this._pluginList.get_first_child())
+            this._pluginList.remove(this._pluginList.get_first_child());
         while (this._disabledList.get_first_child())
             this._disabledList.remove(this._disabledList.get_first_child());
+        for (const oldRow of (this._hiddenRowsList || []))
+            this._hiddenExpanderRow.remove(oldRow);
+        this._hiddenRowsList = [];
 
-        const disabled = [];
+        const disabledBuiltin = [];
+        const disabledPlugin = [];
+        const hiddenProviders = [];
+
         for (const provider of this._orderedProviders()) {
             if (provider.tabParent)
                 continue;
-            if (provider.enabled === false)
-                disabled.push(provider);
-            else
+            if (provider.hidden) {
+                hiddenProviders.push(provider);
+            } else if (provider.enabled === false) {
+                const isPlugin = !BUILTIN_PROVIDER_IDS.has(providerBaseId(provider)) && !provider.customCommand;
+                if (isPlugin)
+                    disabledPlugin.push(provider);
+                else
+                    disabledBuiltin.push(provider);
+            } else {
                 this._enabledList.append(this._buildProviderListRow(provider, expandedId, true));
+            }
         }
-        disabled.sort((a, b) => this._name(a).localeCompare(this._name(b)));
-        for (const provider of disabled)
+
+        disabledBuiltin.sort((a, b) => this._name(a).localeCompare(this._name(b)));
+        for (const provider of disabledBuiltin)
             this._disabledList.append(this._buildProviderListRow(provider, expandedId, false));
+
+        disabledPlugin.sort((a, b) => this._name(a).localeCompare(this._name(b)));
+        for (const provider of disabledPlugin)
+            this._pluginList.append(this._buildProviderListRow(provider, expandedId, false));
+        this._pluginGroup.set_visible(disabledPlugin.length > 0);
+
+        hiddenProviders.sort((a, b) => this._name(a).localeCompare(this._name(b)));
+        this._hiddenExpanderRow.set_title(`${_('Hidden')} (${hiddenProviders.length})`);
+        for (const provider of hiddenProviders) {
+            const r = this._buildHiddenProviderRow(provider);
+            this._hiddenExpanderRow.add_row(r);
+            this._hiddenRowsList.push(r);
+        }
+        this._hiddenGroup.set_visible(hiddenProviders.length > 0);
     }
 
     _refreshProviderIcons() {
@@ -1122,7 +1440,7 @@ class ProvidersPage extends Adw.PreferencesPage {
     }
 
     _expandedProviderId() {
-        for (const list of [this._enabledList, this._disabledList]) {
+        for (const list of [this._enabledList, this._pluginList, this._disabledList]) {
             for (let child = list.get_first_child(); child; child = child.get_next_sibling()) {
                 const row = child.get_child?.();
                 if (row?.get_expanded?.())
@@ -1197,6 +1515,7 @@ class ProvidersPage extends Adw.PreferencesPage {
         row.add_row(this._usageTrackersRow(provider));
 
         this._addTabExtensionRows(row, provider);
+        this._addHideSourceRow(row, provider);
         this._addDeleteSourceRow(row, provider);
 
         listRow.set_child(row);
@@ -1825,7 +2144,12 @@ class ProvidersPage extends Adw.PreferencesPage {
         if (this._isCustomProvider(provider))
             return ['bash', '-lc', provider.customCommand || ''];
 
-        const argv = ['usagestat', '--json', 'usage', '--provider', providerBaseId(provider)];
+        const binary = findAiUsage(this._settings.get_string('usagestat-cli-path')) || 'usagestat';
+        const pluginDir = this._settings.get_string('usagestat-plugin-dir');
+        const argv = [binary, '--json'];
+        if (pluginDir)
+            argv.push('--plugin-dir', pluginDir);
+        argv.push('usage', '--provider', providerBaseId(provider));
         if (provider.source && provider.source !== 'auto')
             argv.push('--source', provider.source);
         return argv;
@@ -1887,6 +2211,46 @@ class ProvidersPage extends Adw.PreferencesPage {
     _firstErrorMetric(snapshot) {
         const metric = (snapshot?.metrics || []).find(item => item?.type === 'badge' && String(item.label || '').toLowerCase().includes('error'));
         return metric?.text || null;
+    }
+
+    _buildHiddenProviderRow(provider) {
+        const row = new Adw.ActionRow({
+            title: this._name(provider),
+            subtitle: providerBaseId(provider),
+        });
+        row.add_prefix(this._providerIconPreview(provider, 24));
+        const unhideButton = new Gtk.Button({
+            label: _('Unhide'),
+            valign: Gtk.Align.CENTER,
+            css_classes: ['suggested-action'],
+        });
+        unhideButton.connect('clicked', () => {
+            delete provider.hidden;
+            provider.enabled = false;
+            this._save();
+            this._renderProviders(null);
+        });
+        row.add_suffix(unhideButton);
+        return row;
+    }
+
+    _addHideSourceRow(row, provider) {
+        const hideRow = new Adw.ActionRow({
+            title: _('Hide provider'),
+            subtitle: _('Move to the Hidden section at the bottom of this page.'),
+        });
+        const hideButton = new Gtk.Button({
+            label: _('Hide'),
+            valign: Gtk.Align.CENTER,
+        });
+        hideButton.connect('clicked', () => {
+            provider.hidden = true;
+            provider.enabled = false;
+            this._save();
+            this._renderProviders(null);
+        });
+        hideRow.add_suffix(hideButton);
+        row.add_row(hideRow);
     }
 
     _addDeleteSourceRow(row, provider) {
@@ -2431,6 +2795,7 @@ class MaintenancePage extends Adw.PreferencesPage {
 
     _runInTerminal(command) {
         const script = [
+            `printf '\\033[1m$ %s\\033[0m\\n' ${this._shellQuote(command)}`,
             command,
             'status=$?',
             'printf "\\nExit status: %s\\n" "$status"',

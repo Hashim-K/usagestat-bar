@@ -335,7 +335,10 @@ export default class AIUsageBarExtension extends Extension {
                 if (!this._cancellable || this._cancellable.is_cancelled())
                     break;
                 try {
-                    const data = await fetchProviderUsage(provider, this._cancellable);
+                    const data = await fetchProviderUsage(provider, this._cancellable, {
+                        cliPath: this._settings.get_string('usagestat-cli-path'),
+                        pluginDir: this._settings.get_string('usagestat-plugin-dir'),
+                    });
                     const key = providerKey(provider);
                     this._usage.set(key, data);
                     this._errors.delete(key);
@@ -409,7 +412,7 @@ export default class AIUsageBarExtension extends Extension {
         for (const provider of this._visibleProviders)
             this._addProviderSwitch(provider);
 
-        if (!findAiUsage() && this._providerNeedsCli(this._activeProviderConfig())) {
+        if (!findAiUsage(this._settings.get_string('usagestat-cli-path')) && this._providerNeedsCli(this._activeProviderConfig())) {
             this._renderMessage(
                 _('usagestat CLI not found'),
                 _('Install usagestat, add it to PATH, or set USAGESTAT_CLI before GNOME Shell starts.'),

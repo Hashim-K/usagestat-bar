@@ -38,6 +38,7 @@ export const PROVIDERS = [
 export const PROVIDER_NAMES = Object.fromEntries(PROVIDERS);
 const PROVIDER_IDS = new Set(PROVIDERS.map(([id]) => id));
 const DEPRECATED_PROVIDER_IDS = new Set(["mock"]);
+export const DEFAULT_HIDDEN_IDS = new Set(["synthetic", "smoke"]);
 
 export function configPath() {
     return GLib.build_filenamev([GLib.get_home_dir(), '.config', 'usagestat', 'config.toml']);
@@ -96,6 +97,7 @@ export function ensureProviderShape(config) {
             providers.push({
                 id,
                 enabled: false,
+                ...(DEFAULT_HIDDEN_IDS.has(id) ? {hidden: true} : {}),
             });
         }
     }
@@ -274,6 +276,8 @@ function formatConfigToml(config) {
                 lines.push(`${key} = ${formatTomlValue(provider[key])}`);
         }
         lines.push(`enabled = ${provider.enabled !== false ? 'true' : 'false'}`);
+        if (provider.hidden)
+            lines.push(`hidden = true`);
         if (provider.settings && typeof provider.settings === 'object') {
             for (const key of Object.keys(provider.settings).sort()) {
                 const value = provider.settings[key];
