@@ -6,7 +6,7 @@ import {Extension, gettext as _} from 'resource:///org/gnome/shell/extensions/ex
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 import {fetchProviderUsage, findAiUsage} from './cli.js';
-import {enabledProviders, loadConfig, PROVIDER_NAMES, providerBaseId, providerDisplayName, providerKey} from './config.js';
+import {configPath, enabledProviders, loadConfig, PROVIDER_NAMES, providerBaseId, providerDisplayName, providerKey} from './config.js';
 
 const TIERS = ['primary', 'secondary', 'tertiary', 'quaternary'];
 const PANEL_COMPONENTS = ['bar', 'percent', 'logo', 'text'];
@@ -63,6 +63,24 @@ const PROVIDER_ICON_FILES = {
     vertexai: 'vertexai.svg',
     windsurf: 'windsurf.svg',
     'openai-api': 'openai.svg',
+};
+const PROVIDER_DASHBOARD_URLS = {
+    augment: 'https://app.augmentcode.com/account',
+    claude: 'https://claude.ai/settings/usage',
+    codebuff: 'https://www.codebuff.com/usage',
+    codex: 'https://chatgpt.com/codex/cloud/settings/analytics#usage',
+    crof: 'https://crof.ai',
+    cursor: 'https://www.cursor.com/dashboard',
+    deepseek: 'https://platform.deepseek.com/usage',
+    doubao: 'https://console.volcengine.com/ark/region:ark+cn-beijing/usage',
+    kilo: 'https://app.kilo.ai/usage',
+    'kimi-k2': 'https://platform.moonshot.cn',
+    mistral: 'https://admin.mistral.ai/organization/usage',
+    nanogpt: 'https://nano-gpt.com/usage',
+    ollama: 'https://ollama.com/settings',
+    'openai-api': 'https://platform.openai.com/usage',
+    'opencode-go': 'https://opencode.ai/auth',
+    synthetic: 'https://synthetic.new/landing/home',
 };
 
 export default class AIUsageBarExtension extends Extension {
@@ -275,6 +293,27 @@ export default class AIUsageBarExtension extends Extension {
         return button;
     }
 
+    _actionButton(label, iconName, callback) {
+        const box = new St.BoxLayout({style_class: 'usagestat-action-button-box'});
+        box.add_child(new St.Icon({
+            icon_name: iconName,
+            icon_size: 14,
+            y_align: Clutter.ActorAlign.CENTER,
+        }));
+        box.add_child(new St.Label({
+            text: label,
+            y_align: Clutter.ActorAlign.CENTER,
+        }));
+
+        const button = new St.Button({
+            child: box,
+            style_class: 'usagestat-action-button',
+            can_focus: true,
+        });
+        button.connect('clicked', callback);
+        return button;
+    }
+
     _onSettingsChanged(key) {
         if (key === 'panel-position' || key === 'panel-index')
             this._attachIndicator();
@@ -294,7 +333,8 @@ export default class AIUsageBarExtension extends Extension {
     }
 
     _loadProviders() {
-        this._config = loadConfig();
+        const binary = findAiUsage(this._settings.get_string('usagestat-cli-path')) || '';
+        this._config = loadConfig(binary);
         this._providers = enabledProviders(this._config);
         this._visibleProviders = this._providers.filter(provider => !provider.tabParent);
         if (!this._providers.length)
@@ -338,6 +378,7 @@ export default class AIUsageBarExtension extends Extension {
                     const data = await fetchProviderUsage(provider, this._cancellable, {
                         cliPath: this._settings.get_string('usagestat-cli-path'),
                         pluginDir: this._settings.get_string('usagestat-plugin-dir'),
+                        configFile: configPath(findAiUsage(this._settings.get_string('usagestat-cli-path')) || ''),
                     });
                     const key = providerKey(provider);
                     this._usage.set(key, data);
@@ -739,6 +780,7 @@ export default class AIUsageBarExtension extends Extension {
 
         this._renderPace(snapshot);
         this._renderMetricLines(providerId, usage);
+        this._renderCostSummary(usage.costSummary);
 
         if (snapshot.credits?.remaining !== undefined)
             this._renderCreditLine(_('Credits: %s left').format(String(snapshot.credits.remaining)));
@@ -797,6 +839,7 @@ export default class AIUsageBarExtension extends Extension {
             this._renderProviderCost(usage.providerCost);
         this._renderPace(snapshot);
         this._renderMetricLines(key, usage);
+        this._renderCostSummary(usage.costSummary);
     }
 
     _renderLoadingProvider(providerId) {
@@ -887,6 +930,15 @@ export default class AIUsageBarExtension extends Extension {
 
         headerBox.add_child(leftGroup);
 
+        const dashboardUrl = this._providerDashboardUrl(snapshot, providerId);
+        if (dashboardUrl) {
+            const dashboardBtn = this._actionButton(_('Usage dashboard'), 'document-open-symbolic', () => {
+                this._openUri(dashboardUrl);
+                this._indicator.menu.close();
+            });
+            headerBox.add_child(dashboardBtn);
+        }
+
         if (this._settings.get_boolean('show-status-link') && snapshot.statusPageUrl) {
             const statusIconFile = Gio.File.new_for_path(
                 GLib.build_filenamev([EXTENSION_DIR, 'assets', 'status-icons', 'uptimekit-light.svg'])
@@ -898,9 +950,7 @@ export default class AIUsageBarExtension extends Extension {
             });
             const statusBtn = new St.Button({child: statusIcon, style_class: 'usagestat-icon-button', can_focus: true});
             statusBtn.connect('clicked', () => {
-                try {
-                    Gio.app_info_launch_default_for_uri(snapshot.statusPageUrl, null);
-                } catch {}
+                this._openUri(snapshot.statusPageUrl);
                 this._indicator.menu.close();
             });
             headerBox.add_child(statusBtn);
@@ -1099,6 +1149,37 @@ export default class AIUsageBarExtension extends Extension {
         }
     }
 
+    _renderCostSummary(summary) {
+        const lines = (summary?.lines || []).filter(line => line?.label);
+        if (!lines.length)
+            return;
+
+        const row = new St.BoxLayout({vertical: true, style_class: 'usagestat-cost'});
+        row.add_child(new St.Label({
+            text: _('Cost'),
+            style_class: 'usagestat-window-title',
+        }));
+
+        for (const line of lines) {
+            const lineBox = new St.BoxLayout({style_class: 'usagestat-cost-row'});
+            lineBox.add_child(new St.Label({
+                text: line.label,
+                style_class: 'usagestat-muted',
+                x_expand: true,
+            }));
+            lineBox.add_child(new St.Label({
+                text: _('%s · %s tokens').format(
+                    this._formatMoney(Number(line.cost) || 0, line.currency || summary.currency),
+                    this._formatCompactNumber(Number(line.tokens) || 0),
+                ),
+                style_class: 'usagestat-credits',
+            }));
+            row.add_child(lineBox);
+        }
+
+        this._content.add_child(row);
+    }
+
     _providerCostText(cost) {
         const period = cost.period || _('This month');
         if (cost.currencyCode === 'Quota')
@@ -1122,6 +1203,39 @@ export default class AIUsageBarExtension extends Extension {
             }).format(value);
         } catch {
             return `${code} ${value.toFixed(2)}`;
+        }
+    }
+
+    _formatCompactNumber(value) {
+        const number = Math.max(0, Number(value) || 0);
+        if (number >= 1_000_000_000)
+            return _('%sB').format((number / 1_000_000_000).toFixed(number >= 10_000_000_000 ? 0 : 1).replace(/\.0$/, ''));
+        if (number >= 1_000_000)
+            return _('%sM').format((number / 1_000_000).toFixed(number >= 10_000_000 ? 0 : 1).replace(/\.0$/, ''));
+        if (number >= 1_000)
+            return _('%sK').format((number / 1_000).toFixed(number >= 10_000 ? 0 : 1).replace(/\.0$/, ''));
+        return String(Math.round(number));
+    }
+
+    _providerDashboardUrl(snapshot, providerId) {
+        const usage = snapshot?.usage || {};
+        const configured = this._providerForKey(providerId);
+        const baseId = providerBaseId(configured || providerId);
+        return snapshot?.dashboardUrl
+            || usage.dashboardUrl
+            || configured?.dashboardUrl
+            || configured?.usageDashboardUrl
+            || configured?.settings?.dashboardUrl
+            || configured?.settings?.usageDashboardUrl
+            || PROVIDER_DASHBOARD_URLS[baseId]
+            || '';
+    }
+
+    _openUri(uri) {
+        try {
+            Gio.app_info_launch_default_for_uri(uri, null);
+        } catch (error) {
+            logError(error, 'UsageStat Bar: failed to open URI');
         }
     }
 

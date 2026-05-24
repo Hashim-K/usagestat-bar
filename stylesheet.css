@@ -105,7 +105,17 @@
   border-radius: 6px;
 }
 
+.usagestat-action-button {
+  padding: 4px 7px;
+  border-radius: 6px;
+}
+
+.usagestat-action-button-box {
+  spacing: 5px;
+}
+
 .usagestat-icon-button:hover,
+.usagestat-action-button:hover,
 .usagestat-provider-tile:hover {
   background-color: rgba(255, 255, 255, 0.08);
 }
@@ -210,6 +220,14 @@
 
 .usagestat-window {
   spacing: 7px;
+}
+
+.usagestat-cost {
+  spacing: 7px;
+}
+
+.usagestat-cost-row {
+  spacing: 12px;
 }
 
 .usagestat-window-title {

@@ -5,8 +5,8 @@ import {providerBaseId} from './config.js';
 const COMMAND_TIMEOUT_SECONDS = 90;
 
 export function findAiUsage(override = '') {
-    if (override && GLib.file_test(override, GLib.FileTest.IS_EXECUTABLE))
-        return override;
+    if (override)
+        return GLib.file_test(override, GLib.FileTest.IS_EXECUTABLE) ? override : null;
 
     const paths = [
         GLib.getenv('USAGESTAT_CLI'),
@@ -73,8 +73,9 @@ function runAsync(argv, cancellable) {
     });
 }
 
-export async function fetchProviderUsage(provider, cancellable, {cliPath = '', pluginDir = ''} = {}) {
+export async function fetchProviderUsage(provider, cancellable, {cliPath = '', pluginDir = '', configFile = ''} = {}) {
     const providerId = providerBaseId(provider);
+    pluginDir = pluginDir.trim();
     if (provider?.customCommand || provider?.custom === true || provider?.source === 'custom')
         return fetchCustomCommandUsage(provider, cancellable);
 
@@ -83,6 +84,8 @@ export async function fetchProviderUsage(provider, cancellable, {cliPath = '', p
         throw new Error('usagestat CLI was not found on PATH or in common install locations.');
 
     const argv = [binary, '--json'];
+    if (configFile)
+        argv.push('--config', configFile);
     if (pluginDir)
         argv.push('--plugin-dir', pluginDir);
     argv.push('usage', '--provider', providerId);
@@ -102,7 +105,34 @@ export async function fetchProviderUsage(provider, cancellable, {cliPath = '', p
         const message = payload.error.message || payload.error.code || JSON.stringify(payload.error);
         throw new Error(message);
     }
-    return normalizeBackendSnapshot(payload, providerId);
+    const snapshot = normalizeBackendSnapshot(payload, providerId);
+    try {
+        const costSummary = await fetchProviderCostSummary(binary, providerId, cancellable, {pluginDir, configFile});
+        if (costSummary) {
+            snapshot.usage ||= {};
+            snapshot.usage.costSummary = costSummary;
+        }
+    } catch {
+        // Cost data is optional; keep live quota rendering usable if it is unavailable.
+    }
+    return snapshot;
+}
+
+async function fetchProviderCostSummary(binary, providerId, cancellable, {pluginDir = '', configFile = ''} = {}) {
+    const argv = [binary, '--json'];
+    if (configFile)
+        argv.push('--config', configFile);
+    if (pluginDir)
+        argv.push('--plugin-dir', pluginDir);
+    argv.push('cost', '--provider', providerId);
+
+    const result = await runAsync(argv, cancellable);
+    const stdout = result.stdout.trim();
+    if (!stdout)
+        return null;
+
+    const payload = parseUsageJson(stdout, 'usagestat cost');
+    return normalizeCostSummary(payload);
 }
 
 async function fetchCustomCommandUsage(provider, cancellable) {
@@ -164,6 +194,8 @@ function normalizeBackendSnapshot(snapshot, fallbackProviderId) {
                 },
             });
         } else if (metric?.type === 'text') {
+            if (isCostTextMetric(metric))
+                continue;
             extraTextLines.push({
                 label: metric.label || '',
                 value: metric.value || '',
@@ -204,4 +236,61 @@ function normalizeBackendSnapshot(snapshot, fallbackProviderId) {
         pace: snapshot.pace || null,
         statusPageUrl: snapshot.statusPageUrl || null,
     };
+}
+
+function normalizeCostSummary(summary) {
+    if (!summary || typeof summary !== 'object')
+        return null;
+
+    const currency = summary.currency || summary.currencyCode || 'USD';
+    const daily = Array.isArray(summary.daily) ? summary.daily : [];
+    const byDate = new Map(daily
+        .filter(day => typeof day?.date === 'string')
+        .map(day => [normalizeCostDate(day.date), day])
+        .filter(([date]) => date));
+
+    const today = localDateString(0);
+    const yesterday = localDateString(-1);
+    const totals = summary.totals || {};
+
+    return {
+        currency,
+        lines: [
+            costLine('Today', byDate.get(today), currency),
+            costLine('Yesterday', byDate.get(yesterday), currency),
+            costLine(`Last ${Number(summary.periodDays) || 30} Days`, totals, currency),
+        ],
+    };
+}
+
+function costLine(label, source, currency) {
+    return {
+        label,
+        cost: Number(source?.totalCost) || 0,
+        tokens: Number(source?.totalTokens) || 0,
+        currency,
+    };
+}
+
+function localDateString(offsetDays) {
+    const date = GLib.DateTime.new_now_local().add_days(offsetDays);
+    return date.format('%Y-%m-%d');
+}
+
+function normalizeCostDate(value) {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value))
+        return value;
+
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime()))
+        return '';
+    const year = parsed.getFullYear();
+    const month = String(parsed.getMonth() + 1).padStart(2, '0');
+    const day = String(parsed.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
+function isCostTextMetric(metric) {
+    const label = String(metric?.label || '').toLowerCase();
+    return label === 'today' || label === 'yesterday' || /^last \d+ days$/.test(label);
 }

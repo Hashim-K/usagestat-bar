@@ -6,7 +6,7 @@ import Gtk from 'gi://Gtk';
 import Adw from 'gi://Adw';
 import {ExtensionPreferences, gettext as _} from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
 import {findAiUsage} from './cli.js';
-import {DEFAULT_HIDDEN_IDS, loadConfig, makeProviderInstanceId, providerBaseId, providerDisplayName, providerKey, PROVIDERS, saveConfig} from './config.js';
+import {configPath, DEFAULT_HIDDEN_IDS, loadConfig, makeProviderInstanceId, providerBaseId, providerDisplayName, providerKey, PROVIDERS, saveConfig} from './config.js';
 
 const SOURCE_OPTIONS = ['auto', 'web', 'cli', 'oauth', 'api', 'local'];
 const BUILTIN_PROVIDER_IDS = new Set(PROVIDERS.map(([id]) => id));
@@ -127,6 +127,10 @@ function entryRow(title, value, placeholder, secret = false) {
     return row;
 }
 
+function settingsBinary(settings) {
+    return findAiUsage(settings.get_string('usagestat-cli-path')) || '';
+}
+
 function rgbaFromHex(hex) {
     const rgba = new Gdk.RGBA();
     if (!rgba.parse(hex))
@@ -172,13 +176,30 @@ class BehaviourPage extends Adw.PreferencesPage {
         return null;
     }
 
-    _defaultPluginDir() {
-        return GLib.getenv('USAGESTAT_PLUGIN_DIR')
-            || GLib.getenv('AI_USAGE_PLUGIN_DIR')
-            || GLib.build_filenamev([
-                GLib.getenv('XDG_DATA_HOME') || GLib.build_filenamev([GLib.get_home_dir(), '.local', 'share']),
-                'usagestat', 'plugins',
-            ]);
+    _defaultPluginDir(binary = '') {
+        const envDir = GLib.getenv('USAGESTAT_PLUGIN_DIR') || GLib.getenv('AI_USAGE_PLUGIN_DIR');
+        if (envDir)
+            return envDir;
+
+        const binaryName = binary ? GLib.path_get_basename(binary) : '';
+        const systemDir = binaryName.includes('usagestat-dev')
+            ? '/usr/share/usagestat-dev/plugins'
+            : '/usr/share/usagestat/plugins';
+        if (GLib.file_test(systemDir, GLib.FileTest.IS_DIR))
+            return systemDir;
+
+        return GLib.build_filenamev([
+            GLib.getenv('XDG_DATA_HOME') || GLib.build_filenamev([GLib.get_home_dir(), '.local', 'share']),
+            binaryName.includes('usagestat-dev') ? 'usagestat-dev' : 'usagestat',
+            'plugins',
+        ]);
+    }
+
+    _resolvedPluginDir(binary = '') {
+        const configured = this._settings.get_string('usagestat-plugin-dir').trim();
+        if (configured)
+            return {path: configured, explicit: true};
+        return {path: this._defaultPluginDir(binary), explicit: false};
     }
 
     _buildCliGroup() {
@@ -305,7 +326,8 @@ class BehaviourPage extends Adw.PreferencesPage {
         });
         browseBtn.connect('clicked', () => {
             const dialog = new Gtk.FileDialog({title: _('Select usagestat plugin folder')});
-            const start = entryRow.get_text().trim() || this._defaultPluginDir();
+            const binary = findAiUsage(this._settings.get_string('usagestat-cli-path')) || '';
+            const start = entryRow.get_text().trim() || this._defaultPluginDir(binary);
             if (start) dialog.set_initial_folder(Gio.File.new_for_path(start));
             dialog.select_folder(this.get_root(), null, (d, res) => {
                 try {
@@ -324,7 +346,8 @@ class BehaviourPage extends Adw.PreferencesPage {
         detectedRow.add_suffix(detectedLabel);
         detectedRow.add_suffix(copyBtn);
         expander.add_row(detectedRow);
-        copyBtn.connect('clicked', () => { this.get_clipboard().set(this._defaultPluginDir()); });
+        let resolvedDir = '';
+        copyBtn.connect('clicked', () => { if (resolvedDir) this.get_clipboard().set(resolvedDir); });
 
         // Status row
         const statusRow = new Adw.ActionRow({title: _('Status')});
@@ -337,21 +360,30 @@ class BehaviourPage extends Adw.PreferencesPage {
         expander.add_row(statusRow);
 
         const check = () => {
-            const effectiveDir = this._settings.get_string('usagestat-plugin-dir') || this._defaultPluginDir();
-            detectedLabel.set_label(effectiveDir);
-            expander.set_subtitle(effectiveDir);
-
             const binary = findAiUsage(this._settings.get_string('usagestat-cli-path'));
             if (!binary) {
+                resolvedDir = this._resolvedPluginDir('').path;
+                detectedLabel.set_label(resolvedDir);
+                expander.set_subtitle(resolvedDir);
+                copyBtn.set_sensitive(Boolean(resolvedDir));
                 spinner.stop(); spinner.set_visible(false);
                 statusIcon.set_from_icon_name('dialog-warning-symbolic'); statusIcon.set_css_classes(['warning']); statusIcon.set_visible(true);
                 statusLabel.set_label(_('No binary')); statusLabel.set_css_classes(['dim-label']);
                 return;
             }
+            const resolved = this._resolvedPluginDir(binary);
+            resolvedDir = resolved.path;
+            detectedLabel.set_label(resolved.path);
+            copyBtn.set_sensitive(Boolean(resolved.path));
+            expander.set_subtitle(resolved.explicit
+                ? _('%s (override)').format(resolved.path)
+                : _('%s (binary default)').format(resolved.path));
+
             statusIcon.set_visible(false); statusLabel.set_label('');
             spinner.set_visible(true); spinner.start();
             const argv = [binary, '--json'];
-            const pluginDir = this._settings.get_string('usagestat-plugin-dir');
+            argv.push('--config', configPath(binary));
+            const pluginDir = this._settings.get_string('usagestat-plugin-dir').trim();
             if (pluginDir) argv.push('--plugin-dir', pluginDir);
             argv.push('list');
             try {
@@ -376,7 +408,7 @@ class BehaviourPage extends Adw.PreferencesPage {
                             statusIcon.set_from_icon_name('emblem-ok-symbolic'); statusIcon.set_css_classes(['success']);
                             const summary = `${count} ${count === 1 ? _('provider') : _('providers')}`;
                             statusLabel.set_label(summary); statusLabel.set_css_classes(['success']);
-                            expander.set_subtitle(`${summary} · ${effectiveDir}`);
+                            expander.set_subtitle(`${summary} · ${resolved.path}${resolved.explicit ? ` ${_('(override)')}` : ''}`);
                         }
                     } catch {
                         statusIcon.set_from_icon_name('dialog-error-symbolic'); statusIcon.set_css_classes(['error']);
@@ -495,7 +527,7 @@ class AppearancePage extends Adw.PreferencesPage {
             icon_name: 'preferences-desktop-display-symbolic',
         });
         this._settings = settings;
-        this._config = loadConfig();
+        this._config = loadConfig(settingsBinary(this._settings));
         this._settings.connect('changed::panel-bar-count', () => this._renderPinnedProviders());
         this.connect('map', () => this._renderPinnedProviders());
         this.add(this._buildPanelGroup());
@@ -726,7 +758,7 @@ class AppearancePage extends Adw.PreferencesPage {
     }
 
     _enabledProviders() {
-        this._config = loadConfig();
+        this._config = loadConfig(settingsBinary(this._settings));
         return this._config.providers.filter(provider => provider.enabled !== false && !provider.tabParent);
     }
 
@@ -1128,7 +1160,7 @@ class ProvidersPage extends Adw.PreferencesPage {
 
         this._settings = settings;
         this._targetProviderId = this._settings.get_string('preferences-provider') || null;
-        this._config = loadConfig();
+        this._config = loadConfig(settingsBinary(this._settings));
         this._validationCache = new Map();
         this._validationInFlight = new Map();
         this._validationDebounceIds = new Map();
@@ -1210,12 +1242,13 @@ class ProvidersPage extends Adw.PreferencesPage {
 
     async _loadProviderManifests() {
         const cliPath = this._settings.get_string('usagestat-cli-path');
-        const pluginDir = this._settings.get_string('usagestat-plugin-dir');
+        const pluginDir = this._settings.get_string('usagestat-plugin-dir').trim();
         const binary = findAiUsage(cliPath);
         if (!binary)
             return;
         try {
             const argv = [binary, '--json'];
+            argv.push('--config', configPath(binary));
             if (pluginDir)
                 argv.push('--plugin-dir', pluginDir);
             argv.push('list');
@@ -1382,7 +1415,7 @@ class ProvidersPage extends Adw.PreferencesPage {
                 return a.enabled === false ? 1 : -1;
             return 0;
         });
-        saveConfig(this._config);
+        saveConfig(this._config, settingsBinary(this._settings));
     }
 
     _renderProviders(expandedId = null) {
@@ -2144,9 +2177,11 @@ class ProvidersPage extends Adw.PreferencesPage {
         if (this._isCustomProvider(provider))
             return ['bash', '-lc', provider.customCommand || ''];
 
-        const binary = findAiUsage(this._settings.get_string('usagestat-cli-path')) || 'usagestat';
-        const pluginDir = this._settings.get_string('usagestat-plugin-dir');
+        const binary = findAiUsage(this._settings.get_string('usagestat-cli-path')) || '';
+        const pluginDir = this._settings.get_string('usagestat-plugin-dir').trim();
         const argv = [binary, '--json'];
+        if (binary)
+            argv.push('--config', configPath(binary));
         if (pluginDir)
             argv.push('--plugin-dir', pluginDir);
         argv.push('usage', '--provider', providerBaseId(provider));

@@ -40,8 +40,10 @@ const PROVIDER_IDS = new Set(PROVIDERS.map(([id]) => id));
 const DEPRECATED_PROVIDER_IDS = new Set(["mock"]);
 export const DEFAULT_HIDDEN_IDS = new Set(["synthetic", "smoke"]);
 
-export function configPath() {
-    return GLib.build_filenamev([GLib.get_home_dir(), '.config', 'usagestat', 'config.toml']);
+export function configPath(binary = '') {
+    const binaryName = binary ? GLib.path_get_basename(binary) : '';
+    const configDir = binaryName.includes('usagestat-dev') ? 'usagestat-dev' : 'usagestat';
+    return GLib.build_filenamev([GLib.get_home_dir(), '.config', configDir, 'config.toml']);
 }
 
 export function defaultConfig() {
@@ -106,27 +108,50 @@ export function ensureProviderShape(config) {
     return next;
 }
 
-export function loadConfig() {
-    const file = Gio.File.new_for_path(configPath());
+export function loadConfig(binary = '') {
+    const path = configPath(binary);
+    const file = Gio.File.new_for_path(path);
     try {
         const [ok, contents] = file.load_contents(null);
         if (!ok)
-            return defaultConfig();
+            return initializeConfig(path, binary);
         return ensureProviderShape(parseConfigToml(new TextDecoder().decode(contents)));
     } catch (error) {
-        logError(error, 'UsageStat Bar: failed to read ~/.config/usagestat/config.toml');
+        if (error.matches?.(Gio.IOErrorEnum, Gio.IOErrorEnum.NOT_FOUND))
+            return initializeConfig(path, binary);
+        logError(error, `UsageStat Bar: failed to read ${path}`);
         return defaultConfig();
     }
 }
 
-export function saveConfig(config) {
-    const dir = Gio.File.new_for_path(GLib.path_get_dirname(configPath()));
+export function saveConfig(config, binary = '') {
+    writeConfig(config, configPath(binary));
+}
+
+function initializeConfig(path, binary = '') {
+    const stablePath = configPath('');
+    let config = defaultConfig();
+    if (path !== stablePath) {
+        try {
+            const [ok, contents] = Gio.File.new_for_path(stablePath).load_contents(null);
+            if (ok)
+                config = ensureProviderShape(parseConfigToml(new TextDecoder().decode(contents)));
+        } catch {
+            config = defaultConfig();
+        }
+    }
+    writeConfig(config, path);
+    return config;
+}
+
+function writeConfig(config, path) {
+    const dir = Gio.File.new_for_path(GLib.path_get_dirname(path));
     if (!dir.query_exists(null))
         dir.make_directory_with_parents(null);
 
     const normalized = ensureProviderShape(config);
     const bytes = new TextEncoder().encode(formatConfigToml(normalized));
-    Gio.File.new_for_path(configPath()).replace_contents(
+    Gio.File.new_for_path(path).replace_contents(
         bytes,
         null,
         false,
@@ -135,7 +160,7 @@ export function saveConfig(config) {
     );
 
     try {
-        Gio.Subprocess.new(['chmod', '600', configPath()], Gio.SubprocessFlags.NONE);
+        Gio.Subprocess.new(['chmod', '600', path], Gio.SubprocessFlags.NONE);
     } catch (error) {
         logError(error, 'UsageStat Bar: failed to chmod config');
     }
