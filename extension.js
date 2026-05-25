@@ -671,7 +671,7 @@ export default class AIUsageBarExtension extends Extension {
             });
             percentLabel.set_style(`color: ${neutralColor};`);
 
-            const icon = this._panelProviderIcon(this._providerForKey(providerId) || providerId, this._panelIconHeight(16), usedPercent);
+            const icon = this._panelProviderIcon(this._providerForKey(providerId) || providerId, this._panelIconHeight(16), shownPercent);
             icon.add_style_class_name('usagestat-panel-icon');
             icon.set_y_align(Clutter.ActorAlign.CENTER);
 
