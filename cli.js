@@ -118,6 +118,30 @@ export async function fetchProviderUsage(provider, cancellable, {cliPath = '', p
     return snapshot;
 }
 
+export async function fetchProviderManifests(cancellable, {cliPath = '', pluginDir = '', configFile = ''} = {}) {
+    pluginDir = pluginDir.trim();
+    const binary = findAiUsage(cliPath);
+    if (!binary)
+        throw new Error('usagestat CLI was not found on PATH or in common install locations.');
+
+    const argv = [binary, '--json'];
+    if (configFile)
+        argv.push('--config', configFile);
+    if (pluginDir)
+        argv.push('--plugin-dir', pluginDir);
+    argv.push('list');
+
+    const result = await runAsync(argv, cancellable);
+    const stdout = result.stdout.trim();
+    if (!stdout) {
+        const detail = result.stderr.trim().split('\n')[0] || `usagestat exited with status ${result.status}`;
+        throw new Error(detail);
+    }
+
+    const payload = JSON.parse(stdout);
+    return Array.isArray(payload) ? payload : [];
+}
+
 async function fetchProviderCostSummary(binary, providerId, cancellable, {pluginDir = '', configFile = ''} = {}) {
     const argv = [binary, '--json'];
     if (configFile)
@@ -235,6 +259,7 @@ function normalizeBackendSnapshot(snapshot, fallbackProviderId) {
         rawMetrics: snapshot.metrics,
         pace: snapshot.pace || null,
         statusPageUrl: snapshot.statusPageUrl || null,
+        dashboardUrl: snapshot.usageDashboardUrl || snapshot.dashboardUrl || null,
     };
 }
 
