@@ -516,7 +516,7 @@ export default class AIUsageBarExtension extends Extension {
         box.add_child(track);
 
         let tileStatus = 'green';
-        if (this._errors.has(id)) {
+        if (this._errors.has(id) || this._snapshotErrorMessage(snapshot)) {
             tileStatus = 'red';
         } else if (this._loading && !snapshot) {
             tileStatus = 'orange';
@@ -779,6 +779,12 @@ export default class AIUsageBarExtension extends Extension {
             return;
         }
 
+        const snapshotError = this._snapshotErrorMessage(snapshot);
+        if (snapshotError) {
+            this._renderProviderError(providerId, snapshotError);
+            return;
+        }
+
         const usage = snapshot.usage || {};
 
         for (const tier of TIERS) {
@@ -837,6 +843,12 @@ export default class AIUsageBarExtension extends Extension {
                 text: this._loading ? _('Fetching usage...') : _('No usage fetched yet.'),
                 style_class: 'usagestat-muted',
             }));
+            return;
+        }
+
+        const snapshotError = this._snapshotErrorMessage(snapshot);
+        if (snapshotError) {
+            this._renderProviderError(key, snapshotError);
             return;
         }
 
@@ -908,6 +920,9 @@ export default class AIUsageBarExtension extends Extension {
         if (this._errors.has(providerId)) {
             state = 'red';
             tooltip = this._errors.get(providerId);
+        } else if (this._snapshotErrorMessage(snapshot)) {
+            state = 'red';
+            tooltip = this._snapshotErrorMessage(snapshot);
         } else if (this._loading && !snapshot.fetchedAt) {
             state = 'orange';
             tooltip = _('Checking source...');
@@ -1311,6 +1326,19 @@ export default class AIUsageBarExtension extends Extension {
             || message.includes('api key')
             || message.includes('cookie')
             || message.includes('auth');
+    }
+
+    _snapshotErrorMessage(snapshot) {
+        if (!snapshot)
+            return '';
+        const errorBadge = (snapshot.usage?.badges || []).find(badge => {
+            const label = String(badge.label || '').toLowerCase();
+            const color = String(badge.color || '').toLowerCase();
+            return label === 'error' || color === 'red';
+        });
+        if (snapshot.source === 'error')
+            return [errorBadge?.label, errorBadge?.text].filter(Boolean).join(': ') || _('Provider returned an error.');
+        return '';
     }
 
     _providerSetupMessage(providerId) {
