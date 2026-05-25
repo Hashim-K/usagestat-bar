@@ -1186,6 +1186,7 @@ class ProvidersPage extends Adw.PreferencesPage {
         this._validationCache = new Map();
         this._validationInFlight = new Map();
         this._validationDebounceIds = new Map();
+        this._curlHelpPrompts = new Set();
         this._manifests = new Map();
         this._settings.connect('changed::provider-icon-style', () => this._refreshProviderIcons());
         this._settings.connect('changed::usagestat-cli-path', () => this._loadProviderManifests());
@@ -2205,6 +2206,8 @@ class ProvidersPage extends Adw.PreferencesPage {
 
         const result = await promise;
         this._setStatusDot(label, result.state, result.message);
+        if (this._shouldShowCurlHelp(provider, result))
+            this._showCurlInstructions(provider);
     }
 
     _forceValidateProvider(provider, label) {
@@ -2481,18 +2484,20 @@ class ProvidersPage extends Adw.PreferencesPage {
         }
 
         if (effectiveSource === 'web') {
-            const cookieHeaderRow = entryRow(_('Cookie header'), provider.cookieHeader || '', _('name=value; other=value'), true);
+            const t3Chat = this._isT3ChatProvider(provider);
+            const cookieHeaderRow = entryRow(
+                t3Chat ? _('Cookie header or full cURL') : _('Cookie header'),
+                provider.cookieHeader || '',
+                t3Chat ? _('Paste Cookie header or full cURL command') : _('name=value; other=value'),
+                true,
+            );
             cookieHeaderRow._entry.connect('changed', () => {
-                this._assignOptional(provider, 'cookieHeader', cookieHeaderRow._entry.get_text());
+                if (t3Chat)
+                    this._assignOptionalRaw(provider, 'cookieHeader', cookieHeaderRow._entry.get_text());
+                else
+                    this._assignOptional(provider, 'cookieHeader', cookieHeaderRow._entry.get_text());
                 this._scheduleValidation(provider, validator?.label);
             });
-            const importButton = new Gtk.Button({
-                icon_name: 'folder-download-symbolic',
-                valign: Gtk.Align.CENTER,
-                tooltip_text: _('Import browser cookies'),
-                css_classes: ['suggested-action'],
-            });
-            importButton.connect('clicked', () => this._importCookies(provider, cookieHeaderRow._entry, validator?.label));
             const loginUrl = this._providerLoginUrl(provider);
             if (loginUrl) {
                 const loginButton = new Gtk.Button({
@@ -2503,7 +2508,23 @@ class ProvidersPage extends Adw.PreferencesPage {
                 loginButton.connect('clicked', () => this._openProviderLogin(provider));
                 cookieHeaderRow.add_suffix(loginButton);
             }
-            cookieHeaderRow.add_suffix(importButton);
+            if (t3Chat) {
+                const curlButton = new Gtk.Button({
+                    label: _('How to copy cURL'),
+                    valign: Gtk.Align.CENTER,
+                });
+                curlButton.connect('clicked', () => this._showCurlInstructions(provider));
+                cookieHeaderRow.add_suffix(curlButton);
+            } else {
+                const importButton = new Gtk.Button({
+                    icon_name: 'folder-download-symbolic',
+                    valign: Gtk.Align.CENTER,
+                    tooltip_text: _('Import browser cookies'),
+                    css_classes: ['suggested-action'],
+                });
+                importButton.connect('clicked', () => this._importCookies(provider, cookieHeaderRow._entry, validator?.label));
+                cookieHeaderRow.add_suffix(importButton);
+            }
             row.add_row(cookieHeaderRow);
         }
 
@@ -2630,6 +2651,67 @@ class ProvidersPage extends Adw.PreferencesPage {
         return String(candidates.find(item => item !== undefined && item !== null && String(item).trim()) || '').trim();
     }
 
+    async _showCurlInstructions(provider) {
+        try {
+            const payload = await this._fetchCurlInstructions(provider);
+            const steps = Array.isArray(payload.steps) ? payload.steps : [];
+            const body = [
+                payload.webUrl ? _('Open: %s').format(payload.webUrl) : '',
+                payload.requestNameContains ? _('Find request: %s').format(payload.requestNameContains) : '',
+                steps.length ? steps.map((step, index) => `${index + 1}. ${step}`).join('\n') : '',
+                payload.note || '',
+            ].filter(Boolean).join('\n\n');
+
+            const dialog = new Adw.MessageDialog({
+                transient_for: this.get_root(),
+                modal: true,
+                heading: _('How to copy cURL'),
+                body: body || _('No cURL capture instructions were returned.'),
+            });
+            dialog.add_response('close', _('Close'));
+            if (payload.webUrl)
+                dialog.add_response('open', _('Open Page'));
+            dialog.set_default_response(payload.webUrl ? 'open' : 'close');
+            dialog.set_close_response('close');
+            if (payload.webUrl)
+                dialog.set_response_appearance('open', Adw.ResponseAppearance.SUGGESTED);
+            dialog.connect('response', (_dialog, response) => {
+                if (response === 'open') {
+                    try {
+                        Gio.app_info_launch_default_for_uri(payload.webUrl, null);
+                    } catch (error) {
+                        this._showError(_('Could not open browser'), error.message || String(error));
+                    }
+                }
+            });
+            dialog.present();
+        } catch (error) {
+            this._showError(_('Could not load cURL instructions'), error.message || String(error));
+        }
+    }
+
+    async _fetchCurlInstructions(provider) {
+        const binary = settingsBinary(this._settings);
+        if (!binary)
+            throw new Error(_('usagestat CLI was not found on PATH or in common install locations.'));
+
+        const argv = [binary, '--config', configPath(binary)];
+        const pluginDir = this._settings.get_string('usagestat-plugin-dir').trim();
+        if (pluginDir)
+            argv.push('--plugin-dir', pluginDir);
+        argv.push('auth', 'curl', '--provider', providerBaseId(provider), '--format', 'json');
+
+        const {stdout, stderr, status} = await this._runCookieImportCommand(argv);
+        const text = stdout.trim();
+        if (!text)
+            throw new Error(stderr.trim() || _('No cURL instructions were returned.'));
+        if (status !== 0)
+            throw new Error((stderr || stdout).trim().split('\n')[0] || _('cURL instructions command failed.'));
+
+        const parsed = JSON.parse(text);
+        return Array.isArray(parsed) ? parsed[0] : parsed;
+    }
+
     _showCookieLoginDialog(message, provider, entry, validationLabel = null) {
         const loginUrl = this._providerLoginUrl(provider);
         const dialog = new Adw.MessageDialog({
@@ -2688,6 +2770,23 @@ class ProvidersPage extends Adw.PreferencesPage {
             || manifest?.webUrl
             || PROVIDER_LOGIN_URLS[baseId]
             || '';
+    }
+
+    _isT3ChatProvider(provider) {
+        return providerBaseId(provider) === 't3chat';
+    }
+
+    _shouldShowCurlHelp(provider, result) {
+        if (!this._isT3ChatProvider(provider) || result?.state !== 'red')
+            return false;
+        const message = String(result.message || '').toLowerCase();
+        if (!message.includes('vercel') && !message.includes('challenge'))
+            return false;
+        const key = `${providerKey(provider)}:${provider.cookieHeader || ''}`;
+        if (this._curlHelpPrompts.has(key))
+            return false;
+        this._curlHelpPrompts.add(key);
+        return true;
     }
 
     _openProviderLogin(provider) {
@@ -2782,6 +2881,14 @@ class ProvidersPage extends Adw.PreferencesPage {
         const value = raw.trim();
         if (value)
             provider[key] = value;
+        else
+            delete provider[key];
+        this._save();
+    }
+
+    _assignOptionalRaw(provider, key, raw) {
+        if (raw)
+            provider[key] = raw;
         else
             delete provider[key];
         this._save();
