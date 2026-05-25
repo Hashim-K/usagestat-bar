@@ -1715,6 +1715,11 @@ export default class AIUsageBarExtension extends Extension {
         const mode = this._settings.get_string('provider-logo-fill-mode');
         if (!['vertical', 'horizontal', 'pie'].includes(mode))
             return this._providerIcon(provider, height);
+        if (mode === 'vertical' || mode === 'horizontal') {
+            const clipped = this._clippedProviderIcon(provider, height, percentage, mode);
+            if (clipped)
+                return clipped;
+        }
 
         const providerId = providerBaseId(provider);
         const fileName = this._providerIconFile(provider, providerId);
@@ -1740,6 +1745,34 @@ export default class AIUsageBarExtension extends Extension {
         icon.set_height(height);
         icon.set_width(Math.round(height * (width / viewBoxHeight)));
         return icon;
+    }
+
+    _clippedProviderIcon(provider, height, percentage, mode) {
+        const pct = Math.max(0, Math.min(100, Number(percentage) || 0));
+        const baseIcon = this._providerIcon(provider, height);
+        const fillIcon = this._providerIcon(provider, height);
+        if (typeof fillIcon.set_clip !== 'function')
+            return null;
+
+        const width = Math.max(1, baseIcon.width || fillIcon.width || height);
+        const fillWidth = mode === 'horizontal' ? Math.round(width * pct / 100) : width;
+        const fillHeight = mode === 'vertical' ? Math.round(height * pct / 100) : height;
+        const clipX = 0;
+        const clipY = mode === 'vertical' ? height - fillHeight : 0;
+
+        baseIcon.opacity = 56;
+        fillIcon.set_clip(clipX, clipY, fillWidth, fillHeight);
+
+        const frame = new St.Widget({
+            layout_manager: new Clutter.BinLayout(),
+            style_class: 'usagestat-provider-icon',
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        frame.set_width(width);
+        frame.set_height(height);
+        frame.add_child(baseIcon);
+        frame.add_child(fillIcon);
+        return frame;
     }
 
     _usageFilledProviderIconFile(file, mode, percentage) {
