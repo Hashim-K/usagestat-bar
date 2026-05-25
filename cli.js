@@ -4,15 +4,18 @@ import {providerBaseId} from './config.js';
 
 const COMMAND_TIMEOUT_SECONDS = 90;
 
-export function findAiUsage() {
+export function findAiUsage(override = '') {
+    if (override)
+        return GLib.file_test(override, GLib.FileTest.IS_EXECUTABLE) ? override : null;
+
     const paths = [
-        GLib.getenv('AI_USAGE_CLI'),
-        `${GLib.get_home_dir()}/.local/bin/ai-usage`,
-        '/home/linuxbrew/.linuxbrew/bin/ai-usage',
-        `${GLib.get_home_dir()}/.linuxbrew/bin/ai-usage`,
-        '/opt/homebrew/bin/ai-usage',
-        '/usr/local/bin/ai-usage',
-        '/usr/bin/ai-usage',
+        GLib.getenv('USAGESTAT_CLI'),
+        `${GLib.get_home_dir()}/.local/bin/usagestat`,
+        '/home/linuxbrew/.linuxbrew/bin/usagestat',
+        `${GLib.get_home_dir()}/.linuxbrew/bin/usagestat`,
+        '/opt/homebrew/bin/usagestat',
+        '/usr/local/bin/usagestat',
+        '/usr/bin/usagestat',
     ].filter(Boolean);
 
     for (const path of paths) {
@@ -22,7 +25,7 @@ export function findAiUsage() {
 
     try {
         const proc = Gio.Subprocess.new(
-            ['bash', '-lc', 'command -v ai-usage'],
+            ['bash', '-lc', 'command -v usagestat'],
             Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE,
         );
         const [, stdout] = proc.communicate_utf8(null, null);
@@ -70,22 +73,22 @@ function runAsync(argv, cancellable) {
     });
 }
 
-export async function fetchProviderUsage(provider, cancellable) {
+export async function fetchProviderUsage(provider, cancellable, {cliPath = '', pluginDir = '', configFile = ''} = {}) {
     const providerId = providerBaseId(provider);
+    pluginDir = pluginDir.trim();
     if (provider?.customCommand || provider?.custom === true || provider?.source === 'custom')
         return fetchCustomCommandUsage(provider, cancellable);
 
-    const binary = findAiUsage();
+    const binary = findAiUsage(cliPath);
     if (!binary)
-        throw new Error('ai-usage CLI was not found on PATH or in common install locations.');
+        throw new Error('usagestat CLI was not found on PATH or in common install locations.');
 
-    const argv = [
-        binary,
-        '--json-only',
-        'usage',
-        '--provider',
-        providerId,
-    ];
+    const argv = [binary, '--json'];
+    if (configFile)
+        argv.push('--config', configFile);
+    if (pluginDir)
+        argv.push('--plugin-dir', pluginDir);
+    argv.push('usage', '--provider', providerId);
     if (provider?.source && provider.source !== 'auto')
         argv.push('--source', provider.source);
 
@@ -93,16 +96,67 @@ export async function fetchProviderUsage(provider, cancellable) {
 
     const stdout = result.stdout.trim();
     if (!stdout) {
-        const detail = result.stderr.trim().split('\n')[0] || `ai-usage exited with status ${result.status}`;
+        const detail = result.stderr.trim().split('\n')[0] || `usagestat exited with status ${result.status}`;
         throw new Error(detail);
     }
 
-    const payload = parseUsageJson(stdout, 'ai-usage');
+    const payload = parseUsageJson(stdout, 'usagestat');
     if (payload?.error) {
         const message = payload.error.message || payload.error.code || JSON.stringify(payload.error);
         throw new Error(message);
     }
-    return normalizeBackendSnapshot(payload, providerId);
+    const snapshot = normalizeBackendSnapshot(payload, providerId);
+    try {
+        const costSummary = await fetchProviderCostSummary(binary, providerId, cancellable, {pluginDir, configFile});
+        if (costSummary) {
+            snapshot.usage ||= {};
+            snapshot.usage.costSummary = costSummary;
+        }
+    } catch {
+        // Cost data is optional; keep live quota rendering usable if it is unavailable.
+    }
+    return snapshot;
+}
+
+export async function fetchProviderManifests(cancellable, {cliPath = '', pluginDir = '', configFile = ''} = {}) {
+    pluginDir = pluginDir.trim();
+    const binary = findAiUsage(cliPath);
+    if (!binary)
+        throw new Error('usagestat CLI was not found on PATH or in common install locations.');
+
+    const argv = [binary, '--json'];
+    if (configFile)
+        argv.push('--config', configFile);
+    if (pluginDir)
+        argv.push('--plugin-dir', pluginDir);
+    argv.push('list');
+
+    const result = await runAsync(argv, cancellable);
+    const stdout = result.stdout.trim();
+    if (!stdout) {
+        const detail = result.stderr.trim().split('\n')[0] || `usagestat exited with status ${result.status}`;
+        throw new Error(detail);
+    }
+
+    const payload = JSON.parse(stdout);
+    return Array.isArray(payload) ? payload : [];
+}
+
+async function fetchProviderCostSummary(binary, providerId, cancellable, {pluginDir = '', configFile = ''} = {}) {
+    const argv = [binary, '--json'];
+    if (configFile)
+        argv.push('--config', configFile);
+    if (pluginDir)
+        argv.push('--plugin-dir', pluginDir);
+    argv.push('cost', '--provider', providerId);
+
+    const result = await runAsync(argv, cancellable);
+    const stdout = result.stdout.trim();
+    if (!stdout)
+        return null;
+
+    const payload = parseUsageJson(stdout, 'usagestat cost');
+    return normalizeCostSummary(payload);
 }
 
 async function fetchCustomCommandUsage(provider, cancellable) {
@@ -164,6 +218,8 @@ function normalizeBackendSnapshot(snapshot, fallbackProviderId) {
                 },
             });
         } else if (metric?.type === 'text') {
+            if (isCostTextMetric(metric))
+                continue;
             extraTextLines.push({
                 label: metric.label || '',
                 value: metric.value || '',
@@ -203,5 +259,74 @@ function normalizeBackendSnapshot(snapshot, fallbackProviderId) {
         rawMetrics: snapshot.metrics,
         pace: snapshot.pace || null,
         statusPageUrl: snapshot.statusPageUrl || null,
+        dashboardUrl: snapshot.usageDashboardUrl || snapshot.dashboardUrl || null,
     };
+}
+
+function normalizeCostSummary(summary) {
+    if (!summary || typeof summary !== 'object')
+        return null;
+
+    const currency = summary.currency || summary.currencyCode || 'USD';
+    const daily = Array.isArray(summary.daily) ? summary.daily : [];
+    const byDate = new Map(daily
+        .filter(day => typeof day?.date === 'string')
+        .map(day => [normalizeCostDate(day.date), day])
+        .filter(([date]) => date));
+
+    const today = localDateString(0);
+    const yesterday = localDateString(-1);
+    const totals = summary.totals || {};
+    if (!hasCostData(totals) && !daily.some(hasCostData))
+        return null;
+
+    return {
+        currency,
+        lines: [
+            costLine('Today', byDate.get(today), currency),
+            costLine('Yesterday', byDate.get(yesterday), currency),
+            costLine(`Last ${Number(summary.periodDays) || 30} Days`, totals, currency),
+        ],
+    };
+}
+
+function hasCostData(source) {
+    return Number(source?.totalCost) > 0
+        || Number(source?.totalTokens) > 0
+        || Number(source?.inputTokens) > 0
+        || Number(source?.outputTokens) > 0
+        || Number(source?.cacheCreationTokens) > 0
+        || Number(source?.cacheReadTokens) > 0;
+}
+
+function costLine(label, source, currency) {
+    return {
+        label,
+        cost: Number(source?.totalCost) || 0,
+        tokens: Number(source?.totalTokens) || 0,
+        currency,
+    };
+}
+
+function localDateString(offsetDays) {
+    const date = GLib.DateTime.new_now_local().add_days(offsetDays);
+    return date.format('%Y-%m-%d');
+}
+
+function normalizeCostDate(value) {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value))
+        return value;
+
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime()))
+        return '';
+    const year = parsed.getFullYear();
+    const month = String(parsed.getMonth() + 1).padStart(2, '0');
+    const day = String(parsed.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
+function isCostTextMetric(metric) {
+    const label = String(metric?.label || '').toLowerCase();
+    return label === 'today' || label === 'yesterday' || /^last \d+ days$/.test(label);
 }

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-uuid="ai-usage-bar@local"
+uuid="usagestat-bar@hashimkarim"
 target="${HOME}/.local/share/gnome-shell/extensions/${uuid}"
 
 mkdir -p "${target}"

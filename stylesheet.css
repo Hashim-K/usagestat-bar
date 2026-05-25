@@ -1,13 +1,13 @@
-.ai-usage-panel-button {
+.usagestat-panel-button {
   -natural-hpadding: 6px;
   -minimum-hpadding: 4px;
 }
 
-.ai-usage-panel {
+.usagestat-panel {
   spacing: 6px;
 }
 
-.ai-usage-panel-meter {
+.usagestat-panel-meter {
   width: 18px;
   height: 12px;
   border: 1.5px solid #e6edf3;
@@ -15,239 +15,270 @@
   padding: 1px;
 }
 
-.ai-usage-panel-meter-fill {
+.usagestat-panel-meter-fill {
   height: 8px;
   border-radius: 3px;
 }
 
 
-.ai-usage-panel-provider-stack.vertical {
+.usagestat-panel-provider-stack.vertical {
   spacing: 2px;
 }
 
-.ai-usage-panel-provider-stack.vertical.bars-2 {
+.usagestat-panel-provider-stack.vertical.bars-2 {
   spacing: 2px;
 }
 
-.ai-usage-panel-provider-stack.vertical.bars-3 {
+.usagestat-panel-provider-stack.vertical.bars-3 {
   spacing: 1px;
 }
 
-.ai-usage-panel-provider-stack.bars-1 .ai-usage-panel-meter {
+.usagestat-panel-provider-stack.bars-1 .usagestat-panel-meter {
   height: 10px;
 }
 
-.ai-usage-panel-provider-stack.bars-1 .ai-usage-panel-meter-fill {
+.usagestat-panel-provider-stack.bars-1 .usagestat-panel-meter-fill {
   height: 6px;
 }
 
-.ai-usage-panel-provider-stack.vertical.bars-2 .ai-usage-panel-meter,
-.ai-usage-panel-provider-stack.vertical.bars-3 .ai-usage-panel-meter {
+.usagestat-panel-provider-stack.vertical.bars-2 .usagestat-panel-meter,
+.usagestat-panel-provider-stack.vertical.bars-3 .usagestat-panel-meter {
   height: 5px;
   border-width: 1px;
   padding: 0px;
 }
 
-.ai-usage-panel-provider-stack.vertical.bars-3 .ai-usage-panel-meter {
+.usagestat-panel-provider-stack.vertical.bars-3 .usagestat-panel-meter {
   height: 3px;
 }
 
-.ai-usage-panel-provider-stack.vertical.bars-2 .ai-usage-panel-meter-fill,
-.ai-usage-panel-provider-stack.vertical.bars-3 .ai-usage-panel-meter-fill {
+.usagestat-panel-provider-stack.vertical.bars-2 .usagestat-panel-meter-fill,
+.usagestat-panel-provider-stack.vertical.bars-3 .usagestat-panel-meter-fill {
   height: 3px;
   border-radius: 2px;
 }
 
-.ai-usage-panel-provider-stack.vertical.bars-3 .ai-usage-panel-meter-fill {
+.usagestat-panel-provider-stack.vertical.bars-3 .usagestat-panel-meter-fill {
   height: 1px;
   border-radius: 1px;
 }
 
-.ai-usage-panel-provider-stack.horizontal {
+.usagestat-panel-provider-stack.horizontal {
   spacing: 4px;
 }
 
-.ai-usage-panel-provider-row {
+.usagestat-panel-provider-row {
   spacing: 4px;
 }
 
-.ai-usage-panel-provider-box {
+.usagestat-panel-provider-box {
   spacing: 6px;
 }
 
-.ai-usage-panel-label {
+.usagestat-panel-label {
   font-size: 12px;
   font-weight: 600;
 }
 
-.ai-usage-panel-icon {
+.usagestat-panel-icon {
   icon-shadow: none;
   color: inherit;
 }
 
-.ai-usage-menu {
+.usagestat-menu {
   min-width: 420px;
+  max-width: 420px;
 }
 
-.ai-usage-header {
+.usagestat-header {
   padding: 12px 12px 8px;
   spacing: 6px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-.ai-usage-title {
+.usagestat-title {
   font-size: 14px;
   font-weight: 700;
 }
 
-.ai-usage-icon-button {
+.usagestat-icon-button {
   padding: 5px;
   border-radius: 6px;
 }
 
-.ai-usage-icon-button:hover,
-.ai-usage-provider-tile:hover {
+.usagestat-action-button {
+  padding: 4px 7px;
+  border-radius: 6px;
+}
+
+.usagestat-action-button-box {
+  spacing: 5px;
+}
+
+.usagestat-icon-button:hover,
+.usagestat-action-button:hover,
+.usagestat-provider-tile:hover {
   background-color: rgba(255, 255, 255, 0.08);
 }
 
-.ai-usage-provider-switcher {
+.usagestat-provider-switcher {
   padding: 10px 12px 6px;
   spacing: 4px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-.ai-usage-provider-tile {
+.usagestat-provider-tile {
   width: 72px;
   padding: 7px 2px 6px;
   border-radius: 10px;
 }
 
-.ai-usage-provider-tile.active {
+.usagestat-provider-tile.active {
   background-color: #2f7df6;
   color: #ffffff;
 }
 
-.ai-usage-provider-tile-box {
+.usagestat-provider-tile-box {
   spacing: 3px;
 }
 
-.ai-usage-provider-icon {
+.usagestat-provider-icon {
   color: inherit;
   icon-shadow: none;
   opacity: 0.72;
 }
 
-.ai-usage-provider-tile.active .ai-usage-provider-icon {
+.usagestat-provider-tile.active .usagestat-provider-icon {
   opacity: 1;
 }
 
-.ai-usage-provider-tile-label {
+.usagestat-provider-tile-label {
   font-size: 12px;
   font-weight: 600;
   max-width: 68px;
 }
 
-.ai-usage-provider-mini-track {
+.usagestat-provider-mini-track {
   width: 68px;
   height: 5px;
   border-radius: 3px;
   background-color: rgba(255, 255, 255, 0.16);
 }
 
-.ai-usage-provider-mini-fill {
+.usagestat-provider-mini-fill {
   height: 5px;
   border-radius: 3px;
 }
 
-.ai-usage-provider-mini-fill.loading {
+.usagestat-provider-mini-fill.loading {
   background-color: rgba(255, 255, 255, 0.42);
 }
 
-.ai-usage-content {
+.usagestat-content {
   padding: 16px 14px 14px;
   spacing: 11px;
 }
 
-.ai-usage-provider-heading,
-.ai-usage-message-title {
+.usagestat-provider-heading,
+.usagestat-message-title {
   font-size: 15px;
   font-weight: 800;
 }
 
-.ai-usage-message-title.danger,
-.ai-usage-danger {
+.usagestat-message-title.danger,
+.usagestat-danger {
   color: #ff5f57;
 }
 
-.ai-usage-message-body {
-  max-width: 330px;
+.usagestat-message-body {
+  width: 390px;
+  max-width: 390px;
   color: #aeb6c2;
 }
 
-.ai-usage-muted {
+.usagestat-muted {
   color: #aeb6c2;
   font-size: 12px;
 }
 
-.ai-usage-provider-meta {
+.usagestat-provider-meta {
   spacing: 8px;
 }
 
-.ai-usage-detail {
+.usagestat-detail {
   color: #aeb6c2;
   font-size: 11px;
   max-width: 390px;
 }
 
-.ai-usage-separator {
+.usagestat-error-detail {
+  width: 390px;
+  max-width: 390px;
+  color: #aeb6c2;
+  font-size: 11px;
+}
+
+.usagestat-action-row {
+  spacing: 6px;
+}
+
+.usagestat-separator {
   height: 1px;
   background-color: rgba(255, 255, 255, 0.10);
 }
 
-.ai-usage-loading-icon {
+.usagestat-loading-icon {
   color: #aeb6c2;
 }
 
-.ai-usage-window {
+.usagestat-window {
   spacing: 7px;
 }
 
-.ai-usage-window-title {
+.usagestat-cost {
+  spacing: 7px;
+}
+
+.usagestat-cost-row {
+  spacing: 12px;
+}
+
+.usagestat-window-title {
   font-size: 14px;
   font-weight: 800;
 }
 
-.ai-usage-track {
+.usagestat-track {
   width: 390px;
   height: 7px;
   border-radius: 4px;
   background-color: rgba(255, 255, 255, 0.12);
 }
 
-.ai-usage-track-fill {
+.usagestat-track-fill {
   height: 7px;
   border-radius: 4px;
 }
 
-.ai-usage-track.loading {
+.usagestat-track.loading {
   background-color: rgba(255, 255, 255, 0.10);
 }
 
-.ai-usage-track-fill.loading {
+.usagestat-track-fill.loading {
   background-color: rgba(255, 255, 255, 0.34);
 }
 
-.ai-usage-window-percent,
-.ai-usage-credits {
+.usagestat-window-percent,
+.usagestat-credits {
   font-size: 12px;
   font-weight: 700;
 }
 
-.ai-usage-provider-tile-info {
+.usagestat-provider-tile-info {
   spacing: 3px;
 }
 
-.ai-usage-chip {
+.usagestat-chip {
   background-color: rgba(255, 255, 255, 0.12);
   border-radius: 4px;
   padding: 1px 6px;

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <schemalist>
-  <schema id="org.gnome.shell.extensions.ai-usage-bar" path="/org/gnome/shell/extensions/ai-usage-bar/">
+  <schema id="org.gnome.shell.extensions.usagestat-bar" path="/org/gnome/shell/extensions/usagestat-bar/">
     <key name="refresh-interval" type="i">
       <default>15</default>
       <summary>Refresh interval in minutes</summary>
@@ -93,6 +93,10 @@
       <default>'monochromatic'</default>
       <summary>Default provider icon style</summary>
     </key>
+    <key name="provider-logo-fill-mode" type="s">
+      <default>'full'</default>
+      <summary>How provider logos mirror usage in the panel</summary>
+    </key>
     <key name="panel-bar-count" type="i">
       <default>1</default>
       <summary>Number of provider bars shown simultaneously in the panel</summary>
@@ -132,6 +136,18 @@
     <key name="show-status-link" type="b">
       <default>true</default>
       <summary>Show provider status page link button in the popup header</summary>
+    </key>
+    <key name="show-dashboard-link" type="b">
+      <default>true</default>
+      <summary>Show provider usage dashboard link button in the popup header</summary>
+    </key>
+    <key name="usagestat-cli-path" type="s">
+      <default>''</default>
+      <summary>Path to the usagestat CLI binary (empty = auto-detect)</summary>
+    </key>
+    <key name="usagestat-plugin-dir" type="s">
+      <default>''</default>
+      <summary>Plugin directory path passed to usagestat (empty = auto-discover)</summary>
     </key>
   </schema>
 </schemalist>

@@ -6,9 +6,10 @@ import Gtk from 'gi://Gtk';
 import Adw from 'gi://Adw';
 import {ExtensionPreferences, gettext as _} from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
 import {findAiUsage} from './cli.js';
-import {loadConfig, makeProviderInstanceId, providerBaseId, providerDisplayName, providerKey, PROVIDERS, saveConfig} from './config.js';
+import {configPath, DEFAULT_HIDDEN_IDS, loadConfig, makeProviderInstanceId, providerBaseId, providerDisplayName, providerKey, PROVIDERS, saveConfig} from './config.js';
 
 const SOURCE_OPTIONS = ['auto', 'web', 'cli', 'oauth', 'api', 'local'];
+const BUILTIN_PROVIDER_IDS = new Set(PROVIDERS.map(([id]) => id));
 const CUSTOM_PROVIDER_VALUE = '__custom_provider__';
 const TIERS = ['primary', 'secondary', 'tertiary', 'quaternary'];
 const VALIDATION_TIMEOUT_SECONDS = 90;
@@ -23,6 +24,12 @@ const ICON_STYLE_OPTIONS = [
     ['auto', 'Default'],
     ['color', 'Color'],
     ['monochromatic', 'Monochromatic'],
+];
+const LOGO_FILL_OPTIONS = [
+    ['full', 'Default'],
+    ['vertical', 'Vertical fill'],
+    ['horizontal', 'Horizontal fill'],
+    ['pie', 'Pie chart'],
 ];
 const PROVIDER_ICON_FILES = {
     codex: 'codex.svg',
@@ -126,6 +133,71 @@ function entryRow(title, value, placeholder, secret = false) {
     return row;
 }
 
+function multilineTextRow(title, value) {
+    const box = new Gtk.Box({
+        orientation: Gtk.Orientation.VERTICAL,
+        spacing: 8,
+        margin_top: 12,
+        margin_bottom: 12,
+        margin_start: 12,
+        margin_end: 12,
+    });
+    box.append(new Gtk.Label({
+        label: title,
+        xalign: 0,
+        css_classes: ['heading'],
+    }));
+
+    const buffer = new Gtk.TextBuffer();
+    buffer.set_text(value || '', -1);
+    const textView = new Gtk.TextView({
+        buffer,
+        monospace: true,
+        wrap_mode: Gtk.WrapMode.WORD_CHAR,
+        top_margin: 8,
+        bottom_margin: 8,
+        left_margin: 8,
+        right_margin: 8,
+        vexpand: true,
+        hexpand: true,
+    });
+    const scroller = new Gtk.ScrolledWindow({
+        min_content_height: 120,
+        max_content_height: 220,
+        hexpand: true,
+        vexpand: false,
+    });
+    scroller.set_child(textView);
+    box.append(scroller);
+
+    const actionBox = new Gtk.Box({
+        halign: Gtk.Align.END,
+        spacing: 8,
+    });
+    box.append(actionBox);
+
+    const row = new Adw.PreferencesRow({child: box});
+    row._entry = {
+        get_text() {
+            const [start, end] = buffer.get_bounds();
+            return buffer.get_text(start, end, false);
+        },
+        set_text(text) {
+            buffer.set_text(text || '', -1);
+        },
+        connect(signal, callback) {
+            return buffer.connect(signal, callback);
+        },
+    };
+    row._buttonBox = actionBox;
+    row._textView = textView;
+    return row;
+}
+
+function settingsBinary(settings) {
+    return findAiUsage(settings.get_string('usagestat-cli-path')) || '';
+}
+
 function rgbaFromHex(hex) {
     const rgba = new Gdk.RGBA();
     if (!rgba.parse(hex))
@@ -142,15 +214,298 @@ function hexFromRgba(rgba) {
 
 const BehaviourPage = GObject.registerClass(
 class BehaviourPage extends Adw.PreferencesPage {
-    _init(settings) {
+    _init(settings, onPluginRefresh = null) {
         super._init({
             title: _('Behaviour'),
             icon_name: 'preferences-system-symbolic',
         });
         this._settings = settings;
+        this._onPluginRefresh = onPluginRefresh;
         this.add(this._buildRefreshGroup());
         this.add(this._buildInteractionGroup());
         this.add(this._buildPopupGroup());
+        this.add(this._buildCliGroup());
+    }
+
+    _setEntryRowPlaceholder(row, text) {
+        const input = this._findEditableGtkText(row);
+        if (input)
+            input.set_placeholder_text(text);
+    }
+
+    _findEditableGtkText(parent) {
+        for (let child = parent.get_first_child(); child; child = child.get_next_sibling()) {
+            if (child instanceof Gtk.Text && child.get_editable())
+                return child;
+            const found = this._findEditableGtkText(child);
+            if (found)
+                return found;
+        }
+        return null;
+    }
+
+    _defaultPluginDir(binary = '') {
+        const envDir = GLib.getenv('USAGESTAT_PLUGIN_DIR') || GLib.getenv('AI_USAGE_PLUGIN_DIR');
+        if (envDir)
+            return envDir;
+
+        const binaryName = binary ? GLib.path_get_basename(binary) : '';
+        const systemDir = binaryName.includes('usagestat-dev')
+            ? '/usr/share/usagestat-dev/plugins'
+            : '/usr/share/usagestat/plugins';
+        if (GLib.file_test(systemDir, GLib.FileTest.IS_DIR))
+            return systemDir;
+
+        return GLib.build_filenamev([
+            GLib.getenv('XDG_DATA_HOME') || GLib.build_filenamev([GLib.get_home_dir(), '.local', 'share']),
+            binaryName.includes('usagestat-dev') ? 'usagestat-dev' : 'usagestat',
+            'plugins',
+        ]);
+    }
+
+    _resolvedPluginDir(binary = '') {
+        const configured = this._settings.get_string('usagestat-plugin-dir').trim();
+        if (configured)
+            return {path: configured, explicit: true};
+        return {path: this._defaultPluginDir(binary), explicit: false};
+    }
+
+    _buildCliGroup() {
+        const group = new Adw.PreferencesGroup({title: _('CLI')});
+        group.add(this._buildBinaryExpander());
+        group.add(this._buildPluginExpander());
+        return group;
+    }
+
+    _buildBinaryExpander() {
+        const expander = new Adw.ExpanderRow({title: _('Binary')});
+
+        // Set path row
+        const entryRow = new Adw.EntryRow({
+            title: _('Set path'),
+            text: this._settings.get_string('usagestat-cli-path'),
+            show_apply_button: true,
+            input_hints: Gtk.InputHints.NO_SPELLCHECK,
+        });
+        entryRow.set_input_purpose(Gtk.InputPurpose.URL);
+        entryRow.connect('apply', () => {
+            this._settings.set_string('usagestat-cli-path', entryRow.get_text().trim());
+        });
+        const browseBtn = new Gtk.Button({
+            icon_name: 'document-open-symbolic',
+            valign: Gtk.Align.CENTER,
+            tooltip_text: _('Choose executable'),
+            css_classes: ['flat'],
+        });
+        browseBtn.connect('clicked', () => {
+            const dialog = new Gtk.FileDialog({title: _('Select usagestat executable')});
+            const start = entryRow.get_text().trim() || findAiUsage('') || '';
+            if (start) dialog.set_initial_file(Gio.File.new_for_path(start));
+            dialog.open(this.get_root(), null, (d, res) => {
+                try {
+                    const path = d.open_finish(res)?.get_path() || '';
+                    if (path) { entryRow.set_text(path); this._settings.set_string('usagestat-cli-path', path); }
+                } catch { /* cancelled */ }
+            });
+        });
+        entryRow.add_suffix(browseBtn);
+        expander.add_row(entryRow);
+
+        // Detected path row
+        const detectedRow = new Adw.ActionRow({title: _('Detected path')});
+        const detectedLabel = new Gtk.Label({valign: Gtk.Align.CENTER, css_classes: ['dim-label'], ellipsize: 3});
+        const copyBtn = new Gtk.Button({icon_name: 'edit-copy-symbolic', valign: Gtk.Align.CENTER, tooltip_text: _('Copy'), css_classes: ['flat']});
+        detectedRow.add_suffix(detectedLabel);
+        detectedRow.add_suffix(copyBtn);
+        expander.add_row(detectedRow);
+
+        // Status row
+        const statusRow = new Adw.ActionRow({title: _('Status')});
+        const spinner = new Gtk.Spinner({valign: Gtk.Align.CENTER});
+        const statusIcon = new Gtk.Image({valign: Gtk.Align.CENTER});
+        const statusLabel = new Gtk.Label({valign: Gtk.Align.CENTER});
+        statusRow.add_suffix(spinner);
+        statusRow.add_suffix(statusIcon);
+        statusRow.add_suffix(statusLabel);
+        expander.add_row(statusRow);
+
+        let _resolvedBinary = '';
+        copyBtn.connect('clicked', () => { if (_resolvedBinary) this.get_clipboard().set(_resolvedBinary); });
+
+        const check = () => {
+            _resolvedBinary = findAiUsage(this._settings.get_string('usagestat-cli-path')) || '';
+            detectedLabel.set_label(_resolvedBinary || _('Not found'));
+            copyBtn.set_sensitive(Boolean(_resolvedBinary));
+            expander.set_subtitle(_resolvedBinary || _('Not found'));
+
+            if (!_resolvedBinary) {
+                spinner.stop(); spinner.set_visible(false);
+                statusIcon.set_from_icon_name('dialog-error-symbolic'); statusIcon.set_css_classes(['error']); statusIcon.set_visible(true);
+                statusLabel.set_label(_('Not found')); statusLabel.set_css_classes(['error']);
+                return;
+            }
+            statusIcon.set_visible(false); statusLabel.set_label('');
+            spinner.set_visible(true); spinner.start();
+            try {
+                const proc = Gio.Subprocess.new([_resolvedBinary, '--version'], Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE);
+                proc.communicate_utf8_async(null, null, (_p, res) => {
+                    spinner.stop(); spinner.set_visible(false); statusIcon.set_visible(true);
+                    try {
+                        const [, stdout] = _p.communicate_utf8_finish(res);
+                        const version = (stdout || '').trim().split('\n')[0] || _resolvedBinary;
+                        statusIcon.set_from_icon_name('emblem-ok-symbolic'); statusIcon.set_css_classes(['success']);
+                        statusLabel.set_label(version); statusLabel.set_css_classes(['success']);
+                        expander.set_subtitle(`${version} · ${_resolvedBinary}`);
+                    } catch {
+                        statusIcon.set_from_icon_name('dialog-error-symbolic'); statusIcon.set_css_classes(['error']);
+                        statusLabel.set_label(_('Failed to run')); statusLabel.set_css_classes(['error']);
+                    }
+                });
+            } catch {
+                spinner.stop(); spinner.set_visible(false); statusIcon.set_visible(true);
+                statusIcon.set_from_icon_name('dialog-error-symbolic'); statusIcon.set_css_classes(['error']);
+                statusLabel.set_label(_('Failed to launch')); statusLabel.set_css_classes(['error']);
+            }
+        };
+        this._settings.connect('changed::usagestat-cli-path', check);
+        check();
+        return expander;
+    }
+
+    _buildPluginExpander() {
+        const expander = new Adw.ExpanderRow({title: _('Plugin folder')});
+
+        // Set path row
+        const entryRow = new Adw.EntryRow({
+            title: _('Set path'),
+            text: this._settings.get_string('usagestat-plugin-dir'),
+            show_apply_button: true,
+            input_hints: Gtk.InputHints.NO_SPELLCHECK,
+        });
+        entryRow.set_input_purpose(Gtk.InputPurpose.URL);
+        entryRow.connect('apply', () => {
+            this._settings.set_string('usagestat-plugin-dir', entryRow.get_text().trim());
+        });
+        const browseBtn = new Gtk.Button({
+            icon_name: 'document-open-symbolic',
+            valign: Gtk.Align.CENTER,
+            tooltip_text: _('Choose folder'),
+            css_classes: ['flat'],
+        });
+        browseBtn.connect('clicked', () => {
+            const dialog = new Gtk.FileDialog({title: _('Select usagestat plugin folder')});
+            const binary = findAiUsage(this._settings.get_string('usagestat-cli-path')) || '';
+            const start = entryRow.get_text().trim() || this._defaultPluginDir(binary);
+            if (start) dialog.set_initial_folder(Gio.File.new_for_path(start));
+            dialog.select_folder(this.get_root(), null, (d, res) => {
+                try {
+                    const path = d.select_folder_finish(res)?.get_path() || '';
+                    if (path) { entryRow.set_text(path); this._settings.set_string('usagestat-plugin-dir', path); }
+                } catch { /* cancelled */ }
+            });
+        });
+        entryRow.add_suffix(browseBtn);
+        expander.add_row(entryRow);
+
+        // Detected path row
+        const detectedRow = new Adw.ActionRow({title: _('Detected path')});
+        const detectedLabel = new Gtk.Label({valign: Gtk.Align.CENTER, css_classes: ['dim-label'], ellipsize: 3});
+        const copyBtn = new Gtk.Button({icon_name: 'edit-copy-symbolic', valign: Gtk.Align.CENTER, tooltip_text: _('Copy'), css_classes: ['flat']});
+        detectedRow.add_suffix(detectedLabel);
+        detectedRow.add_suffix(copyBtn);
+        expander.add_row(detectedRow);
+        let resolvedDir = '';
+        copyBtn.connect('clicked', () => { if (resolvedDir) this.get_clipboard().set(resolvedDir); });
+
+        // Status row
+        const statusRow = new Adw.ActionRow({title: _('Status')});
+        const spinner = new Gtk.Spinner({valign: Gtk.Align.CENTER});
+        const statusIcon = new Gtk.Image({valign: Gtk.Align.CENTER});
+        const statusLabel = new Gtk.Label({valign: Gtk.Align.CENTER});
+        const refreshBtn = new Gtk.Button({
+            icon_name: 'view-refresh-symbolic',
+            valign: Gtk.Align.CENTER,
+            tooltip_text: _('Rescan plugin folder'),
+            css_classes: ['flat'],
+        });
+        statusRow.add_suffix(refreshBtn);
+        statusRow.add_suffix(spinner);
+        statusRow.add_suffix(statusIcon);
+        statusRow.add_suffix(statusLabel);
+        expander.add_row(statusRow);
+
+        const check = (refreshProviders = false) => {
+            const binary = findAiUsage(this._settings.get_string('usagestat-cli-path'));
+            if (!binary) {
+                resolvedDir = this._resolvedPluginDir('').path;
+                detectedLabel.set_label(resolvedDir);
+                expander.set_subtitle(resolvedDir);
+                copyBtn.set_sensitive(Boolean(resolvedDir));
+                spinner.stop(); spinner.set_visible(false);
+                statusIcon.set_from_icon_name('dialog-warning-symbolic'); statusIcon.set_css_classes(['warning']); statusIcon.set_visible(true);
+                statusLabel.set_label(_('No binary')); statusLabel.set_css_classes(['dim-label']);
+                return;
+            }
+            const resolved = this._resolvedPluginDir(binary);
+            resolvedDir = resolved.path;
+            detectedLabel.set_label(resolved.path);
+            copyBtn.set_sensitive(Boolean(resolved.path));
+            expander.set_subtitle(resolved.explicit
+                ? _('%s (override)').format(resolved.path)
+                : _('%s (binary default)').format(resolved.path));
+
+            statusIcon.set_visible(false); statusLabel.set_label('');
+            refreshBtn.set_sensitive(false);
+            spinner.set_visible(true); spinner.start();
+            const argv = [binary, '--json'];
+            argv.push('--config', configPath(binary));
+            const pluginDir = this._settings.get_string('usagestat-plugin-dir').trim();
+            if (pluginDir) argv.push('--plugin-dir', pluginDir);
+            argv.push('list');
+            try {
+                const proc = Gio.Subprocess.new(argv, Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE);
+                proc.communicate_utf8_async(null, null, (_p, res) => {
+                    spinner.stop(); spinner.set_visible(false); statusIcon.set_visible(true);
+                    refreshBtn.set_sensitive(true);
+                    try {
+                        const [, stdout, stderr] = _p.communicate_utf8_finish(res);
+                        if (_p.get_exit_status() !== 0) {
+                            const detail = (stderr || stdout || '').trim().split('\n')[0] || 'error';
+                            statusIcon.set_from_icon_name('dialog-error-symbolic'); statusIcon.set_css_classes(['error']);
+                            statusLabel.set_label(detail); statusLabel.set_css_classes(['error']);
+                            return;
+                        }
+                        const providers = JSON.parse((stdout || '').trim());
+                        const count = Array.isArray(providers) ? providers.length : 0;
+                        if (count === 0) {
+                            statusIcon.set_from_icon_name('dialog-warning-symbolic'); statusIcon.set_css_classes(['warning']);
+                            statusLabel.set_label(_('No providers found')); statusLabel.set_css_classes(['dim-label']);
+                            expander.set_subtitle(_('No providers found'));
+                        } else {
+                            statusIcon.set_from_icon_name('emblem-ok-symbolic'); statusIcon.set_css_classes(['success']);
+                            const summary = `${count} ${count === 1 ? _('provider') : _('providers')}`;
+                            statusLabel.set_label(summary); statusLabel.set_css_classes(['success']);
+                            expander.set_subtitle(`${summary} · ${resolved.path}${resolved.explicit ? ` ${_('(override)')}` : ''}`);
+                            if (refreshProviders)
+                                this._onPluginRefresh?.();
+                        }
+                    } catch {
+                        statusIcon.set_from_icon_name('dialog-error-symbolic'); statusIcon.set_css_classes(['error']);
+                        statusLabel.set_label(_('Failed to parse output')); statusLabel.set_css_classes(['error']);
+                    }
+                });
+            } catch {
+                spinner.stop(); spinner.set_visible(false); statusIcon.set_visible(true);
+                refreshBtn.set_sensitive(true);
+                statusIcon.set_from_icon_name('dialog-error-symbolic'); statusIcon.set_css_classes(['error']);
+                statusLabel.set_label(_('Failed to launch')); statusLabel.set_css_classes(['error']);
+            }
+        };
+        refreshBtn.connect('clicked', () => check(true));
+        this._settings.connect('changed::usagestat-cli-path', check);
+        this._settings.connect('changed::usagestat-plugin-dir', check);
+        check();
+        return expander;
     }
 
     _buildRefreshGroup() {
@@ -160,7 +515,7 @@ class BehaviourPage extends Adw.PreferencesPage {
 
         const refreshRow = new Adw.SpinRow({
             title: _('Refresh interval'),
-            subtitle: _('Minutes between ai-usage CLI refreshes'),
+            subtitle: _('Minutes between usagestat CLI refreshes'),
             adjustment: new Gtk.Adjustment({lower: 1, upper: 1440, step_increment: 1, value: this._settings.get_int('refresh-interval')}),
         });
         this._settings.bind('refresh-interval', refreshRow.adjustment, 'value', Gio.SettingsBindFlags.DEFAULT);
@@ -233,6 +588,14 @@ class BehaviourPage extends Adw.PreferencesPage {
         this._settings.bind('show-pace', paceRow, 'active', Gio.SettingsBindFlags.DEFAULT);
         group.add(paceRow);
 
+        const dashboardLinkRow = new Adw.SwitchRow({
+            title: _('Show usage dashboard link'),
+            subtitle: _('Button in the provider header that opens the provider\'s usage dashboard.'),
+            active: this._settings.get_boolean('show-dashboard-link'),
+        });
+        this._settings.bind('show-dashboard-link', dashboardLinkRow, 'active', Gio.SettingsBindFlags.DEFAULT);
+        group.add(dashboardLinkRow);
+
         const statusLinkRow = new Adw.SwitchRow({
             title: _('Show status page link'),
             subtitle: _('Button in the provider header that opens the provider\'s status page.'),
@@ -253,7 +616,7 @@ class AppearancePage extends Adw.PreferencesPage {
             icon_name: 'preferences-desktop-display-symbolic',
         });
         this._settings = settings;
-        this._config = loadConfig();
+        this._config = loadConfig(settingsBinary(this._settings));
         this._settings.connect('changed::panel-bar-count', () => this._renderPinnedProviders());
         this.connect('map', () => this._renderPinnedProviders());
         this.add(this._buildPanelGroup());
@@ -484,7 +847,7 @@ class AppearancePage extends Adw.PreferencesPage {
     }
 
     _enabledProviders() {
-        this._config = loadConfig();
+        this._config = loadConfig(settingsBinary(this._settings));
         return this._config.providers.filter(provider => provider.enabled !== false && !provider.tabParent);
     }
 
@@ -509,6 +872,19 @@ class AppearancePage extends Adw.PreferencesPage {
             this._settings.set_string('provider-icon-style', values[row.selected] || 'monochromatic');
         });
         group.add(row);
+
+        const fillLabels = LOGO_FILL_OPTIONS.map(([, label]) => _(label));
+        const fillValues = LOGO_FILL_OPTIONS.map(([value]) => value);
+        const fillSelected = fillValues.includes(this._settings.get_string('provider-logo-fill-mode'))
+            ? this._settings.get_string('provider-logo-fill-mode')
+            : 'full';
+        const fillRow = combo(fillLabels, fillLabels[fillValues.indexOf(fillSelected)]);
+        fillRow.title = _('Logo fill');
+        fillRow.subtitle = _('How panel logos mirror the selected usage percentage.');
+        fillRow.connect('notify::selected', () => {
+            this._settings.set_string('provider-logo-fill-mode', fillValues[fillRow.selected] || 'full');
+        });
+        group.add(fillRow);
 
         return group;
     }
@@ -886,12 +1262,15 @@ class ProvidersPage extends Adw.PreferencesPage {
 
         this._settings = settings;
         this._targetProviderId = this._settings.get_string('preferences-provider') || null;
-        this._config = loadConfig();
+        this._config = loadConfig(settingsBinary(this._settings));
         this._validationCache = new Map();
         this._validationInFlight = new Map();
         this._validationDebounceIds = new Map();
+        this._curlHelpPrompts = new Set();
         this._manifests = new Map();
         this._settings.connect('changed::provider-icon-style', () => this._refreshProviderIcons());
+        this._settings.connect('changed::usagestat-cli-path', () => this._loadProviderManifests());
+        this._settings.connect('changed::usagestat-plugin-dir', () => this._loadProviderManifests());
         this._styleManager = Adw.StyleManager.get_default();
         this._styleManager.connect('notify::dark', () => this._refreshProviderIcons());
         this._save();
@@ -907,6 +1286,11 @@ class ProvidersPage extends Adw.PreferencesPage {
         });
         this._disabledList.add_css_class('boxed-list');
 
+        this._pluginList = new Gtk.ListBox({
+            selection_mode: Gtk.SelectionMode.NONE,
+        });
+        this._pluginList.add_css_class('boxed-list');
+
         this._enabledGroup = new Adw.PreferencesGroup({
             title: _('Enabled Providers'),
             description: _('Drag enabled providers to reorder the switcher.'),
@@ -921,12 +1305,29 @@ class ProvidersPage extends Adw.PreferencesPage {
         this._addSourceGroup.add(this._buildAddProviderSourceRow());
         this.add(this._addSourceGroup);
 
+        this._pluginGroup = new Adw.PreferencesGroup({
+            title: _('Plugin Providers'),
+            description: _('Providers discovered from the plugin folder. Enable to start tracking.'),
+        });
+        this._pluginGroup.add(new Adw.PreferencesRow({child: this._pluginList}));
+        this._pluginGroup.set_visible(false);
+        this.add(this._pluginGroup);
+
         this._disabledGroup = new Adw.PreferencesGroup({
             title: _('Disabled Providers'),
             description: _('Enable a provider to move it into the draggable list.'),
         });
         this._disabledGroup.add(new Adw.PreferencesRow({child: this._disabledList}));
         this.add(this._disabledGroup);
+
+        this._hiddenExpanderRow = new Adw.ExpanderRow({
+            title: _('Hidden'),
+            expanded: false,
+        });
+        this._hiddenGroup = new Adw.PreferencesGroup();
+        this._hiddenGroup.add(this._hiddenExpanderRow);
+        this._hiddenGroup.set_visible(false);
+        this.add(this._hiddenGroup);
 
         this._renderProviders(this._targetProviderId);
         if (this._targetProviderId)
@@ -943,19 +1344,46 @@ class ProvidersPage extends Adw.PreferencesPage {
     }
 
     async _loadProviderManifests() {
-        const binary = findAiUsage();
+        const cliPath = this._settings.get_string('usagestat-cli-path');
+        const pluginDir = this._settings.get_string('usagestat-plugin-dir').trim();
+        const binary = findAiUsage(cliPath);
         if (!binary)
             return;
         try {
-            const result = await this._runValidationCommand([binary, 'list', '--json']);
+            const argv = [binary, '--json'];
+            argv.push('--config', configPath(binary));
+            if (pluginDir)
+                argv.push('--plugin-dir', pluginDir);
+            argv.push('list');
+            const result = await this._runValidationCommand(argv);
             const providers = JSON.parse(result.stdout.trim());
             if (!Array.isArray(providers))
                 return;
             this._manifests = new Map(providers.map(p => [p.id, p]));
+
+            const knownIds = new Set(this._config.providers.map(p => p.id));
+            let added = false;
+            for (const p of providers) {
+                if (!p.id || knownIds.has(p.id))
+                    continue;
+                this._config.providers.push({
+                    id: p.id,
+                    enabled: false,
+                    ...(DEFAULT_HIDDEN_IDS.has(p.id) ? {hidden: true} : {}),
+                });
+                added = true;
+            }
+            if (added)
+                this._save();
+
             this._renderProviders(null);
         } catch {
             // Non-critical; fall back to showing all source options.
         }
+    }
+
+    refreshPluginManifests() {
+        this._loadProviderManifests();
     }
 
     _manifest(baseId) {
@@ -997,7 +1425,7 @@ class ProvidersPage extends Adw.PreferencesPage {
         const nameRow = entryRow(_('Name'), '', _('Optional display name'));
         row.add_row(nameRow);
 
-        const commandRow = entryRow(_('CLI command'), '', _('Command that prints ai-usage-style usage JSON'));
+        const commandRow = entryRow(_('CLI command'), '', _('Command that prints usagestat-style usage JSON'));
         row.add_row(commandRow);
 
         const sourceRow = combo(SOURCE_OPTIONS, 'auto');
@@ -1094,27 +1522,57 @@ class ProvidersPage extends Adw.PreferencesPage {
                 return a.enabled === false ? 1 : -1;
             return 0;
         });
-        saveConfig(this._config);
+        saveConfig(this._config, settingsBinary(this._settings));
     }
 
     _renderProviders(expandedId = null) {
         while (this._enabledList.get_first_child())
             this._enabledList.remove(this._enabledList.get_first_child());
+        while (this._pluginList.get_first_child())
+            this._pluginList.remove(this._pluginList.get_first_child());
         while (this._disabledList.get_first_child())
             this._disabledList.remove(this._disabledList.get_first_child());
+        for (const oldRow of (this._hiddenRowsList || []))
+            this._hiddenExpanderRow.remove(oldRow);
+        this._hiddenRowsList = [];
 
-        const disabled = [];
+        const disabledBuiltin = [];
+        const disabledPlugin = [];
+        const hiddenProviders = [];
+
         for (const provider of this._orderedProviders()) {
             if (provider.tabParent)
                 continue;
-            if (provider.enabled === false)
-                disabled.push(provider);
-            else
+            if (provider.hidden) {
+                hiddenProviders.push(provider);
+            } else if (provider.enabled === false) {
+                const isPlugin = !BUILTIN_PROVIDER_IDS.has(providerBaseId(provider)) && !provider.customCommand;
+                if (isPlugin)
+                    disabledPlugin.push(provider);
+                else
+                    disabledBuiltin.push(provider);
+            } else {
                 this._enabledList.append(this._buildProviderListRow(provider, expandedId, true));
+            }
         }
-        disabled.sort((a, b) => this._name(a).localeCompare(this._name(b)));
-        for (const provider of disabled)
+
+        disabledBuiltin.sort((a, b) => this._name(a).localeCompare(this._name(b)));
+        for (const provider of disabledBuiltin)
             this._disabledList.append(this._buildProviderListRow(provider, expandedId, false));
+
+        disabledPlugin.sort((a, b) => this._name(a).localeCompare(this._name(b)));
+        for (const provider of disabledPlugin)
+            this._pluginList.append(this._buildProviderListRow(provider, expandedId, false));
+        this._pluginGroup.set_visible(disabledPlugin.length > 0);
+
+        hiddenProviders.sort((a, b) => this._name(a).localeCompare(this._name(b)));
+        this._hiddenExpanderRow.set_title(`${_('Hidden')} (${hiddenProviders.length})`);
+        for (const provider of hiddenProviders) {
+            const r = this._buildHiddenProviderRow(provider);
+            this._hiddenExpanderRow.add_row(r);
+            this._hiddenRowsList.push(r);
+        }
+        this._hiddenGroup.set_visible(hiddenProviders.length > 0);
     }
 
     _refreshProviderIcons() {
@@ -1122,7 +1580,7 @@ class ProvidersPage extends Adw.PreferencesPage {
     }
 
     _expandedProviderId() {
-        for (const list of [this._enabledList, this._disabledList]) {
+        for (const list of [this._enabledList, this._pluginList, this._disabledList]) {
             for (let child = list.get_first_child(); child; child = child.get_next_sibling()) {
                 const row = child.get_child?.();
                 if (row?.get_expanded?.())
@@ -1195,8 +1653,10 @@ class ProvidersPage extends Adw.PreferencesPage {
         if (baseId === 'copilot')
             row.add_row(this._copilotIconSourceRow(provider));
         row.add_row(this._usageTrackersRow(provider));
+        row.add_row(this._costAndCreditsRow(provider));
 
         this._addTabExtensionRows(row, provider);
+        this._addHideSourceRow(row, provider);
         this._addDeleteSourceRow(row, provider);
 
         listRow.set_child(row);
@@ -1385,8 +1845,14 @@ class ProvidersPage extends Adw.PreferencesPage {
                 : baseId === 'copilot' && iconSource === 'githubcopilot'
                     ? 'githubcopilot'
                     : baseId;
-        const baseFile = PROVIDER_ICON_FILES[iconId] || `${iconId}.svg`;
         const style = this._providerUsageSetting(provider, 'iconStyle') || this._settings.get_string('provider-icon-style');
+        if (iconId === baseId) {
+            const manifestFile = this._providerManifestIconFile(baseId, style);
+            if (manifestFile)
+                return manifestFile;
+        }
+
+        const baseFile = PROVIDER_ICON_FILES[iconId] || `${iconId}.svg`;
         const colorFile = style === 'color' && baseFile ? baseFile.replace(/\.svg$/, '-color.svg') : null;
         if (colorFile) {
             const file = this._providerIconGFile(colorFile);
@@ -1395,6 +1861,21 @@ class ProvidersPage extends Adw.PreferencesPage {
         }
         const file = this._providerIconGFile(baseFile);
         return file.query_exists(null) ? baseFile : null;
+    }
+
+    _providerManifestIconFile(baseId, style) {
+        const icon = this._manifest(baseId)?.icon;
+        if (!icon || typeof icon !== 'object')
+            return null;
+
+        const candidate = style === 'color'
+            ? icon.colorPath || icon.variants?.color?.path || icon.path
+            : icon.monochromePath || icon.variants?.monochrome?.path || icon.path;
+        if (!candidate || !GLib.path_is_absolute(candidate))
+            return null;
+
+        const file = Gio.File.new_for_path(candidate);
+        return file.query_exists(null) ? candidate : null;
     }
 
     _providerIconGFile(fileName) {
@@ -1432,7 +1913,7 @@ class ProvidersPage extends Adw.PreferencesPage {
                 return file;
 
             const themed = text.replace(/currentColor/g, color);
-            const cacheDir = Gio.File.new_for_path(GLib.build_filenamev([GLib.get_user_cache_dir(), 'ai-usage-bar', 'provider-icons']));
+            const cacheDir = Gio.File.new_for_path(GLib.build_filenamev([GLib.get_user_cache_dir(), 'usagestat-bar', 'provider-icons']));
             if (!cacheDir.query_exists(null))
                 cacheDir.make_directory_with_parents(null);
             const sourcePath = file.get_path() || 'provider-icon';
@@ -1451,7 +1932,7 @@ class ProvidersPage extends Adw.PreferencesPage {
             }
             return themedFile;
         } catch (error) {
-            logError(error, 'AI Usage Bar: failed to theme provider icon');
+            logError(error, 'UsageStat Bar: failed to theme provider icon');
             return file;
         }
     }
@@ -1472,7 +1953,7 @@ class ProvidersPage extends Adw.PreferencesPage {
     }
 
     _usageTrackersRow(provider) {
-        const options = this._usageTrackerOptions(provider);
+        const options = this._usageTrackerOptions(provider, false);
         const row = new Adw.ExpanderRow({
             title: _('Usage trackers'),
             subtitle: _('Choose which usage meters are shown in the popup and auto meter.'),
@@ -1503,7 +1984,39 @@ class ProvidersPage extends Adw.PreferencesPage {
         return row;
     }
 
-    _usageTrackerOptions(provider) {
+    _costAndCreditsRow(provider) {
+        const options = this._usageTrackerOptions(provider, true);
+        const row = new Adw.ExpanderRow({
+            title: _('Credits and cost'),
+            subtitle: _('Choose which credit, quota, and spend lines are shown in the popup.'),
+        });
+
+        if (!options.length) {
+            row.add_row(new Adw.ActionRow({
+                title: _('No credit or cost items discovered yet'),
+                subtitle: _('Refresh this provider once to populate these controls.'),
+            }));
+            return row;
+        }
+
+        for (const [windowId, label] of options) {
+            const item = new Adw.ActionRow({title: label});
+            const toggle = new Gtk.Switch({
+                active: !this._hiddenUsageWindows(provider).includes(windowId),
+                valign: Gtk.Align.CENTER,
+            });
+            toggle.connect('notify::active', () => {
+                this._setUsageWindowVisible(provider, windowId, toggle.active);
+            });
+            item.add_suffix(toggle);
+            item.activatable_widget = toggle;
+            row.add_row(item);
+        }
+
+        return row;
+    }
+
+    _usageTrackerOptions(provider, supplemental = false) {
         let discovered = null;
         try {
             const windows = JSON.parse(this._settings.get_string('provider-usage-windows')) || {};
@@ -1513,11 +2026,24 @@ class ProvidersPage extends Adw.PreferencesPage {
         }
 
         if (!discovered || typeof discovered !== 'object')
-            return this._usageTierOptions(provider).filter(([value]) => value !== 'auto');
+            return this._usageTierOptions(provider)
+                .filter(([value]) => value !== 'auto')
+                .filter(([id, label]) => this._supplementalUsageOption(id, label) === supplemental);
 
         return Object.entries(discovered)
             .filter(([, label]) => typeof label === 'string' && label.trim())
+            .filter(([id, label]) => this._supplementalUsageOption(id, label) === supplemental)
             .map(([id, label]) => [id, label.trim()]);
+    }
+
+    _supplementalUsageOption(id, label) {
+        if (id === 'extraUsage' || id === 'costSummary' || id === 'credits' || id === 'codeReview')
+            return true;
+        if (String(id).startsWith('text:') || String(id).startsWith('badge:'))
+            return true;
+
+        const text = `${id} ${label}`.toLowerCase();
+        return /\b(credit|cost|spend|spent|quota|extra usage|today|yesterday|last \d+ days?)\b/.test(text);
     }
 
     _usageTierOptions(provider) {
@@ -1705,7 +2231,18 @@ class ProvidersPage extends Adw.PreferencesPage {
         });
         button.add_css_class('flat');
         button.connect('clicked', () => this._forceValidateProvider(provider, label));
+        const setupButton = new Gtk.Button({
+            icon_name: 'dialog-question-symbolic',
+            valign: Gtk.Align.CENTER,
+            tooltip_text: _('Show setup instructions'),
+            visible: false,
+        });
+        setupButton.add_css_class('flat');
+        setupButton.connect('clicked', () => this._showCurlInstructions(provider));
+        label._setupButton = setupButton;
+        label._setupProvider = provider;
         box.append(label);
+        box.append(setupButton);
         box.append(button);
 
         if (provider.enabled === false) {
@@ -1735,6 +2272,11 @@ class ProvidersPage extends Adw.PreferencesPage {
         }[state] || '#f6d32d';
         label.set_markup(`<span foreground="${color}" size="large">●</span>`);
         label.set_tooltip_text(tooltip || '');
+        if (label._setupButton) {
+            label._setupButton.visible = state === 'red'
+                && this._isT3ChatProvider(label._setupProvider)
+                && this._isT3ChatSetupMessage(tooltip);
+        }
     }
 
     async _validateProvider(provider, label) {
@@ -1760,6 +2302,8 @@ class ProvidersPage extends Adw.PreferencesPage {
 
         const result = await promise;
         this._setStatusDot(label, result.state, result.message);
+        if (this._shouldShowCurlHelp(provider, result))
+            this._showCurlInstructions(provider);
     }
 
     _forceValidateProvider(provider, label) {
@@ -1825,7 +2369,14 @@ class ProvidersPage extends Adw.PreferencesPage {
         if (this._isCustomProvider(provider))
             return ['bash', '-lc', provider.customCommand || ''];
 
-        const argv = ['ai-usage', '--json-only', 'usage', '--provider', providerBaseId(provider)];
+        const binary = findAiUsage(this._settings.get_string('usagestat-cli-path')) || '';
+        const pluginDir = this._settings.get_string('usagestat-plugin-dir').trim();
+        const argv = [binary, '--json'];
+        if (binary)
+            argv.push('--config', configPath(binary));
+        if (pluginDir)
+            argv.push('--plugin-dir', pluginDir);
+        argv.push('usage', '--provider', providerBaseId(provider));
         if (provider.source && provider.source !== 'auto')
             argv.push('--source', provider.source);
         return argv;
@@ -1887,6 +2438,46 @@ class ProvidersPage extends Adw.PreferencesPage {
     _firstErrorMetric(snapshot) {
         const metric = (snapshot?.metrics || []).find(item => item?.type === 'badge' && String(item.label || '').toLowerCase().includes('error'));
         return metric?.text || null;
+    }
+
+    _buildHiddenProviderRow(provider) {
+        const row = new Adw.ActionRow({
+            title: this._name(provider),
+            subtitle: providerBaseId(provider),
+        });
+        row.add_prefix(this._providerIconPreview(provider, 24));
+        const unhideButton = new Gtk.Button({
+            label: _('Unhide'),
+            valign: Gtk.Align.CENTER,
+            css_classes: ['suggested-action'],
+        });
+        unhideButton.connect('clicked', () => {
+            delete provider.hidden;
+            provider.enabled = false;
+            this._save();
+            this._renderProviders(null);
+        });
+        row.add_suffix(unhideButton);
+        return row;
+    }
+
+    _addHideSourceRow(row, provider) {
+        const hideRow = new Adw.ActionRow({
+            title: _('Hide provider'),
+            subtitle: _('Move to the Hidden section at the bottom of this page.'),
+        });
+        const hideButton = new Gtk.Button({
+            label: _('Hide'),
+            valign: Gtk.Align.CENTER,
+        });
+        hideButton.connect('clicked', () => {
+            provider.hidden = true;
+            provider.enabled = false;
+            this._save();
+            this._renderProviders(null);
+        });
+        hideRow.add_suffix(hideButton);
+        row.add_row(hideRow);
     }
 
     _addDeleteSourceRow(row, provider) {
@@ -1964,7 +2555,7 @@ class ProvidersPage extends Adw.PreferencesPage {
         if (this._isCustomProvider(provider)) {
             row.add_row(this._customIconRow(provider));
 
-            const commandRow = entryRow(_('CLI command'), provider.customCommand || '', _('Command that prints ai-usage-style usage JSON'));
+            const commandRow = entryRow(_('CLI command'), provider.customCommand || '', _('Command that prints usagestat-style usage JSON'));
             commandRow._entry.connect('changed', () => {
                 this._assignOptional(provider, 'customCommand', commandRow._entry.get_text());
                 this._scheduleValidation(provider, validator?.label);
@@ -1989,18 +2580,17 @@ class ProvidersPage extends Adw.PreferencesPage {
         }
 
         if (effectiveSource === 'web') {
-            const cookieHeaderRow = entryRow(_('Cookie header'), provider.cookieHeader || '', _('name=value; other=value'), true);
+            const t3Chat = this._isT3ChatProvider(provider);
+            const cookieHeaderRow = t3Chat
+                ? multilineTextRow(_('Cookie header or full cURL'), provider.cookieHeader || '')
+                : entryRow(_('Cookie header'), provider.cookieHeader || '', _('name=value; other=value'), true);
             cookieHeaderRow._entry.connect('changed', () => {
-                this._assignOptional(provider, 'cookieHeader', cookieHeaderRow._entry.get_text());
+                if (t3Chat)
+                    this._assignOptionalRaw(provider, 'cookieHeader', cookieHeaderRow._entry.get_text());
+                else
+                    this._assignOptional(provider, 'cookieHeader', cookieHeaderRow._entry.get_text());
                 this._scheduleValidation(provider, validator?.label);
             });
-            const importButton = new Gtk.Button({
-                icon_name: 'folder-download-symbolic',
-                valign: Gtk.Align.CENTER,
-                tooltip_text: _('Import browser cookies'),
-                css_classes: ['suggested-action'],
-            });
-            importButton.connect('clicked', () => this._importCookies(provider, cookieHeaderRow._entry, validator?.label));
             const loginUrl = this._providerLoginUrl(provider);
             if (loginUrl) {
                 const loginButton = new Gtk.Button({
@@ -2009,9 +2599,34 @@ class ProvidersPage extends Adw.PreferencesPage {
                     tooltip_text: _('Open provider login'),
                 });
                 loginButton.connect('clicked', () => this._openProviderLogin(provider));
-                cookieHeaderRow.add_suffix(loginButton);
+                if (t3Chat)
+                    cookieHeaderRow._buttonBox.append(loginButton);
+                else
+                    cookieHeaderRow.add_suffix(loginButton);
             }
-            cookieHeaderRow.add_suffix(importButton);
+            if (t3Chat) {
+                const clearButton = new Gtk.Button({
+                    label: _('Clear'),
+                    valign: Gtk.Align.CENTER,
+                });
+                clearButton.connect('clicked', () => cookieHeaderRow._entry.set_text(''));
+                const curlButton = new Gtk.Button({
+                    label: _('How to copy cURL'),
+                    valign: Gtk.Align.CENTER,
+                });
+                curlButton.connect('clicked', () => this._showCurlInstructions(provider));
+                cookieHeaderRow._buttonBox.append(clearButton);
+                cookieHeaderRow._buttonBox.append(curlButton);
+            } else {
+                const importButton = new Gtk.Button({
+                    icon_name: 'folder-download-symbolic',
+                    valign: Gtk.Align.CENTER,
+                    tooltip_text: _('Import browser cookies'),
+                    css_classes: ['suggested-action'],
+                });
+                importButton.connect('clicked', () => this._importCookies(provider, cookieHeaderRow._entry, validator?.label));
+                cookieHeaderRow.add_suffix(importButton);
+            }
             row.add_row(cookieHeaderRow);
         }
 
@@ -2069,19 +2684,25 @@ class ProvidersPage extends Adw.PreferencesPage {
 
     async _importCookies(provider, entry, validationLabel = null) {
         try {
-            const binary = findAiUsage();
+            await this._loadProviderManifests();
+            const binary = settingsBinary(this._settings);
             if (!binary)
-                throw new Error(_('ai-usage CLI was not found on PATH or in common install locations.'));
+                throw new Error(_('usagestat CLI was not found on PATH or in common install locations.'));
 
-            const {stdout, stderr, status} = await this._runCookieImportCommand([
-                binary,
+            const argv = [binary, '--config', configPath(binary)];
+            const pluginDir = this._settings.get_string('usagestat-plugin-dir').trim();
+            if (pluginDir)
+                argv.push('--plugin-dir', pluginDir);
+            argv.push(
                 'auth',
                 'import-cookies',
                 '--provider',
                 providerBaseId(provider),
                 '--format',
                 'json',
-            ]);
+            );
+
+            const {stdout, stderr, status} = await this._runCookieImportCommand(argv);
 
             const text = stdout.trim();
             if (!text)
@@ -2130,6 +2751,67 @@ class ProvidersPage extends Adw.PreferencesPage {
             _('No browser cookies found.'),
         ];
         return String(candidates.find(item => item !== undefined && item !== null && String(item).trim()) || '').trim();
+    }
+
+    async _showCurlInstructions(provider) {
+        try {
+            const payload = await this._fetchCurlInstructions(provider);
+            const steps = Array.isArray(payload.steps) ? payload.steps : [];
+            const body = [
+                payload.webUrl ? _('Open: %s').format(payload.webUrl) : '',
+                payload.requestNameContains ? _('Find request: %s').format(payload.requestNameContains) : '',
+                steps.length ? steps.map((step, index) => `${index + 1}. ${step}`).join('\n') : '',
+                payload.note || '',
+            ].filter(Boolean).join('\n\n');
+
+            const dialog = new Adw.MessageDialog({
+                transient_for: this.get_root(),
+                modal: true,
+                heading: _('How to copy cURL'),
+                body: body || _('No cURL capture instructions were returned.'),
+            });
+            dialog.add_response('close', _('Close'));
+            if (payload.webUrl)
+                dialog.add_response('open', _('Open Page'));
+            dialog.set_default_response(payload.webUrl ? 'open' : 'close');
+            dialog.set_close_response('close');
+            if (payload.webUrl)
+                dialog.set_response_appearance('open', Adw.ResponseAppearance.SUGGESTED);
+            dialog.connect('response', (_dialog, response) => {
+                if (response === 'open') {
+                    try {
+                        Gio.app_info_launch_default_for_uri(payload.webUrl, null);
+                    } catch (error) {
+                        this._showError(_('Could not open browser'), error.message || String(error));
+                    }
+                }
+            });
+            dialog.present();
+        } catch (error) {
+            this._showError(_('Could not load cURL instructions'), error.message || String(error));
+        }
+    }
+
+    async _fetchCurlInstructions(provider) {
+        const binary = settingsBinary(this._settings);
+        if (!binary)
+            throw new Error(_('usagestat CLI was not found on PATH or in common install locations.'));
+
+        const argv = [binary, '--config', configPath(binary)];
+        const pluginDir = this._settings.get_string('usagestat-plugin-dir').trim();
+        if (pluginDir)
+            argv.push('--plugin-dir', pluginDir);
+        argv.push('auth', 'curl', '--provider', providerBaseId(provider), '--format', 'json');
+
+        const {stdout, stderr, status} = await this._runCookieImportCommand(argv);
+        const text = stdout.trim();
+        if (!text)
+            throw new Error(stderr.trim() || _('No cURL instructions were returned.'));
+        if (status !== 0)
+            throw new Error((stderr || stdout).trim().split('\n')[0] || _('cURL instructions command failed.'));
+
+        const parsed = JSON.parse(text);
+        return Array.isArray(parsed) ? parsed[0] : parsed;
     }
 
     _showCookieLoginDialog(message, provider, entry, validationLabel = null) {
@@ -2184,7 +2866,41 @@ class ProvidersPage extends Adw.PreferencesPage {
     _providerLoginUrl(provider) {
         const baseId = providerBaseId(provider);
         const manifest = this._manifest(baseId);
-        return provider?.loginUrl || provider?.settings?.loginUrl || manifest?.webUrl || PROVIDER_LOGIN_URLS[baseId] || '';
+        return provider?.loginUrl
+            || provider?.settings?.loginUrl
+            || manifest?.usageDashboardUrl
+            || manifest?.webUrl
+            || PROVIDER_LOGIN_URLS[baseId]
+            || '';
+    }
+
+    _isT3ChatProvider(provider) {
+        return providerBaseId(provider) === 't3chat';
+    }
+
+    _shouldShowCurlHelp(provider, result) {
+        if (!this._isT3ChatProvider(provider) || result?.state !== 'red')
+            return false;
+        const message = String(result.message || '').toLowerCase();
+        if (!message.includes('vercel') && !message.includes('challenge'))
+            return false;
+        const key = `${providerKey(provider)}:${provider.cookieHeader || ''}`;
+        if (this._curlHelpPrompts.has(key))
+            return false;
+        this._curlHelpPrompts.add(key);
+        return true;
+    }
+
+    _isT3ChatSetupMessage(message) {
+        const text = String(message || '').toLowerCase();
+        return (text.includes('t3 chat') || text.includes('t3chat'))
+            && (
+                text.includes('not configured')
+                || text.includes('cookie')
+                || text.includes('curl')
+                || text.includes('vercel')
+                || text.includes('challenge')
+            );
     }
 
     _openProviderLogin(provider) {
@@ -2196,7 +2912,7 @@ class ProvidersPage extends Adw.PreferencesPage {
         try {
             Gio.app_info_launch_default_for_uri(url, null);
         } catch (error) {
-            logError(error, 'AI Usage Bar: failed to open provider login');
+            logError(error, 'UsageStat Bar: failed to open provider login');
             this._showError(_('Could not open browser'), error.message || String(error));
         }
     }
@@ -2284,6 +3000,14 @@ class ProvidersPage extends Adw.PreferencesPage {
         this._save();
     }
 
+    _assignOptionalRaw(provider, key, raw) {
+        if (raw)
+            provider[key] = raw;
+        else
+            delete provider[key];
+        this._save();
+    }
+
     _subtitle(provider) {
         if (this._isCustomProvider(provider))
             return _('Enabled, custom CLI source');
@@ -2292,9 +3016,9 @@ class ProvidersPage extends Adw.PreferencesPage {
 
     _sourceSubtitle(providerId, source) {
         if (providerId === 'codex' && source === 'auto')
-            return _('Uses ai-usage provider defaults.');
+            return _('Uses usagestat provider defaults.');
         if (source === 'auto')
-            return _('Uses ai-usage provider defaults.');
+            return _('Uses usagestat provider defaults.');
         if (source === 'api')
             return _('Uses a provider API token.');
         if (source === 'web')
@@ -2305,7 +3029,7 @@ class ProvidersPage extends Adw.PreferencesPage {
             return _('Uses OAuth login state, with optional account or token path hints.');
         if (source === 'local')
             return _('Uses local files, databases, caches, or services.');
-        return _('Uses ai-usage %s source.').format(source);
+        return _('Uses usagestat %s source.').format(source);
     }
 
     _apiKeyProviders() {
@@ -2383,37 +3107,37 @@ class MaintenancePage extends Adw.PreferencesPage {
 
     _buildGroup() {
         const group = new Adw.PreferencesGroup({
-            title: _('ai-usage CLI'),
+            title: _('usagestat CLI'),
         });
 
-        for (const [title, command] of [
-            [_('Validate config'), 'ai-usage config validate'],
-            [_('Dump normalized config'), 'ai-usage config dump'],
-            [_('List providers'), 'ai-usage list --all --plain'],
-            [_('Show enabled usage'), 'ai-usage usage'],
-            [_('Show all usage JSON'), 'ai-usage --json usage --provider all'],
-            [_('Provider status'), 'ai-usage status --provider all --plain'],
-            [_('Cost summary'), 'ai-usage cost --provider all'],
-            [_('Export live usage JSON'), 'ai-usage export --provider all --format json'],
-            [_('Export live usage CSV'), 'ai-usage export --provider all --format csv'],
-            [_('Clear snapshots cache'), 'ai-usage cache clear --snapshots'],
-            [_('ai-usage help'), 'ai-usage --help'],
+        for (const [title, args] of [
+            [_('Validate config'), ['config', 'validate']],
+            [_('Dump normalized config'), ['config', 'dump']],
+            [_('List providers'), ['list', '--all', '--plain']],
+            [_('Show enabled usage'), ['usage']],
+            [_('Show all usage JSON'), ['--json', 'usage', '--provider', 'all']],
+            [_('Provider status'), ['status', '--provider', 'all', '--plain']],
+            [_('Cost summary'), ['cost', '--provider', 'all']],
+            [_('Export live usage JSON'), ['export', '--provider', 'all', '--format', 'json']],
+            [_('Export live usage CSV'), ['export', '--provider', 'all', '--format', 'csv']],
+            [_('Clear snapshots cache'), ['cache', 'clear', '--snapshots']],
+            [_('usagestat help'), ['--help']],
         ]) {
             const row = new Adw.ActionRow({
                 title,
-                subtitle: command,
+                subtitle: this._toolCommandPreview(args),
             });
             const button = new Gtk.Button({
                 icon_name: 'utilities-terminal-symbolic',
                 valign: Gtk.Align.CENTER,
             });
-            button.connect('clicked', () => this._runInTerminal(command));
+            button.connect('clicked', () => this._runInTerminal(this._toolCommand(args)));
             row.add_suffix(button);
             group.add(row);
         }
 
         const docsRow = new Adw.ActionRow({
-            title: _('ai-usage docs'),
+            title: _('usagestat docs'),
             subtitle: _('Provider setup and config schema'),
         });
         const docsButton = new Gtk.Button({
@@ -2421,7 +3145,7 @@ class MaintenancePage extends Adw.PreferencesPage {
             valign: Gtk.Align.CENTER,
         });
         docsButton.connect('clicked', () => {
-            Gio.app_info_launch_default_for_uri('https://github.com/hashim-k/ai-usage-backend', null);
+            Gio.app_info_launch_default_for_uri('https://github.com/hashim-k/usagestat', null);
         });
         docsRow.add_suffix(docsButton);
         group.add(docsRow);
@@ -2429,8 +3153,29 @@ class MaintenancePage extends Adw.PreferencesPage {
         return group;
     }
 
+    _toolCommand(args) {
+        return this._toolCommandParts(args, true).join(' ');
+    }
+
+    _toolCommandPreview(args) {
+        return this._toolCommandParts(args, false).join(' ');
+    }
+
+    _toolCommandParts(args, includeConfig) {
+        const binary = settingsBinary(this._settings) || 'usagestat';
+        const command = [this._shellQuote(binary)];
+        if (includeConfig)
+            command.push('--config', this._shellQuote(configPath(binary)));
+        const pluginDir = this._settings.get_string('usagestat-plugin-dir').trim();
+        if (includeConfig && pluginDir)
+            command.push('--plugin-dir', this._shellQuote(pluginDir));
+        command.push(...args.map(arg => this._shellQuote(arg)));
+        return command;
+    }
+
     _runInTerminal(command) {
         const script = [
+            `printf '\\033[1m$ %s\\033[0m\\n' ${this._shellQuote(command)}`,
             command,
             'status=$?',
             'printf "\\nExit status: %s\\n" "$status"',
@@ -2446,7 +3191,7 @@ class MaintenancePage extends Adw.PreferencesPage {
                 Gio.Subprocess.new(argv, Gio.SubprocessFlags.NONE);
                 return;
             } catch (error) {
-                logError(error, `AI Usage Bar: failed to launch ${argv[0]}`);
+                logError(error, `UsageStat Bar: failed to launch ${argv[0]}`);
             }
         }
 
@@ -2546,7 +3291,7 @@ export default class AIUsageBarPreferences extends ExtensionPreferences {
         const targetProviderId = settings.get_string('preferences-provider');
         const providersPage = new ProvidersPage(settings);
         window.set_default_size(760, 760);
-        window.add(new BehaviourPage(settings));
+        window.add(new BehaviourPage(settings, () => providersPage.refreshPluginManifests()));
         window.add(new AppearancePage(settings));
         window.add(providersPage);
         window.add(new MaintenancePage(settings));

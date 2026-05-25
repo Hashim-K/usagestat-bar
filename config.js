@@ -38,9 +38,12 @@ export const PROVIDERS = [
 export const PROVIDER_NAMES = Object.fromEntries(PROVIDERS);
 const PROVIDER_IDS = new Set(PROVIDERS.map(([id]) => id));
 const DEPRECATED_PROVIDER_IDS = new Set(["mock"]);
+export const DEFAULT_HIDDEN_IDS = new Set(["synthetic", "smoke"]);
 
-export function configPath() {
-    return GLib.build_filenamev([GLib.get_home_dir(), '.config', 'ai-usage', 'config.toml']);
+export function configPath(binary = '') {
+    const binaryName = binary ? GLib.path_get_basename(binary) : '';
+    const configDir = binaryName.includes('usagestat-dev') ? 'usagestat-dev' : 'usagestat';
+    return GLib.build_filenamev([GLib.get_home_dir(), '.config', configDir, 'config.toml']);
 }
 
 export function defaultConfig() {
@@ -96,6 +99,7 @@ export function ensureProviderShape(config) {
             providers.push({
                 id,
                 enabled: false,
+                ...(DEFAULT_HIDDEN_IDS.has(id) ? {hidden: true} : {}),
             });
         }
     }
@@ -104,27 +108,50 @@ export function ensureProviderShape(config) {
     return next;
 }
 
-export function loadConfig() {
-    const file = Gio.File.new_for_path(configPath());
+export function loadConfig(binary = '') {
+    const path = configPath(binary);
+    const file = Gio.File.new_for_path(path);
     try {
         const [ok, contents] = file.load_contents(null);
         if (!ok)
-            return defaultConfig();
+            return initializeConfig(path, binary);
         return ensureProviderShape(parseConfigToml(new TextDecoder().decode(contents)));
     } catch (error) {
-        logError(error, 'AI Usage Bar: failed to read ~/.config/ai-usage/config.toml');
+        if (error.matches?.(Gio.IOErrorEnum, Gio.IOErrorEnum.NOT_FOUND))
+            return initializeConfig(path, binary);
+        logError(error, `UsageStat Bar: failed to read ${path}`);
         return defaultConfig();
     }
 }
 
-export function saveConfig(config) {
-    const dir = Gio.File.new_for_path(GLib.path_get_dirname(configPath()));
+export function saveConfig(config, binary = '') {
+    writeConfig(config, configPath(binary));
+}
+
+function initializeConfig(path, binary = '') {
+    const stablePath = configPath('');
+    let config = defaultConfig();
+    if (path !== stablePath) {
+        try {
+            const [ok, contents] = Gio.File.new_for_path(stablePath).load_contents(null);
+            if (ok)
+                config = ensureProviderShape(parseConfigToml(new TextDecoder().decode(contents)));
+        } catch {
+            config = defaultConfig();
+        }
+    }
+    writeConfig(config, path);
+    return config;
+}
+
+function writeConfig(config, path) {
+    const dir = Gio.File.new_for_path(GLib.path_get_dirname(path));
     if (!dir.query_exists(null))
         dir.make_directory_with_parents(null);
 
     const normalized = ensureProviderShape(config);
     const bytes = new TextEncoder().encode(formatConfigToml(normalized));
-    Gio.File.new_for_path(configPath()).replace_contents(
+    Gio.File.new_for_path(path).replace_contents(
         bytes,
         null,
         false,
@@ -133,9 +160,9 @@ export function saveConfig(config) {
     );
 
     try {
-        Gio.Subprocess.new(['chmod', '600', configPath()], Gio.SubprocessFlags.NONE);
+        Gio.Subprocess.new(['chmod', '600', path], Gio.SubprocessFlags.NONE);
     } catch (error) {
-        logError(error, 'AI Usage Bar: failed to chmod config');
+        logError(error, 'UsageStat Bar: failed to chmod config');
     }
 }
 
@@ -178,7 +205,7 @@ function parseConfigToml(text) {
     const config = {refreshSec: 60, pluginDirs: [], providers: []};
     let currentProvider = null;
 
-    for (const rawLine of text.split('\n')) {
+    for (const rawLine of logicalTomlLines(text)) {
         const line = stripTomlComment(rawLine).trim();
         if (!line)
             continue;
@@ -237,6 +264,59 @@ function assignTomlKey(target, key, value) {
     current[parts[parts.length - 1]] = value;
 }
 
+function logicalTomlLines(text) {
+    const lines = [];
+    let pending = null;
+
+    for (const rawLine of text.split('\n')) {
+        if (pending !== null) {
+            pending += `\n${rawLine}`;
+            if (tomlQuotedValueClosed(pending)) {
+                lines.push(pending);
+                pending = null;
+            }
+            continue;
+        }
+
+        const trimmed = rawLine.trim();
+        const match = trimmed.match(/^([A-Za-z0-9_.-]+)\s*=\s*(.+)$/);
+        if (match && match[2].startsWith('"') && !tomlQuotedValueClosed(trimmed))
+            pending = rawLine;
+        else
+            lines.push(rawLine);
+    }
+
+    if (pending !== null)
+        lines.push(pending);
+
+    return lines;
+}
+
+function tomlQuotedValueClosed(line) {
+    const match = line.trim().match(/^([A-Za-z0-9_.-]+)\s*=\s*(.*)$/s);
+    if (!match)
+        return true;
+    const value = match[2];
+    if (!value.startsWith('"'))
+        return true;
+
+    let escaped = false;
+    for (let i = 1; i < value.length; i++) {
+        const char = value[i];
+        if (escaped) {
+            escaped = false;
+            continue;
+        }
+        if (char === '\\') {
+            escaped = true;
+            continue;
+        }
+        if (char === '"')
+            return true;
+    }
+    return false;
+}
+
 function parseTomlValue(value) {
     if (value === 'true')
         return true;
@@ -245,7 +325,7 @@ function parseTomlValue(value) {
     if (/^-?\d+(\.\d+)?$/.test(value))
         return Number(value);
     if (value.startsWith('"') && value.endsWith('"'))
-        return value.slice(1, -1).replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+        return parseTomlString(value.slice(1, -1));
     if (value.startsWith('[') && value.endsWith(']')) {
         return value.slice(1, -1).split(',')
             .map(part => parseTomlValue(part.trim()))
@@ -274,6 +354,8 @@ function formatConfigToml(config) {
                 lines.push(`${key} = ${formatTomlValue(provider[key])}`);
         }
         lines.push(`enabled = ${provider.enabled !== false ? 'true' : 'false'}`);
+        if (provider.hidden)
+            lines.push(`hidden = true`);
         if (provider.settings && typeof provider.settings === 'object') {
             for (const key of Object.keys(provider.settings).sort()) {
                 const value = provider.settings[key];
@@ -288,7 +370,14 @@ function formatConfigToml(config) {
 }
 
 function quoteTomlString(value) {
-    return `"${String(value).replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+    return `"${String(value)
+        .replace(/\\/g, '\\\\')
+        .replace(/\x08/g, '\\b')
+        .replace(/\t/g, '\\t')
+        .replace(/\n/g, '\\n')
+        .replace(/\f/g, '\\f')
+        .replace(/\r/g, '\\r')
+        .replace(/"/g, '\\"')}"`;
 }
 
 function formatTomlValue(value) {
@@ -299,4 +388,33 @@ function formatTomlValue(value) {
     if (Array.isArray(value))
         return `[${value.map(formatTomlValue).join(', ')}]`;
     return quoteTomlString(value);
+}
+
+function parseTomlString(value) {
+    let output = '';
+    let escaped = false;
+    for (const char of value) {
+        if (!escaped) {
+            if (char === '\\') {
+                escaped = true;
+                continue;
+            }
+            output += char;
+            continue;
+        }
+
+        output += {
+            b: '\b',
+            t: '\t',
+            n: '\n',
+            f: '\f',
+            r: '\r',
+            '"': '"',
+            '\\': '\\',
+        }[char] ?? char;
+        escaped = false;
+    }
+    if (escaped)
+        output += '\\';
+    return output;
 }

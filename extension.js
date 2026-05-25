@@ -1,12 +1,13 @@
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
+import Pango from 'gi://Pango';
 import St from 'gi://St';
 import Clutter from 'gi://Clutter';
 import {Extension, gettext as _} from 'resource:///org/gnome/shell/extensions/extension.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
-import {fetchProviderUsage, findAiUsage} from './cli.js';
-import {enabledProviders, loadConfig, PROVIDER_NAMES, providerBaseId, providerDisplayName, providerKey} from './config.js';
+import {fetchProviderManifests, fetchProviderUsage, findAiUsage} from './cli.js';
+import {configPath, enabledProviders, loadConfig, PROVIDER_NAMES, providerBaseId, providerDisplayName, providerKey} from './config.js';
 
 const TIERS = ['primary', 'secondary', 'tertiary', 'quaternary'];
 const PANEL_COMPONENTS = ['bar', 'percent', 'logo', 'text'];
@@ -64,53 +65,73 @@ const PROVIDER_ICON_FILES = {
     windsurf: 'windsurf.svg',
     'openai-api': 'openai.svg',
 };
+const PROVIDER_DASHBOARD_URLS = {
+    augment: 'https://app.augmentcode.com/account',
+    claude: 'https://claude.ai/settings/usage',
+    codebuff: 'https://www.codebuff.com/usage',
+    codex: 'https://chatgpt.com/codex/cloud/settings/analytics#usage',
+    crof: 'https://crof.ai',
+    cursor: 'https://www.cursor.com/dashboard',
+    deepseek: 'https://platform.deepseek.com/usage',
+    doubao: 'https://console.volcengine.com/ark/region:ark+cn-beijing/usage',
+    kilo: 'https://app.kilo.ai/usage',
+    'kimi-k2': 'https://platform.moonshot.cn',
+    mistral: 'https://admin.mistral.ai/organization/usage',
+    nanogpt: 'https://nano-gpt.com/usage',
+    ollama: 'https://ollama.com/settings',
+    'openai-api': 'https://platform.openai.com/usage',
+    'opencode-go': 'https://opencode.ai/auth',
+    synthetic: 'https://synthetic.new/landing/home',
+};
 
 export default class AIUsageBarExtension extends Extension {
     enable() {
         this._settings = this.getSettings();
         this._signals = [];
+        this._widgetSignals = [];
         this._usage = new Map();
         this._errors = new Map();
         this._thresholdStates = new Map();
+        this._manifests = new Map();
         this._activeId = null;
         this._loading = false;
         this._lastRefreshAt = null;
         this._cancellable = new Gio.Cancellable();
 
-        this._indicator = new PanelMenu.Button(0.5, _('AI Usage Bar'), false);
-        this._indicator.add_style_class_name('ai-usage-panel-button');
+        this._indicator = new PanelMenu.Button(0.5, _('UsageStat Bar'), false);
+        this._indicator.add_style_class_name('usagestat-panel-button');
 
         this._panelBox = new St.BoxLayout({
-            style_class: 'ai-usage-panel',
+            style_class: 'usagestat-panel',
             y_align: Clutter.ActorAlign.CENTER,
         });
-        this._meter = new St.BoxLayout({style_class: 'ai-usage-panel-meter'});
-        this._meterFill = new St.Widget({style_class: 'ai-usage-panel-meter-fill'});
+        this._meter = new St.BoxLayout({style_class: 'usagestat-panel-meter'});
+        this._meterFill = new St.Widget({style_class: 'usagestat-panel-meter-fill'});
         this._meter.add_child(this._meterFill);
         this._panelPercent = new St.Label({
             text: _('0%'),
-            style_class: 'ai-usage-panel-label',
+            style_class: 'usagestat-panel-label',
             y_align: Clutter.ActorAlign.CENTER,
         });
         this._panelLabel = new St.Label({
             text: _('AI'),
-            style_class: 'ai-usage-panel-label',
+            style_class: 'usagestat-panel-label',
             y_align: Clutter.ActorAlign.CENTER,
         });
         this._panelBox.add_child(this._meter);
         this._panelBox.add_child(this._panelLabel);
         this._indicator.add_child(this._panelBox);
 
-        this._indicator.connect('scroll-event', (_actor, event) => {
+        this._widgetSignals.push([this._indicator, this._indicator.connect('scroll-event', (_actor, event) => {
             if (!this._settings.get_boolean('scroll-to-switch-provider'))
                 return Clutter.EVENT_PROPAGATE;
             return this._switchProviderFromScroll(event, this._unpinnedProviders());
-        });
+        })]);
 
         this._buildMenu();
         this._applyPopupAlignment();
         this._clockTickId = null;
-        this._indicator.menu.connect('open-state-changed', (_menu, open) => {
+        this._widgetSignals.push([this._indicator.menu, this._indicator.menu.connect('open-state-changed', (_menu, open) => {
             if (open) {
                 const pinned = this._pinnedProviderKeys();
                 if (pinned.length && this._activeId !== pinned[0]) {
@@ -121,7 +142,7 @@ export default class AIUsageBarExtension extends Extension {
             } else {
                 this._stopClockTick();
             }
-        });
+        })]);
         this._attachIndicator(true);
 
         for (const key of [
@@ -134,6 +155,7 @@ export default class AIUsageBarExtension extends Extension {
             'provider-usage-windows',
             'provider-usage-settings',
             'provider-icon-style',
+            'provider-logo-fill-mode',
             'reset-time-format',
             'warning-threshold',
             'danger-threshold',
@@ -145,6 +167,7 @@ export default class AIUsageBarExtension extends Extension {
             'neutral-color',
             'show-pace',
             'show-status-link',
+            'show-dashboard-link',
             'panel-bar-count',
             'panel-usage-bar-count',
             'panel-usage-bar-layout',
@@ -177,6 +200,31 @@ export default class AIUsageBarExtension extends Extension {
             this._signals = [];
             this._settings = null;
         }
+        for (const [obj, id] of (this._widgetSignals || []))
+            obj.disconnect(id);
+        this._widgetSignals = null;
+        this._updatedLabel?.destroy();
+        this._updatedLabel = null;
+        this._nextRefreshLabel?.destroy();
+        this._nextRefreshLabel = null;
+        this._content?.destroy();
+        this._content = null;
+        this._switcher?.destroy();
+        this._switcher = null;
+        this._title?.destroy();
+        this._title = null;
+        this._header?.destroy();
+        this._header = null;
+        this._meterFill?.destroy();
+        this._meterFill = null;
+        this._meter?.destroy();
+        this._meter = null;
+        this._panelPercent?.destroy();
+        this._panelPercent = null;
+        this._panelLabel?.destroy();
+        this._panelLabel = null;
+        this._panelBox?.destroy();
+        this._panelBox = null;
         if (this._indicator) {
             this._indicator.destroy();
             this._indicator = null;
@@ -184,6 +232,7 @@ export default class AIUsageBarExtension extends Extension {
         this._usage = null;
         this._errors = null;
         this._thresholdStates = null;
+        this._manifests = null;
     }
 
     _attachIndicator(initial = false) {
@@ -208,12 +257,12 @@ export default class AIUsageBarExtension extends Extension {
     }
 
     _buildMenu() {
-        this._indicator.menu.box.add_style_class_name('ai-usage-menu');
+        this._indicator.menu.box.add_style_class_name('usagestat-menu');
 
-        this._header = new St.BoxLayout({style_class: 'ai-usage-header'});
+        this._header = new St.BoxLayout({style_class: 'usagestat-header'});
         this._title = new St.Label({
-            text: _('AI Usage Bar'),
-            style_class: 'ai-usage-title',
+            text: _('UsageStat Bar'),
+            style_class: 'usagestat-title',
             x_expand: true,
             y_align: Clutter.ActorAlign.CENTER,
         });
@@ -226,23 +275,44 @@ export default class AIUsageBarExtension extends Extension {
         }));
         this._indicator.menu.box.add_child(this._header);
 
-        this._switcher = new St.BoxLayout({style_class: 'ai-usage-provider-switcher', reactive: true});
-        this._switcher.connect('scroll-event', (_actor, event) => this._switchPopupProviderFromScroll(event));
+        this._switcher = new St.BoxLayout({style_class: 'usagestat-provider-switcher', reactive: true});
+        this._widgetSignals.push([this._switcher, this._switcher.connect('scroll-event', (_actor, event) => this._switchPopupProviderFromScroll(event))]);
         this._indicator.menu.box.add_child(this._switcher);
 
         this._content = new St.BoxLayout({
             vertical: true,
-            style_class: 'ai-usage-content',
+            style_class: 'usagestat-content',
             reactive: true,
         });
-        this._content.connect('scroll-event', (_actor, event) => this._switchPopupProviderFromScroll(event));
+        this._widgetSignals.push([this._content, this._content.connect('scroll-event', (_actor, event) => this._switchPopupProviderFromScroll(event))]);
         this._indicator.menu.box.add_child(this._content);
     }
 
     _iconButton(iconName, callback) {
         const button = new St.Button({
             child: new St.Icon({icon_name: iconName, icon_size: 16}),
-            style_class: 'ai-usage-icon-button',
+            style_class: 'usagestat-icon-button',
+            can_focus: true,
+        });
+        button.connect('clicked', callback);
+        return button;
+    }
+
+    _actionButton(label, iconName, callback) {
+        const box = new St.BoxLayout({style_class: 'usagestat-action-button-box'});
+        box.add_child(new St.Icon({
+            icon_name: iconName,
+            icon_size: 14,
+            y_align: Clutter.ActorAlign.CENTER,
+        }));
+        box.add_child(new St.Label({
+            text: label,
+            y_align: Clutter.ActorAlign.CENTER,
+        }));
+
+        const button = new St.Button({
+            child: box,
+            style_class: 'usagestat-action-button',
             can_focus: true,
         });
         button.connect('clicked', callback);
@@ -268,7 +338,8 @@ export default class AIUsageBarExtension extends Extension {
     }
 
     _loadProviders() {
-        this._config = loadConfig();
+        const binary = findAiUsage(this._settings.get_string('usagestat-cli-path')) || '';
+        this._config = loadConfig(binary);
         this._providers = enabledProviders(this._config);
         this._visibleProviders = this._providers.filter(provider => !provider.tabParent);
         if (!this._providers.length)
@@ -305,11 +376,16 @@ export default class AIUsageBarExtension extends Extension {
         this._render();
 
         try {
+            await this._loadProviderManifests();
             for (const provider of this._providers) {
                 if (!this._cancellable || this._cancellable.is_cancelled())
                     break;
                 try {
-                    const data = await fetchProviderUsage(provider, this._cancellable);
+                    const data = await fetchProviderUsage(provider, this._cancellable, {
+                        cliPath: this._settings.get_string('usagestat-cli-path'),
+                        pluginDir: this._settings.get_string('usagestat-plugin-dir'),
+                        configFile: configPath(findAiUsage(this._settings.get_string('usagestat-cli-path')) || ''),
+                    });
                     const key = providerKey(provider);
                     this._usage.set(key, data);
                     this._errors.delete(key);
@@ -327,8 +403,24 @@ export default class AIUsageBarExtension extends Extension {
             this._loading = false;
             this._lastRefreshAt = new Date();
             if (this._title)
-                this._title.set_text(_('AI Usage Bar'));
+                this._title.set_text(_('UsageStat Bar'));
             this._render();
+        }
+    }
+
+    async _loadProviderManifests() {
+        const binary = findAiUsage(this._settings.get_string('usagestat-cli-path')) || '';
+        if (!binary)
+            return;
+        try {
+            const manifests = await fetchProviderManifests(this._cancellable, {
+                cliPath: this._settings.get_string('usagestat-cli-path'),
+                pluginDir: this._settings.get_string('usagestat-plugin-dir'),
+                configFile: configPath(binary),
+            });
+            this._manifests = new Map(manifests.map(provider => [provider.id, provider]));
+        } catch {
+            // Non-critical; bundled icon and URL fallbacks remain available.
         }
     }
 
@@ -375,7 +467,7 @@ export default class AIUsageBarExtension extends Extension {
         if (!this._visibleProviders.length) {
             this._renderMessage(
                 _('No providers enabled'),
-                _('Enable providers in preferences or edit ~/.config/ai-usage/config.toml.'),
+                _('Enable providers in preferences or edit ~/.config/usagestat/config.toml.'),
             );
             return;
         }
@@ -383,10 +475,10 @@ export default class AIUsageBarExtension extends Extension {
         for (const provider of this._visibleProviders)
             this._addProviderSwitch(provider);
 
-        if (!findAiUsage() && this._providerNeedsCli(this._activeProviderConfig())) {
+        if (!findAiUsage(this._settings.get_string('usagestat-cli-path')) && this._providerNeedsCli(this._activeProviderConfig())) {
             this._renderMessage(
-                _('ai-usage CLI not found'),
-                _('Install ai-usage, add it to PATH, or set AI_USAGE_CLI before GNOME Shell starts.'),
+                _('usagestat CLI not found'),
+                _('Install usagestat, add it to PATH, or set USAGESTAT_CLI before GNOME Shell starts.'),
             );
             return;
         }
@@ -404,20 +496,20 @@ export default class AIUsageBarExtension extends Extension {
 
         const box = new St.BoxLayout({
             vertical: true,
-            style_class: 'ai-usage-provider-tile-box',
+            style_class: 'usagestat-provider-tile-box',
             x_align: Clutter.ActorAlign.CENTER,
         });
         box.add_child(this._providerIcon(provider, 22));
         box.add_child(new St.Label({
             text: this._providerName(provider),
-            style_class: 'ai-usage-provider-tile-label',
+            style_class: 'usagestat-provider-tile-label',
             x_align: Clutter.ActorAlign.CENTER,
         }));
 
-        const track = new St.BoxLayout({style_class: 'ai-usage-provider-mini-track'});
+        const track = new St.BoxLayout({style_class: 'usagestat-provider-mini-track'});
         const waiting = this._loading && !snapshot && !this._errors.has(id);
         const fill = new St.Widget({
-            style_class: waiting ? 'ai-usage-provider-mini-fill loading' : 'ai-usage-provider-mini-fill',
+            style_class: waiting ? 'usagestat-provider-mini-fill loading' : 'usagestat-provider-mini-fill',
             style: `background-color: ${this._errors.has(id) ? this._settings.get_string('danger-color') : color};`,
         });
         fill.set_width(waiting ? 18 : this._barFillWidth(this._errors.has(id) ? 100 : percent, 68));
@@ -425,7 +517,7 @@ export default class AIUsageBarExtension extends Extension {
         box.add_child(track);
 
         let tileStatus = 'green';
-        if (this._errors.has(id)) {
+        if (this._errors.has(id) || this._snapshotErrorMessage(snapshot)) {
             tileStatus = 'red';
         } else if (this._loading && !snapshot) {
             tileStatus = 'orange';
@@ -435,7 +527,7 @@ export default class AIUsageBarExtension extends Extension {
         const tileStatusColor = {green: '#33d17a', orange: '#f6d32d', red: '#ff5f57'}[tileStatus] || '#f6d32d';
 
         const tileInfoRow = new St.BoxLayout({
-            style_class: 'ai-usage-provider-tile-info',
+            style_class: 'usagestat-provider-tile-info',
             x_align: Clutter.ActorAlign.CENTER,
         });
         tileInfoRow.add_child(new St.Widget({
@@ -446,7 +538,7 @@ export default class AIUsageBarExtension extends Extension {
 
         const button = new St.Button({
             child: box,
-            style_class: active ? 'ai-usage-provider-tile active' : 'ai-usage-provider-tile',
+            style_class: active ? 'usagestat-provider-tile active' : 'usagestat-provider-tile',
             can_focus: true,
         });
         button.connect('clicked', () => {
@@ -499,10 +591,10 @@ export default class AIUsageBarExtension extends Extension {
         this._panelBox.set_y_expand(true);
 
         const buildBar = (pct, barColor) => {
-            const fill = new St.Widget({style_class: 'ai-usage-panel-meter-fill'});
+            const fill = new St.Widget({style_class: 'usagestat-panel-meter-fill'});
             fill.set_width(Math.round(pct * 0.18));
             fill.set_style(`background-color: ${barColor};`);
-            const meter = new St.BoxLayout({style_class: 'ai-usage-panel-meter'});
+            const meter = new St.BoxLayout({style_class: 'usagestat-panel-meter'});
             meter.set_y_align(Clutter.ActorAlign.CENTER);
             meter.set_style(`border-color: ${neutralColor};`);
             meter.add_child(fill);
@@ -525,7 +617,7 @@ export default class AIUsageBarExtension extends Extension {
             const effectiveBarLayout = barsToShow === 1 ? 'horizontal' : barLayout;
             const stack = new St.BoxLayout({
                 vertical: effectiveBarLayout === 'vertical',
-                style_class: 'ai-usage-panel-provider-stack',
+                style_class: 'usagestat-panel-provider-stack',
                 y_align: Clutter.ActorAlign.CENTER,
                 x_align: Clutter.ActorAlign.CENTER,
             });
@@ -541,7 +633,7 @@ export default class AIUsageBarExtension extends Extension {
             }
 
             const frame = new St.Bin({
-                style_class: 'ai-usage-panel-provider-frame',
+                style_class: 'usagestat-panel-provider-frame',
                 xAlign: Clutter.ActorAlign.CENTER,
                 yAlign: Clutter.ActorAlign.CENTER,
                 y_align: Clutter.ActorAlign.CENTER,
@@ -557,7 +649,7 @@ export default class AIUsageBarExtension extends Extension {
             const color = this._colorForUsedPercent(usedPercent);
 
             const providerBox = new St.BoxLayout({
-                style_class: 'ai-usage-panel-provider-box',
+                style_class: 'usagestat-panel-provider-box',
                 y_align: Clutter.ActorAlign.CENTER,
                 y_expand: true,
                 style: 'spacing: 6px;',
@@ -567,20 +659,20 @@ export default class AIUsageBarExtension extends Extension {
 
             const label = new St.Label({
                 text: this._providerName(this._providerForKey(providerId) || providerId),
-                style_class: 'ai-usage-panel-label',
+                style_class: 'usagestat-panel-label',
                 y_align: Clutter.ActorAlign.CENTER,
             });
             label.set_style(`color: ${neutralColor};`);
 
             const percentLabel = new St.Label({
                 text: `${Math.round(shownPercent)}%`,
-                style_class: 'ai-usage-panel-label',
+                style_class: 'usagestat-panel-label',
                 y_align: Clutter.ActorAlign.CENTER,
             });
             percentLabel.set_style(`color: ${neutralColor};`);
 
-            const icon = this._providerIcon(this._providerForKey(providerId) || providerId, this._panelIconHeight(16));
-            icon.add_style_class_name('ai-usage-panel-icon');
+            const icon = this._panelProviderIcon(this._providerForKey(providerId) || providerId, this._panelIconHeight(16), shownPercent);
+            icon.add_style_class_name('usagestat-panel-icon');
             icon.set_y_align(Clutter.ActorAlign.CENTER);
 
             for (const component of components) {
@@ -676,10 +768,7 @@ export default class AIUsageBarExtension extends Extension {
         }
 
         if (error) {
-            this._content.add_child(new St.Label({
-                text: error,
-                style_class: 'ai-usage-message-body',
-            }));
+            this._renderProviderError(providerId, error);
             return;
         }
 
@@ -688,6 +777,12 @@ export default class AIUsageBarExtension extends Extension {
                 this._renderLoadingProvider(providerId);
             else
                 this._renderMessage(this._providerName(this._providerForKey(providerId) || providerId), _('No usage fetched yet.'));
+            return;
+        }
+
+        const snapshotError = this._snapshotErrorMessage(snapshot);
+        if (snapshotError) {
+            this._renderProviderError(providerId, snapshotError);
             return;
         }
 
@@ -710,11 +805,13 @@ export default class AIUsageBarExtension extends Extension {
 
         this._renderPace(snapshot);
         this._renderMetricLines(providerId, usage);
+        if (this._usageWindowVisible(providerId, 'costSummary'))
+            this._renderCostSummary(usage.costSummary);
 
-        if (snapshot.credits?.remaining !== undefined)
+        if (snapshot.credits?.remaining !== undefined && this._usageWindowVisible(providerId, 'credits'))
             this._renderCreditLine(_('Credits: %s left').format(String(snapshot.credits.remaining)));
 
-        if (snapshot.openaiDashboard?.codeReviewRemainingPercent !== undefined)
+        if (snapshot.openaiDashboard?.codeReviewRemainingPercent !== undefined && this._usageWindowVisible(providerId, 'codeReview'))
             this._renderCreditLine(_('Code review: %s%% left').format(Math.round(snapshot.openaiDashboard.codeReviewRemainingPercent)));
 
         for (const child of this._childProviders(providerId))
@@ -726,30 +823,33 @@ export default class AIUsageBarExtension extends Extension {
         const snapshot = this._usage.get(key);
         const error = this._errors.get(key);
 
-        this._content.add_child(new St.Widget({style_class: 'ai-usage-separator'}));
+        this._content.add_child(new St.Widget({style_class: 'usagestat-separator'}));
         
         if (error || snapshot) {
             this._renderProviderHeader(snapshot || {}, key, true);
         } else {
             this._content.add_child(new St.Label({
                 text: this._providerName(provider),
-                style_class: 'ai-usage-provider-heading',
+                style_class: 'usagestat-provider-heading',
             }));
         }
 
         if (error) {
-            this._content.add_child(new St.Label({
-                text: error,
-                style_class: 'ai-usage-message-body',
-            }));
+            this._renderProviderError(key, error);
             return;
         }
 
         if (!snapshot) {
             this._content.add_child(new St.Label({
                 text: this._loading ? _('Fetching usage...') : _('No usage fetched yet.'),
-                style_class: 'ai-usage-muted',
+                style_class: 'usagestat-muted',
             }));
+            return;
+        }
+
+        const snapshotError = this._snapshotErrorMessage(snapshot);
+        if (snapshotError) {
+            this._renderProviderError(key, snapshotError);
             return;
         }
 
@@ -768,45 +868,47 @@ export default class AIUsageBarExtension extends Extension {
             this._renderProviderCost(usage.providerCost);
         this._renderPace(snapshot);
         this._renderMetricLines(key, usage);
+        if (this._usageWindowVisible(key, 'costSummary'))
+            this._renderCostSummary(usage.costSummary);
     }
 
     _renderLoadingProvider(providerId) {
         this._content.add_child(new St.Label({
             text: this._providerName(this._providerForKey(providerId) || providerId),
-            style_class: 'ai-usage-provider-heading',
+            style_class: 'usagestat-provider-heading',
         }));
 
-        const meta = new St.BoxLayout({style_class: 'ai-usage-provider-meta'});
+        const meta = new St.BoxLayout({style_class: 'usagestat-provider-meta'});
         meta.add_child(new St.Label({
             text: _('Fetching usage...'),
-            style_class: 'ai-usage-muted',
+            style_class: 'usagestat-muted',
             x_expand: true,
         }));
         meta.add_child(new St.Icon({
             icon_name: 'process-working-symbolic',
             icon_size: 14,
-            style_class: 'ai-usage-loading-icon',
+            style_class: 'usagestat-loading-icon',
         }));
         this._content.add_child(meta);
-        this._content.add_child(new St.Widget({style_class: 'ai-usage-separator'}));
+        this._content.add_child(new St.Widget({style_class: 'usagestat-separator'}));
 
         for (const title of [_('Session'), _('Weekly'), _('Extra usage')])
             this._renderLoadingWindow(title);
     }
 
     _renderLoadingWindow(title) {
-        const row = new St.BoxLayout({vertical: true, style_class: 'ai-usage-window'});
-        row.add_child(new St.Label({text: title, style_class: 'ai-usage-window-title'}));
+        const row = new St.BoxLayout({vertical: true, style_class: 'usagestat-window'});
+        row.add_child(new St.Label({text: title, style_class: 'usagestat-window-title'}));
 
-        const track = new St.BoxLayout({style_class: 'ai-usage-track loading'});
-        const fill = new St.Widget({style_class: 'ai-usage-track-fill loading'});
+        const track = new St.BoxLayout({style_class: 'usagestat-track loading'});
+        const fill = new St.Widget({style_class: 'usagestat-track-fill loading'});
         fill.set_width(54);
         track.add_child(fill);
         row.add_child(track);
 
         row.add_child(new St.Label({
             text: _('Loading...'),
-            style_class: 'ai-usage-muted',
+            style_class: 'usagestat-muted',
         }));
         this._content.add_child(row);
     }
@@ -819,6 +921,9 @@ export default class AIUsageBarExtension extends Extension {
         if (this._errors.has(providerId)) {
             state = 'red';
             tooltip = this._errors.get(providerId);
+        } else if (this._snapshotErrorMessage(snapshot)) {
+            state = 'red';
+            tooltip = this._snapshotErrorMessage(snapshot);
         } else if (this._loading && !snapshot.fetchedAt) {
             state = 'orange';
             tooltip = _('Checking source...');
@@ -834,7 +939,7 @@ export default class AIUsageBarExtension extends Extension {
         }[state] || '#f6d32d';
 
         const headerBox = new St.BoxLayout({
-            style_class: 'ai-usage-provider-heading-box',
+            style_class: 'usagestat-provider-heading-box',
         });
 
         const leftGroup = new St.BoxLayout({x_expand: true});
@@ -844,7 +949,7 @@ export default class AIUsageBarExtension extends Extension {
         }));
         leftGroup.add_child(new St.Label({
             text: this._providerHeading(snapshot, providerId),
-            style_class: 'ai-usage-provider-heading',
+            style_class: 'usagestat-provider-heading',
             y_align: Clutter.ActorAlign.CENTER,
         }));
 
@@ -854,11 +959,26 @@ export default class AIUsageBarExtension extends Extension {
         const peakText = peakBadge?.text;
 
         for (const chipText of [plan, mode, peakText].filter(Boolean))
-            leftGroup.add_child(new St.Label({text: chipText, style_class: 'ai-usage-chip', y_align: Clutter.ActorAlign.CENTER}));
+            leftGroup.add_child(new St.Label({text: chipText, style_class: 'usagestat-chip', y_align: Clutter.ActorAlign.CENTER}));
 
         headerBox.add_child(leftGroup);
 
-        if (this._settings.get_boolean('show-status-link') && snapshot.statusPageUrl) {
+        const dashboardUrl = this._providerDashboardUrl(snapshot, providerId);
+        if (this._settings.get_boolean('show-dashboard-link') && dashboardUrl) {
+            const dashboardBtn = new St.Button({
+                child: this._usageIcon(this._snapshotUsedPercent(snapshot, providerId), 16),
+                style_class: 'usagestat-icon-button',
+                can_focus: true,
+            });
+            dashboardBtn.connect('clicked', () => {
+                this._openUri(dashboardUrl);
+                this._indicator.menu.close();
+            });
+            headerBox.add_child(dashboardBtn);
+        }
+
+        const statusPageUrl = snapshot.statusPageUrl || this._providerManifest(providerId)?.statusPageUrl;
+        if (this._settings.get_boolean('show-status-link') && statusPageUrl) {
             const statusIconFile = Gio.File.new_for_path(
                 GLib.build_filenamev([EXTENSION_DIR, 'assets', 'status-icons', 'uptimekit-light.svg'])
             );
@@ -867,11 +987,9 @@ export default class AIUsageBarExtension extends Extension {
                 icon_size: 16,
                 y_align: Clutter.ActorAlign.CENTER,
             });
-            const statusBtn = new St.Button({child: statusIcon, style_class: 'ai-usage-icon-button', can_focus: true});
+            const statusBtn = new St.Button({child: statusIcon, style_class: 'usagestat-icon-button', can_focus: true});
             statusBtn.connect('clicked', () => {
-                try {
-                    Gio.app_info_launch_default_for_uri(snapshot.statusPageUrl, null);
-                } catch {}
+                this._openUri(statusPageUrl);
                 this._indicator.menu.close();
             });
             headerBox.add_child(statusBtn);
@@ -880,17 +998,17 @@ export default class AIUsageBarExtension extends Extension {
         this._content.add_child(headerBox);
 
         if (!isChild) {
-            const meta = new St.BoxLayout({style_class: 'ai-usage-provider-meta'});
+            const meta = new St.BoxLayout({style_class: 'usagestat-provider-meta'});
             this._updatedLabel = new St.Label({
                 text: usage.updatedAt ? this._updatedText(usage.updatedAt) : _('Updated just now'),
-                style_class: 'ai-usage-muted',
+                style_class: 'usagestat-muted',
                 x_expand: true,
             });
             meta.add_child(this._updatedLabel);
             const nextText = this._nextRefreshText();
             this._nextRefreshLabel = new St.Label({
                 text: nextText || '',
-                style_class: 'ai-usage-muted',
+                style_class: 'usagestat-muted',
                 visible: Boolean(nextText),
             });
             meta.add_child(this._nextRefreshLabel);
@@ -903,21 +1021,21 @@ export default class AIUsageBarExtension extends Extension {
             snapshot.status?.description,
         ].filter(Boolean).join('  |  ');
         if (detail)
-            this._content.add_child(new St.Label({text: detail, style_class: 'ai-usage-detail'}));
+            this._content.add_child(new St.Label({text: detail, style_class: 'usagestat-detail'}));
 
         if (!isChild)
-            this._content.add_child(new St.Widget({style_class: 'ai-usage-separator'}));
+            this._content.add_child(new St.Widget({style_class: 'usagestat-separator'}));
     }
 
     _renderUsageWindow(title, window) {
         const percent = this._displayPercent(window);
         const color = this._colorForPercent(percent);
-        const row = new St.BoxLayout({vertical: true, style_class: 'ai-usage-window'});
-        row.add_child(new St.Label({text: title, style_class: 'ai-usage-window-title'}));
+        const row = new St.BoxLayout({vertical: true, style_class: 'usagestat-window'});
+        row.add_child(new St.Label({text: title, style_class: 'usagestat-window-title'}));
 
-        const track = new St.BoxLayout({style_class: 'ai-usage-track'});
+        const track = new St.BoxLayout({style_class: 'usagestat-track'});
         const fill = new St.Widget({
-            style_class: 'ai-usage-track-fill',
+            style_class: 'usagestat-track-fill',
             style: `background-color: ${color};`,
         });
         fill.set_width(this._barFillWidth(percent, 390));
@@ -927,12 +1045,12 @@ export default class AIUsageBarExtension extends Extension {
         const footer = new St.BoxLayout();
         footer.add_child(new St.Label({
             text: this._formatPercent(percent),
-            style_class: 'ai-usage-window-percent',
+            style_class: 'usagestat-window-percent',
             x_expand: true,
         }));
         footer.add_child(new St.Label({
             text: this._resetText(window),
-            style_class: 'ai-usage-muted',
+            style_class: 'usagestat-muted',
         }));
         row.add_child(footer);
         this._content.add_child(row);
@@ -954,12 +1072,12 @@ export default class AIUsageBarExtension extends Extension {
         const percent = this._displayPercent(window);
         const color = this._colorForPercent(percent);
 
-        const row = new St.BoxLayout({vertical: true, style_class: 'ai-usage-window'});
-        row.add_child(new St.Label({text: title, style_class: 'ai-usage-window-title'}));
+        const row = new St.BoxLayout({vertical: true, style_class: 'usagestat-window'});
+        row.add_child(new St.Label({text: title, style_class: 'usagestat-window-title'}));
 
-        const track = new St.BoxLayout({style_class: 'ai-usage-track'});
+        const track = new St.BoxLayout({style_class: 'usagestat-track'});
         const fill = new St.Widget({
-            style_class: 'ai-usage-track-fill',
+            style_class: 'usagestat-track-fill',
             style: `background-color: ${color};`,
         });
         fill.set_width(this._barFillWidth(percent, 390));
@@ -969,12 +1087,12 @@ export default class AIUsageBarExtension extends Extension {
         const footer = new St.BoxLayout();
         footer.add_child(new St.Label({
             text: this._providerCostText(cost),
-            style_class: 'ai-usage-window-percent',
+            style_class: 'usagestat-window-percent',
             x_expand: true,
         }));
         footer.add_child(new St.Label({
             text: _('%s%% used').format(Math.round(usedPercent)),
-            style_class: 'ai-usage-muted',
+            style_class: 'usagestat-muted',
         }));
         row.add_child(footer);
         this._content.add_child(row);
@@ -1009,10 +1127,10 @@ export default class AIUsageBarExtension extends Extension {
         const stageLabel = stageLabels[pace.stage] || pace.stage;
         const color = stageColors[pace.stage] || this._settings.get_string('accent-color');
 
-        const row = new St.BoxLayout({style_class: 'ai-usage-window'});
+        const row = new St.BoxLayout({style_class: 'usagestat-window'});
         row.add_child(new St.Label({
             text: _('Pace:'),
-            style_class: 'ai-usage-muted',
+            style_class: 'usagestat-muted',
             y_align: Clutter.ActorAlign.CENTER,
         }));
         row.add_child(new St.Label({
@@ -1026,7 +1144,7 @@ export default class AIUsageBarExtension extends Extension {
             const sign = delta >= 0 ? '+' : '−';
             row.add_child(new St.Label({
                 text: `  ${sign}${Math.abs(delta).toFixed(1)}%`,
-                style_class: 'ai-usage-muted',
+                style_class: 'usagestat-muted',
                 y_align: Clutter.ActorAlign.CENTER,
             }));
         }
@@ -1035,7 +1153,7 @@ export default class AIUsageBarExtension extends Extension {
             const eta = this._relativeResetText(Math.round(Number(pace.etaSeconds)));
             row.add_child(new St.Label({
                 text: _(' · runs out in %s').format(eta),
-                style_class: 'ai-usage-danger',
+                style_class: 'usagestat-danger',
                 y_align: Clutter.ActorAlign.CENTER,
             }));
         }
@@ -1046,7 +1164,7 @@ export default class AIUsageBarExtension extends Extension {
     _renderCreditLine(text) {
         this._content.add_child(new St.Label({
             text,
-            style_class: 'ai-usage-credits',
+            style_class: 'usagestat-credits',
         }));
     }
 
@@ -1068,6 +1186,37 @@ export default class AIUsageBarExtension extends Extension {
             if (text)
                 this._renderCreditLine(text);
         }
+    }
+
+    _renderCostSummary(summary) {
+        const lines = (summary?.lines || []).filter(line => line?.label);
+        if (!lines.length)
+            return;
+
+        const row = new St.BoxLayout({vertical: true, style_class: 'usagestat-cost'});
+        row.add_child(new St.Label({
+            text: _('Cost'),
+            style_class: 'usagestat-window-title',
+        }));
+
+        for (const line of lines) {
+            const lineBox = new St.BoxLayout({style_class: 'usagestat-cost-row'});
+            lineBox.add_child(new St.Label({
+                text: line.label,
+                style_class: 'usagestat-muted',
+                x_expand: true,
+            }));
+            lineBox.add_child(new St.Label({
+                text: _('%s · %s tokens').format(
+                    this._formatMoney(Number(line.cost) || 0, line.currency || summary.currency),
+                    this._formatCompactNumber(Number(line.tokens) || 0),
+                ),
+                style_class: 'usagestat-credits',
+            }));
+            row.add_child(lineBox);
+        }
+
+        this._content.add_child(row);
     }
 
     _providerCostText(cost) {
@@ -1096,15 +1245,126 @@ export default class AIUsageBarExtension extends Extension {
         }
     }
 
+    _formatCompactNumber(value) {
+        const number = Math.max(0, Number(value) || 0);
+        if (number >= 1_000_000_000)
+            return _('%sB').format((number / 1_000_000_000).toFixed(number >= 10_000_000_000 ? 0 : 1).replace(/\.0$/, ''));
+        if (number >= 1_000_000)
+            return _('%sM').format((number / 1_000_000).toFixed(number >= 10_000_000 ? 0 : 1).replace(/\.0$/, ''));
+        if (number >= 1_000)
+            return _('%sK').format((number / 1_000).toFixed(number >= 10_000 ? 0 : 1).replace(/\.0$/, ''));
+        return String(Math.round(number));
+    }
+
+    _providerDashboardUrl(snapshot, providerId) {
+        const usage = snapshot?.usage || {};
+        const configured = this._providerForKey(providerId);
+        const baseId = providerBaseId(configured || providerId);
+        const manifest = this._providerManifest(providerId);
+        return snapshot?.dashboardUrl
+            || snapshot?.usageDashboardUrl
+            || usage.dashboardUrl
+            || usage.usageDashboardUrl
+            || configured?.dashboardUrl
+            || configured?.usageDashboardUrl
+            || configured?.settings?.dashboardUrl
+            || configured?.settings?.usageDashboardUrl
+            || manifest?.usageDashboardUrl
+            || manifest?.dashboardUrl
+            || PROVIDER_DASHBOARD_URLS[baseId]
+            || '';
+    }
+
+    _openUri(uri) {
+        try {
+            Gio.app_info_launch_default_for_uri(uri, null);
+        } catch (error) {
+            logError(error, 'UsageStat Bar: failed to open URI');
+        }
+    }
+
     _renderMessage(title, body, isError = false) {
         this._content.add_child(new St.Label({
             text: title,
-            style_class: isError ? 'ai-usage-message-title danger' : 'ai-usage-message-title',
+            style_class: isError ? 'usagestat-message-title danger' : 'usagestat-message-title',
         }));
-        this._content.add_child(new St.Label({
-            text: body,
-            style_class: 'ai-usage-message-body',
+        this._content.add_child(this._wrappedLabel(body, 'usagestat-message-body'));
+    }
+
+    _renderProviderError(providerId, error) {
+        if (!this._isProviderSetupError(providerId, error)) {
+            this._content.add_child(this._wrappedLabel(error, 'usagestat-message-body'));
+            return;
+        }
+
+        this._renderMessage(
+            _('%s setup required').format(this._providerName(this._providerForKey(providerId) || providerId)),
+            this._providerSetupMessage(providerId),
+            true,
+        );
+        this._content.add_child(this._wrappedLabel(this._cleanErrorText(error), 'usagestat-error-detail'));
+
+        const actions = new St.BoxLayout({style_class: 'usagestat-action-row'});
+        actions.add_child(this._actionButton(_('Open Setup'), 'document-edit-symbolic', () => {
+            this._openProviderPreferences(providerId);
         }));
+        this._content.add_child(actions);
+    }
+
+    _isProviderSetupError(providerId, error) {
+        const provider = this._providerForKey(providerId) || providerId;
+        const baseId = providerBaseId(provider);
+        const message = String(error || '').toLowerCase();
+        if (baseId === 't3chat') {
+            return message.includes('not configured')
+                || message.includes('cookie')
+                || message.includes('curl')
+                || message.includes('vercel')
+                || message.includes('challenge');
+        }
+        return message.includes('not configured')
+            || message.includes('missing')
+            || message.includes('api key')
+            || message.includes('cookie')
+            || message.includes('auth');
+    }
+
+    _snapshotErrorMessage(snapshot) {
+        if (!snapshot)
+            return '';
+        const errorBadge = (snapshot.usage?.badges || []).find(badge => {
+            const label = String(badge.label || '').toLowerCase();
+            const color = String(badge.color || '').toLowerCase();
+            return label === 'error' || color === 'red';
+        });
+        if (snapshot.source === 'error')
+            return [errorBadge?.label, errorBadge?.text].filter(Boolean).join(': ') || _('Provider returned an error.');
+        return '';
+    }
+
+    _providerSetupMessage(providerId) {
+        const provider = this._providerForKey(providerId) || providerId;
+        if (providerBaseId(provider) === 't3chat')
+            return _('Open setup, paste the full browser cURL capture into "Cookie header or full cURL", then refresh. Use the T3 getCustomerData request from DevTools.');
+        return _('Open provider setup and add the required credentials or source settings.');
+    }
+
+    _cleanErrorText(error) {
+        return String(error || '')
+            .replace(/^error:\s*/i, '')
+            .replace(/\s+/g, ' ')
+            .trim();
+    }
+
+    _wrappedLabel(text, styleClass) {
+        const label = new St.Label({
+            text: String(text || ''),
+            style_class: styleClass,
+        });
+        label.clutter_text.set_line_wrap(true);
+        label.clutter_text.set_line_wrap_mode(Pango.WrapMode.WORD_CHAR);
+        label.clutter_text.set_ellipsize(Pango.EllipsizeMode.NONE);
+        return label;
     }
 
     _snapshotPercent(snapshot, providerId) {
@@ -1291,6 +1551,12 @@ export default class AIUsageBarExtension extends Extension {
         }
         if (usage.providerCost && Number(usage.providerCost.limit) > 0)
             windows.extraUsage = usage.providerCost.currencyCode === 'Quota' ? _('Quota usage') : _('Extra usage');
+        if (this._costSummaryHasData(usage.costSummary))
+            windows.costSummary = _('Cost');
+        if (snapshot.credits?.remaining !== undefined)
+            windows.credits = _('Credits');
+        if (snapshot.openaiDashboard?.codeReviewRemainingPercent !== undefined)
+            windows.codeReview = _('Code review');
         for (const line of usage.extraTextLines || []) {
             const id = this._metricLineId('text', line.label || line.value);
             if (id)
@@ -1375,6 +1641,10 @@ export default class AIUsageBarExtension extends Extension {
         }
     }
 
+    _costSummaryHasData(summary) {
+        return (summary?.lines || []).some(line => Number(line?.cost) > 0 || Number(line?.tokens) > 0);
+    }
+
     _panelUsageTier(providerId) {
         return this._providerUsageSettings(providerId).panelUsageTier || 'auto';
     }
@@ -1424,7 +1694,7 @@ export default class AIUsageBarExtension extends Extension {
                 const icon = new St.Icon({
                     gicon: Gio.FileIcon.new(renderFile),
                     icon_size: height,
-                    style_class: 'ai-usage-provider-icon',
+                    style_class: 'usagestat-provider-icon',
                     y_align: Clutter.ActorAlign.CENTER,
                 });
                 const {width, height: viewBoxHeight} = this._svgViewBox(renderFile);
@@ -1437,8 +1707,218 @@ export default class AIUsageBarExtension extends Extension {
         return new St.Icon({
             icon_name: 'applications-science-symbolic',
             icon_size: height,
-            style_class: 'ai-usage-provider-icon fallback',
+            style_class: 'usagestat-provider-icon fallback',
         });
+    }
+
+    _panelProviderIcon(provider, height, percentage) {
+        const mode = this._settings.get_string('provider-logo-fill-mode');
+        if (!['vertical', 'horizontal', 'pie'].includes(mode))
+            return this._providerIcon(provider, height);
+
+        const providerId = providerBaseId(provider);
+        const fileName = this._providerIconFile(provider, providerId);
+        if (!fileName)
+            return this._providerIcon(provider, height);
+
+        const file = this._providerIconGFile(fileName);
+        if (!file.query_exists(null))
+            return this._providerIcon(provider, height);
+
+        const renderFile = this._providerIconRenderFile(file, fileName);
+        const fillFile = this._usageFilledProviderIconFile(renderFile, mode, percentage);
+        if (!fillFile)
+            return this._providerIcon(provider, height);
+
+        const icon = new St.Icon({
+            gicon: Gio.FileIcon.new(fillFile),
+            icon_size: height,
+            style_class: 'usagestat-provider-icon',
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        const {width, height: viewBoxHeight} = this._svgViewBox(fillFile);
+        icon.set_height(height);
+        icon.set_width(Math.round(height * (width / viewBoxHeight)));
+        return icon;
+    }
+
+    _usageFilledProviderIconFile(file, mode, percentage) {
+        try {
+            const [ok, bytes] = file.load_contents(null);
+            if (!ok)
+                return null;
+            const source = new TextDecoder().decode(bytes);
+            const svg = this._usageFilledProviderIconSvg(source, mode, percentage);
+            if (!svg)
+                return null;
+
+            const cacheDir = Gio.File.new_for_path(GLib.build_filenamev([GLib.get_user_cache_dir(), 'usagestat-bar', 'provider-icons']));
+            if (!cacheDir.query_exists(null))
+                cacheDir.make_directory_with_parents(null);
+            const sourcePath = file.get_path() || 'provider-icon';
+            const pct = Math.max(0, Math.min(100, Math.round(Number(percentage) || 0)));
+            const hash = GLib.compute_checksum_for_string(GLib.ChecksumType.SHA256, `${sourcePath}:${mode}:${pct}:${svg}`, -1).slice(0, 16);
+            const basename = GLib.path_get_basename(sourcePath).replace(/\.svg$/i, '');
+            const path = GLib.build_filenamev([cacheDir.get_path(), `${basename}-${mode}-${pct}-${hash}.svg`]);
+            const outFile = Gio.File.new_for_path(path);
+            if (!outFile.query_exists(null)) {
+                outFile.replace_contents(
+                    new TextEncoder().encode(svg),
+                    null,
+                    false,
+                    Gio.FileCreateFlags.REPLACE_DESTINATION,
+                    null,
+                );
+            }
+            return outFile;
+        } catch (error) {
+            logError(error, 'UsageStat Bar: failed to create usage-filled provider icon');
+            return null;
+        }
+    }
+
+    _usageFilledProviderIconSvg(source, mode, percentage) {
+        const viewBoxMatch = source.match(/viewBox=["']\s*([-\d.]+)\s+([-\d.]+)\s+([\d.]+)\s+([\d.]+)\s*["']/);
+        const bodyMatch = source.match(/<svg\b[^>]*>([\s\S]*?)<\/svg>/i);
+        if (!viewBoxMatch || !bodyMatch)
+            return null;
+
+        const minX = Number(viewBoxMatch[1]);
+        const minY = Number(viewBoxMatch[2]);
+        const width = Number(viewBoxMatch[3]);
+        const height = Number(viewBoxMatch[4]);
+        if (![minX, minY, width, height].every(Number.isFinite) || width <= 0 || height <= 0)
+            return null;
+
+        const pct = Math.max(0, Math.min(100, Number(percentage) || 0));
+        const body = bodyMatch[1]
+            .replace(/<title[\s\S]*?<\/title>/gi, '')
+            .replace(/<desc[\s\S]*?<\/desc>/gi, '');
+        const presentationAttrs = this._svgRootPresentationAttributes(source);
+        const clipId = `usageClip${Math.round(pct)}${mode}`;
+        const clip = this._providerLogoClipPath(mode, pct, minX, minY, width, height);
+        return [
+            `<svg width="${width}" height="${height}" viewBox="${minX} ${minY} ${width} ${height}" fill="none" xmlns="http://www.w3.org/2000/svg">`,
+            '<defs>',
+            `<clipPath id="${clipId}">${clip}</clipPath>`,
+            '</defs>',
+            `<g opacity="0.22"${presentationAttrs}>`,
+            body,
+            '</g>',
+            `<g clip-path="url(#${clipId})"${presentationAttrs}>`,
+            body,
+            '</g>',
+            '</svg>',
+        ].join('');
+    }
+
+    _svgRootPresentationAttributes(source) {
+        const root = source.match(/<svg\b([^>]*)>/i)?.[1] || '';
+        const allowed = new Set([
+            'color',
+            'fill',
+            'fill-rule',
+            'stroke',
+            'stroke-width',
+            'stroke-linecap',
+            'stroke-linejoin',
+            'stroke-miterlimit',
+            'stroke-opacity',
+            'fill-opacity',
+            'clip-rule',
+        ]);
+        const attrs = [];
+        const re = /([A-Za-z_:][-A-Za-z0-9_:.]*)=(["'])(.*?)\2/g;
+        let match;
+        while ((match = re.exec(root)) !== null) {
+            if (allowed.has(match[1]))
+                attrs.push(`${match[1]}=${match[2]}${match[3]}${match[2]}`);
+        }
+        return attrs.length ? ` ${attrs.join(' ')}` : '';
+    }
+
+    _providerLogoClipPath(mode, pct, minX, minY, width, height) {
+        if (pct >= 100)
+            return `<rect x="${minX}" y="${minY}" width="${width}" height="${height}"/>`;
+        if (pct <= 0)
+            return '<rect width="0" height="0"/>';
+
+        if (mode === 'horizontal') {
+            const fillWidth = width * pct / 100;
+            return `<rect x="${minX}" y="${minY}" width="${fillWidth}" height="${height}"/>`;
+        }
+        if (mode === 'vertical') {
+            const fillHeight = height * pct / 100;
+            return `<rect x="${minX}" y="${minY + height - fillHeight}" width="${width}" height="${fillHeight}"/>`;
+        }
+
+        const cx = minX + width / 2;
+        const cy = minY + height / 2;
+        const r = Math.sqrt(width * width + height * height) / 2;
+        const angle = pct / 100 * 360;
+        const startAngle = -90;
+        const endAngle = startAngle + angle;
+        const toRadians = deg => deg * Math.PI / 180;
+        const startX = cx + r * Math.cos(toRadians(startAngle));
+        const startY = cy + r * Math.sin(toRadians(startAngle));
+        const endX = cx + r * Math.cos(toRadians(endAngle));
+        const endY = cy + r * Math.sin(toRadians(endAngle));
+        const largeArcFlag = angle > 180 ? 1 : 0;
+        return `<path d="M ${cx} ${cy} L ${startX} ${startY} A ${r} ${r} 0 ${largeArcFlag} 1 ${endX} ${endY} Z" fill="#fff"/>`;
+    }
+
+    _usageIcon(percentage, size) {
+        const file = this._usageIconFile(percentage);
+        return new St.Icon({
+            gicon: Gio.FileIcon.new(file),
+            icon_size: size,
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+    }
+
+    _usageIconFile(percentage) {
+        const pct = Math.max(0, Math.min(100, Math.round(Number(percentage) || 0)));
+        const color = this._settings.get_string('neutral-color') || '#ffffff';
+        const hash = GLib.compute_checksum_for_string(GLib.ChecksumType.SHA256, `${pct}:${color}`, -1).slice(0, 16);
+        const cacheDir = Gio.File.new_for_path(GLib.build_filenamev([GLib.get_user_cache_dir(), 'usagestat-bar', 'usage-icons']));
+        if (!cacheDir.query_exists(null))
+            cacheDir.make_directory_with_parents(null);
+
+        const path = GLib.build_filenamev([cacheDir.get_path(), `usage-${hash}.svg`]);
+        const file = Gio.File.new_for_path(path);
+        if (!file.query_exists(null)) {
+            file.replace_contents(
+                new TextEncoder().encode(this._usageIconSvg(pct, color)),
+                null,
+                false,
+                Gio.FileCreateFlags.REPLACE_DESTINATION,
+                null,
+            );
+        }
+        return file;
+    }
+
+    _usageIconSvg(percentage, color) {
+        const pct = Math.max(0, Math.min(100, Number(percentage) || 0));
+        const angle = pct / 100 * 360;
+        const r = 10;
+        const cx = 12;
+        const cy = 12;
+        const startAngle = -90;
+        const endAngle = startAngle + angle;
+        const toRadians = deg => deg * Math.PI / 180;
+        const startX = cx + r * Math.cos(toRadians(startAngle));
+        const startY = cy + r * Math.sin(toRadians(startAngle));
+        const endX = cx + r * Math.cos(toRadians(endAngle));
+        const endY = cy + r * Math.sin(toRadians(endAngle));
+        const largeArcFlag = angle > 180 ? 1 : 0;
+        const pathData = pct >= 100
+            ? `M ${cx} ${cy} m -${r} 0 a ${r} ${r} 0 1 0 ${r * 2} 0 a ${r} ${r} 0 1 0 -${r * 2} 0`
+            : pct <= 0
+                ? ''
+                : `M ${cx} ${cy} L ${startX} ${startY} A ${r} ${r} 0 ${largeArcFlag} 1 ${endX} ${endY} Z`;
+        const path = pathData ? `<path d="${pathData}" fill="${color}"/>` : '';
+        return `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="${cx}" cy="${cy}" r="${r}" fill="${color}" opacity="0.18"/>${path}</svg>`;
     }
 
     _providerIconFile(provider, providerId) {
@@ -1450,6 +1930,12 @@ export default class AIUsageBarExtension extends Extension {
 
         const iconId = this._providerIconSource(provider, providerId);
         const style = this._providerIconStyle(provider);
+        if (iconId === providerId) {
+            const manifestFile = this._providerManifestIconFile(providerId, style);
+            if (manifestFile)
+                return manifestFile;
+        }
+
         const baseFile = PROVIDER_ICON_FILES[iconId] || `${iconId}.svg`;
         const colorFile = style === 'color' && baseFile ? baseFile.replace(/\.svg$/, '-color.svg') : null;
         if (colorFile) {
@@ -1459,6 +1945,26 @@ export default class AIUsageBarExtension extends Extension {
         }
         const file = this._providerIconGFile(baseFile);
         return file.query_exists(null) ? baseFile : null;
+    }
+
+    _providerManifest(providerId) {
+        const provider = this._providerForKey(providerId);
+        return this._manifests?.get(providerBaseId(provider || providerId)) || null;
+    }
+
+    _providerManifestIconFile(providerId, style) {
+        const icon = this._providerManifest(providerId)?.icon;
+        if (!icon || typeof icon !== 'object')
+            return null;
+
+        const candidate = style === 'color'
+            ? icon.colorPath || icon.variants?.color?.path || icon.path
+            : icon.monochromePath || icon.variants?.monochrome?.path || icon.path;
+        if (!candidate || !GLib.path_is_absolute(candidate))
+            return null;
+
+        const file = Gio.File.new_for_path(candidate);
+        return file.query_exists(null) ? candidate : null;
     }
 
     _providerIconGFile(fileName) {
@@ -1484,7 +1990,7 @@ export default class AIUsageBarExtension extends Extension {
                 return file;
 
             const themed = text.replace(/currentColor/g, color);
-            const cacheDir = Gio.File.new_for_path(GLib.build_filenamev([GLib.get_user_cache_dir(), 'ai-usage-bar', 'provider-icons']));
+            const cacheDir = Gio.File.new_for_path(GLib.build_filenamev([GLib.get_user_cache_dir(), 'usagestat-bar', 'provider-icons']));
             if (!cacheDir.query_exists(null))
                 cacheDir.make_directory_with_parents(null);
             const sourcePath = file.get_path() || 'provider-icon';
@@ -1503,7 +2009,7 @@ export default class AIUsageBarExtension extends Extension {
             }
             return themedFile;
         } catch (error) {
-            logError(error, 'AI Usage Bar: failed to theme provider icon');
+            logError(error, 'UsageStat Bar: failed to theme provider icon');
             return file;
         }
     }
@@ -1642,9 +2148,9 @@ export default class AIUsageBarExtension extends Extension {
         return _('Updated %sd ago').format(Math.round(seconds / 86400));
     }
 
-    _openProviderPreferences() {
-        if (this._activeId)
-            this._settings.set_string('preferences-provider', this._activeId);
+    _openProviderPreferences(providerId = this._activeId) {
+        if (providerId)
+            this._settings.set_string('preferences-provider', providerId);
         this.openPreferences();
         this._indicator.menu.close();
     }

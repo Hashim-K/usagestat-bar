@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-uuid="ai-usage-bar@local"
+uuid="usagestat-bar@hashimkarim"
 source_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 target="${HOME}/.local/share/gnome-shell/extensions/${uuid}"
 

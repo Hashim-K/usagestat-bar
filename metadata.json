@@ -1,8 +1,15 @@
 {
-  "uuid": "ai-usage-bar@local",
-  "name": "AI Usage Bar",
-  "description": "GNOME panel usage meter for ai-usage CLI providers.",
+  "uuid": "usagestat-bar@hashimkarim",
+  "name": "UsageStat Bar",
+  "description": "GNOME panel usage meter for usagestat CLI providers.",
   "shell-version": ["45", "46", "47", "48", "49", "50"],
-  "settings-schema": "org.gnome.shell.extensions.ai-usage-bar",
-  "gettext-domain": "ai-usage-bar"
+  "settings-schema": "org.gnome.shell.extensions.usagestat-bar",
+  "gettext-domain": "usagestat-bar",
+  "url": "https://github.com/Hashim-K/usagestat-bar",
+  "author": "Hashim Karim",
+  "donations": {
+    "paypal": "hashimkarim",
+    "github": "Hashim-K",
+    "kofi": "hashimkarim"
+  }
 }

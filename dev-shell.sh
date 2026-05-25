@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-uuid="ai-usage-bar@local"
+uuid="usagestat-bar@hashimkarim"
 source_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 shell_major="$(gnome-shell --version | awk '{split($3, parts, "."); print parts[1] + 0}')"
 
