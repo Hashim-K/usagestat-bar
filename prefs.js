@@ -127,6 +127,67 @@ function entryRow(title, value, placeholder, secret = false) {
     return row;
 }
 
+function multilineTextRow(title, value) {
+    const box = new Gtk.Box({
+        orientation: Gtk.Orientation.VERTICAL,
+        spacing: 8,
+        margin_top: 12,
+        margin_bottom: 12,
+        margin_start: 12,
+        margin_end: 12,
+    });
+    box.append(new Gtk.Label({
+        label: title,
+        xalign: 0,
+        css_classes: ['heading'],
+    }));
+
+    const buffer = new Gtk.TextBuffer();
+    buffer.set_text(value || '', -1);
+    const textView = new Gtk.TextView({
+        buffer,
+        monospace: true,
+        wrap_mode: Gtk.WrapMode.WORD_CHAR,
+        top_margin: 8,
+        bottom_margin: 8,
+        left_margin: 8,
+        right_margin: 8,
+        vexpand: true,
+        hexpand: true,
+    });
+    const scroller = new Gtk.ScrolledWindow({
+        min_content_height: 120,
+        max_content_height: 220,
+        hexpand: true,
+        vexpand: false,
+    });
+    scroller.set_child(textView);
+    box.append(scroller);
+
+    const actionBox = new Gtk.Box({
+        halign: Gtk.Align.END,
+        spacing: 8,
+    });
+    box.append(actionBox);
+
+    const row = new Adw.PreferencesRow({child: box});
+    row._entry = {
+        get_text() {
+            const [start, end] = buffer.get_bounds();
+            return buffer.get_text(start, end, false);
+        },
+        set_text(text) {
+            buffer.set_text(text || '', -1);
+        },
+        connect(signal, callback) {
+            return buffer.connect(signal, callback);
+        },
+    };
+    row._buttonBox = actionBox;
+    row._textView = textView;
+    return row;
+}
+
 function settingsBinary(settings) {
     return findAiUsage(settings.get_string('usagestat-cli-path')) || '';
 }
@@ -2485,12 +2546,9 @@ class ProvidersPage extends Adw.PreferencesPage {
 
         if (effectiveSource === 'web') {
             const t3Chat = this._isT3ChatProvider(provider);
-            const cookieHeaderRow = entryRow(
-                t3Chat ? _('Cookie header or full cURL') : _('Cookie header'),
-                provider.cookieHeader || '',
-                t3Chat ? _('Paste Cookie header or full cURL command') : _('name=value; other=value'),
-                true,
-            );
+            const cookieHeaderRow = t3Chat
+                ? multilineTextRow(_('Cookie header or full cURL'), provider.cookieHeader || '')
+                : entryRow(_('Cookie header'), provider.cookieHeader || '', _('name=value; other=value'), true);
             cookieHeaderRow._entry.connect('changed', () => {
                 if (t3Chat)
                     this._assignOptionalRaw(provider, 'cookieHeader', cookieHeaderRow._entry.get_text());
@@ -2506,15 +2564,24 @@ class ProvidersPage extends Adw.PreferencesPage {
                     tooltip_text: _('Open provider login'),
                 });
                 loginButton.connect('clicked', () => this._openProviderLogin(provider));
-                cookieHeaderRow.add_suffix(loginButton);
+                if (t3Chat)
+                    cookieHeaderRow._buttonBox.append(loginButton);
+                else
+                    cookieHeaderRow.add_suffix(loginButton);
             }
             if (t3Chat) {
+                const clearButton = new Gtk.Button({
+                    label: _('Clear'),
+                    valign: Gtk.Align.CENTER,
+                });
+                clearButton.connect('clicked', () => cookieHeaderRow._entry.set_text(''));
                 const curlButton = new Gtk.Button({
                     label: _('How to copy cURL'),
                     valign: Gtk.Align.CENTER,
                 });
                 curlButton.connect('clicked', () => this._showCurlInstructions(provider));
-                cookieHeaderRow.add_suffix(curlButton);
+                cookieHeaderRow._buttonBox.append(clearButton);
+                cookieHeaderRow._buttonBox.append(curlButton);
             } else {
                 const importButton = new Gtk.Button({
                     icon_name: 'folder-download-symbolic',
