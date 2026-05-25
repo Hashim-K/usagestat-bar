@@ -147,12 +147,13 @@ function hexFromRgba(rgba) {
 
 const BehaviourPage = GObject.registerClass(
 class BehaviourPage extends Adw.PreferencesPage {
-    _init(settings) {
+    _init(settings, onPluginRefresh = null) {
         super._init({
             title: _('Behaviour'),
             icon_name: 'preferences-system-symbolic',
         });
         this._settings = settings;
+        this._onPluginRefresh = onPluginRefresh;
         this.add(this._buildRefreshGroup());
         this.add(this._buildInteractionGroup());
         this.add(this._buildPopupGroup());
@@ -354,12 +355,19 @@ class BehaviourPage extends Adw.PreferencesPage {
         const spinner = new Gtk.Spinner({valign: Gtk.Align.CENTER});
         const statusIcon = new Gtk.Image({valign: Gtk.Align.CENTER});
         const statusLabel = new Gtk.Label({valign: Gtk.Align.CENTER});
+        const refreshBtn = new Gtk.Button({
+            icon_name: 'view-refresh-symbolic',
+            valign: Gtk.Align.CENTER,
+            tooltip_text: _('Rescan plugin folder'),
+            css_classes: ['flat'],
+        });
+        statusRow.add_suffix(refreshBtn);
         statusRow.add_suffix(spinner);
         statusRow.add_suffix(statusIcon);
         statusRow.add_suffix(statusLabel);
         expander.add_row(statusRow);
 
-        const check = () => {
+        const check = (refreshProviders = false) => {
             const binary = findAiUsage(this._settings.get_string('usagestat-cli-path'));
             if (!binary) {
                 resolvedDir = this._resolvedPluginDir('').path;
@@ -380,6 +388,7 @@ class BehaviourPage extends Adw.PreferencesPage {
                 : _('%s (binary default)').format(resolved.path));
 
             statusIcon.set_visible(false); statusLabel.set_label('');
+            refreshBtn.set_sensitive(false);
             spinner.set_visible(true); spinner.start();
             const argv = [binary, '--json'];
             argv.push('--config', configPath(binary));
@@ -390,6 +399,7 @@ class BehaviourPage extends Adw.PreferencesPage {
                 const proc = Gio.Subprocess.new(argv, Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE);
                 proc.communicate_utf8_async(null, null, (_p, res) => {
                     spinner.stop(); spinner.set_visible(false); statusIcon.set_visible(true);
+                    refreshBtn.set_sensitive(true);
                     try {
                         const [, stdout, stderr] = _p.communicate_utf8_finish(res);
                         if (_p.get_exit_status() !== 0) {
@@ -409,6 +419,8 @@ class BehaviourPage extends Adw.PreferencesPage {
                             const summary = `${count} ${count === 1 ? _('provider') : _('providers')}`;
                             statusLabel.set_label(summary); statusLabel.set_css_classes(['success']);
                             expander.set_subtitle(`${summary} · ${resolved.path}${resolved.explicit ? ` ${_('(override)')}` : ''}`);
+                            if (refreshProviders)
+                                this._onPluginRefresh?.();
                         }
                     } catch {
                         statusIcon.set_from_icon_name('dialog-error-symbolic'); statusIcon.set_css_classes(['error']);
@@ -417,10 +429,12 @@ class BehaviourPage extends Adw.PreferencesPage {
                 });
             } catch {
                 spinner.stop(); spinner.set_visible(false); statusIcon.set_visible(true);
+                refreshBtn.set_sensitive(true);
                 statusIcon.set_from_icon_name('dialog-error-symbolic'); statusIcon.set_css_classes(['error']);
                 statusLabel.set_label(_('Failed to launch')); statusLabel.set_css_classes(['error']);
             }
         };
+        refreshBtn.connect('clicked', () => check(true));
         this._settings.connect('changed::usagestat-cli-path', check);
         this._settings.connect('changed::usagestat-plugin-dir', check);
         check();
@@ -506,6 +520,14 @@ class BehaviourPage extends Adw.PreferencesPage {
         });
         this._settings.bind('show-pace', paceRow, 'active', Gio.SettingsBindFlags.DEFAULT);
         group.add(paceRow);
+
+        const dashboardLinkRow = new Adw.SwitchRow({
+            title: _('Show usage dashboard link'),
+            subtitle: _('Button in the provider header that opens the provider\'s usage dashboard.'),
+            active: this._settings.get_boolean('show-dashboard-link'),
+        });
+        this._settings.bind('show-dashboard-link', dashboardLinkRow, 'active', Gio.SettingsBindFlags.DEFAULT);
+        group.add(dashboardLinkRow);
 
         const statusLinkRow = new Adw.SwitchRow({
             title: _('Show status page link'),
@@ -1279,6 +1301,10 @@ class ProvidersPage extends Adw.PreferencesPage {
         }
     }
 
+    refreshPluginManifests() {
+        this._loadProviderManifests();
+    }
+
     _manifest(baseId) {
         return this._manifests.get(baseId) || null;
     }
@@ -1546,6 +1572,7 @@ class ProvidersPage extends Adw.PreferencesPage {
         if (baseId === 'copilot')
             row.add_row(this._copilotIconSourceRow(provider));
         row.add_row(this._usageTrackersRow(provider));
+        row.add_row(this._costAndCreditsRow(provider));
 
         this._addTabExtensionRows(row, provider);
         this._addHideSourceRow(row, provider);
@@ -1737,8 +1764,14 @@ class ProvidersPage extends Adw.PreferencesPage {
                 : baseId === 'copilot' && iconSource === 'githubcopilot'
                     ? 'githubcopilot'
                     : baseId;
-        const baseFile = PROVIDER_ICON_FILES[iconId] || `${iconId}.svg`;
         const style = this._providerUsageSetting(provider, 'iconStyle') || this._settings.get_string('provider-icon-style');
+        if (iconId === baseId) {
+            const manifestFile = this._providerManifestIconFile(baseId, style);
+            if (manifestFile)
+                return manifestFile;
+        }
+
+        const baseFile = PROVIDER_ICON_FILES[iconId] || `${iconId}.svg`;
         const colorFile = style === 'color' && baseFile ? baseFile.replace(/\.svg$/, '-color.svg') : null;
         if (colorFile) {
             const file = this._providerIconGFile(colorFile);
@@ -1747,6 +1780,21 @@ class ProvidersPage extends Adw.PreferencesPage {
         }
         const file = this._providerIconGFile(baseFile);
         return file.query_exists(null) ? baseFile : null;
+    }
+
+    _providerManifestIconFile(baseId, style) {
+        const icon = this._manifest(baseId)?.icon;
+        if (!icon || typeof icon !== 'object')
+            return null;
+
+        const candidate = style === 'color'
+            ? icon.colorPath || icon.variants?.color?.path || icon.path
+            : icon.monochromePath || icon.variants?.monochrome?.path || icon.path;
+        if (!candidate || !GLib.path_is_absolute(candidate))
+            return null;
+
+        const file = Gio.File.new_for_path(candidate);
+        return file.query_exists(null) ? candidate : null;
     }
 
     _providerIconGFile(fileName) {
@@ -1824,7 +1872,7 @@ class ProvidersPage extends Adw.PreferencesPage {
     }
 
     _usageTrackersRow(provider) {
-        const options = this._usageTrackerOptions(provider);
+        const options = this._usageTrackerOptions(provider, false);
         const row = new Adw.ExpanderRow({
             title: _('Usage trackers'),
             subtitle: _('Choose which usage meters are shown in the popup and auto meter.'),
@@ -1855,7 +1903,39 @@ class ProvidersPage extends Adw.PreferencesPage {
         return row;
     }
 
-    _usageTrackerOptions(provider) {
+    _costAndCreditsRow(provider) {
+        const options = this._usageTrackerOptions(provider, true);
+        const row = new Adw.ExpanderRow({
+            title: _('Credits and cost'),
+            subtitle: _('Choose which credit, quota, and spend lines are shown in the popup.'),
+        });
+
+        if (!options.length) {
+            row.add_row(new Adw.ActionRow({
+                title: _('No credit or cost items discovered yet'),
+                subtitle: _('Refresh this provider once to populate these controls.'),
+            }));
+            return row;
+        }
+
+        for (const [windowId, label] of options) {
+            const item = new Adw.ActionRow({title: label});
+            const toggle = new Gtk.Switch({
+                active: !this._hiddenUsageWindows(provider).includes(windowId),
+                valign: Gtk.Align.CENTER,
+            });
+            toggle.connect('notify::active', () => {
+                this._setUsageWindowVisible(provider, windowId, toggle.active);
+            });
+            item.add_suffix(toggle);
+            item.activatable_widget = toggle;
+            row.add_row(item);
+        }
+
+        return row;
+    }
+
+    _usageTrackerOptions(provider, supplemental = false) {
         let discovered = null;
         try {
             const windows = JSON.parse(this._settings.get_string('provider-usage-windows')) || {};
@@ -1865,11 +1945,24 @@ class ProvidersPage extends Adw.PreferencesPage {
         }
 
         if (!discovered || typeof discovered !== 'object')
-            return this._usageTierOptions(provider).filter(([value]) => value !== 'auto');
+            return this._usageTierOptions(provider)
+                .filter(([value]) => value !== 'auto')
+                .filter(([id, label]) => this._supplementalUsageOption(id, label) === supplemental);
 
         return Object.entries(discovered)
             .filter(([, label]) => typeof label === 'string' && label.trim())
+            .filter(([id, label]) => this._supplementalUsageOption(id, label) === supplemental)
             .map(([id, label]) => [id, label.trim()]);
+    }
+
+    _supplementalUsageOption(id, label) {
+        if (id === 'extraUsage' || id === 'costSummary' || id === 'credits' || id === 'codeReview')
+            return true;
+        if (String(id).startsWith('text:') || String(id).startsWith('badge:'))
+            return true;
+
+        const text = `${id} ${label}`.toLowerCase();
+        return /\b(credit|cost|spend|spent|quota|extra usage|today|yesterday|last \d+ days?)\b/.test(text);
     }
 
     _usageTierOptions(provider) {
@@ -2468,19 +2561,25 @@ class ProvidersPage extends Adw.PreferencesPage {
 
     async _importCookies(provider, entry, validationLabel = null) {
         try {
-            const binary = findAiUsage();
+            await this._loadProviderManifests();
+            const binary = settingsBinary(this._settings);
             if (!binary)
                 throw new Error(_('usagestat CLI was not found on PATH or in common install locations.'));
 
-            const {stdout, stderr, status} = await this._runCookieImportCommand([
-                binary,
+            const argv = [binary, '--config', configPath(binary)];
+            const pluginDir = this._settings.get_string('usagestat-plugin-dir').trim();
+            if (pluginDir)
+                argv.push('--plugin-dir', pluginDir);
+            argv.push(
                 'auth',
                 'import-cookies',
                 '--provider',
                 providerBaseId(provider),
                 '--format',
                 'json',
-            ]);
+            );
+
+            const {stdout, stderr, status} = await this._runCookieImportCommand(argv);
 
             const text = stdout.trim();
             if (!text)
@@ -2583,7 +2682,12 @@ class ProvidersPage extends Adw.PreferencesPage {
     _providerLoginUrl(provider) {
         const baseId = providerBaseId(provider);
         const manifest = this._manifest(baseId);
-        return provider?.loginUrl || provider?.settings?.loginUrl || manifest?.webUrl || PROVIDER_LOGIN_URLS[baseId] || '';
+        return provider?.loginUrl
+            || provider?.settings?.loginUrl
+            || manifest?.usageDashboardUrl
+            || manifest?.webUrl
+            || PROVIDER_LOGIN_URLS[baseId]
+            || '';
     }
 
     _openProviderLogin(provider) {
@@ -2785,28 +2889,28 @@ class MaintenancePage extends Adw.PreferencesPage {
             title: _('usagestat CLI'),
         });
 
-        for (const [title, command] of [
-            [_('Validate config'), 'usagestat config validate'],
-            [_('Dump normalized config'), 'usagestat config dump'],
-            [_('List providers'), 'usagestat list --all --plain'],
-            [_('Show enabled usage'), 'usagestat usage'],
-            [_('Show all usage JSON'), 'usagestat --json usage --provider all'],
-            [_('Provider status'), 'usagestat status --provider all --plain'],
-            [_('Cost summary'), 'usagestat cost --provider all'],
-            [_('Export live usage JSON'), 'usagestat export --provider all --format json'],
-            [_('Export live usage CSV'), 'usagestat export --provider all --format csv'],
-            [_('Clear snapshots cache'), 'usagestat cache clear --snapshots'],
-            [_('usagestat help'), 'usagestat --help'],
+        for (const [title, args] of [
+            [_('Validate config'), ['config', 'validate']],
+            [_('Dump normalized config'), ['config', 'dump']],
+            [_('List providers'), ['list', '--all', '--plain']],
+            [_('Show enabled usage'), ['usage']],
+            [_('Show all usage JSON'), ['--json', 'usage', '--provider', 'all']],
+            [_('Provider status'), ['status', '--provider', 'all', '--plain']],
+            [_('Cost summary'), ['cost', '--provider', 'all']],
+            [_('Export live usage JSON'), ['export', '--provider', 'all', '--format', 'json']],
+            [_('Export live usage CSV'), ['export', '--provider', 'all', '--format', 'csv']],
+            [_('Clear snapshots cache'), ['cache', 'clear', '--snapshots']],
+            [_('usagestat help'), ['--help']],
         ]) {
             const row = new Adw.ActionRow({
                 title,
-                subtitle: command,
+                subtitle: this._toolCommandPreview(args),
             });
             const button = new Gtk.Button({
                 icon_name: 'utilities-terminal-symbolic',
                 valign: Gtk.Align.CENTER,
             });
-            button.connect('clicked', () => this._runInTerminal(command));
+            button.connect('clicked', () => this._runInTerminal(this._toolCommand(args)));
             row.add_suffix(button);
             group.add(row);
         }
@@ -2826,6 +2930,26 @@ class MaintenancePage extends Adw.PreferencesPage {
         group.add(docsRow);
 
         return group;
+    }
+
+    _toolCommand(args) {
+        return this._toolCommandParts(args, true).join(' ');
+    }
+
+    _toolCommandPreview(args) {
+        return this._toolCommandParts(args, false).join(' ');
+    }
+
+    _toolCommandParts(args, includeConfig) {
+        const binary = settingsBinary(this._settings) || 'usagestat';
+        const command = [this._shellQuote(binary)];
+        if (includeConfig)
+            command.push('--config', this._shellQuote(configPath(binary)));
+        const pluginDir = this._settings.get_string('usagestat-plugin-dir').trim();
+        if (includeConfig && pluginDir)
+            command.push('--plugin-dir', this._shellQuote(pluginDir));
+        command.push(...args.map(arg => this._shellQuote(arg)));
+        return command;
     }
 
     _runInTerminal(command) {
@@ -2946,7 +3070,7 @@ export default class AIUsageBarPreferences extends ExtensionPreferences {
         const targetProviderId = settings.get_string('preferences-provider');
         const providersPage = new ProvidersPage(settings);
         window.set_default_size(760, 760);
-        window.add(new BehaviourPage(settings));
+        window.add(new BehaviourPage(settings, () => providersPage.refreshPluginManifests()));
         window.add(new AppearancePage(settings));
         window.add(providersPage);
         window.add(new MaintenancePage(settings));
