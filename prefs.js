@@ -2212,7 +2212,18 @@ class ProvidersPage extends Adw.PreferencesPage {
         });
         button.add_css_class('flat');
         button.connect('clicked', () => this._forceValidateProvider(provider, label));
+        const setupButton = new Gtk.Button({
+            icon_name: 'dialog-question-symbolic',
+            valign: Gtk.Align.CENTER,
+            tooltip_text: _('Show setup instructions'),
+            visible: false,
+        });
+        setupButton.add_css_class('flat');
+        setupButton.connect('clicked', () => this._showCurlInstructions(provider));
+        label._setupButton = setupButton;
+        label._setupProvider = provider;
         box.append(label);
+        box.append(setupButton);
         box.append(button);
 
         if (provider.enabled === false) {
@@ -2242,6 +2253,11 @@ class ProvidersPage extends Adw.PreferencesPage {
         }[state] || '#f6d32d';
         label.set_markup(`<span foreground="${color}" size="large">●</span>`);
         label.set_tooltip_text(tooltip || '');
+        if (label._setupButton) {
+            label._setupButton.visible = state === 'red'
+                && this._isT3ChatProvider(label._setupProvider)
+                && this._isT3ChatSetupMessage(tooltip);
+        }
     }
 
     async _validateProvider(provider, label) {
@@ -2854,6 +2870,18 @@ class ProvidersPage extends Adw.PreferencesPage {
             return false;
         this._curlHelpPrompts.add(key);
         return true;
+    }
+
+    _isT3ChatSetupMessage(message) {
+        const text = String(message || '').toLowerCase();
+        return (text.includes('t3 chat') || text.includes('t3chat'))
+            && (
+                text.includes('not configured')
+                || text.includes('cookie')
+                || text.includes('curl')
+                || text.includes('vercel')
+                || text.includes('challenge')
+            );
     }
 
     _openProviderLogin(provider) {

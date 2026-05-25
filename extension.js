@@ -1,5 +1,6 @@
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
+import Pango from 'gi://Pango';
 import St from 'gi://St';
 import Clutter from 'gi://Clutter';
 import {Extension, gettext as _} from 'resource:///org/gnome/shell/extensions/extension.js';
@@ -766,10 +767,7 @@ export default class AIUsageBarExtension extends Extension {
         }
 
         if (error) {
-            this._content.add_child(new St.Label({
-                text: error,
-                style_class: 'usagestat-message-body',
-            }));
+            this._renderProviderError(providerId, error);
             return;
         }
 
@@ -830,10 +828,7 @@ export default class AIUsageBarExtension extends Extension {
         }
 
         if (error) {
-            this._content.add_child(new St.Label({
-                text: error,
-                style_class: 'usagestat-message-body',
-            }));
+            this._renderProviderError(key, error);
             return;
         }
 
@@ -1277,10 +1272,70 @@ export default class AIUsageBarExtension extends Extension {
             text: title,
             style_class: isError ? 'usagestat-message-title danger' : 'usagestat-message-title',
         }));
-        this._content.add_child(new St.Label({
-            text: body,
-            style_class: 'usagestat-message-body',
+        this._content.add_child(this._wrappedLabel(body, 'usagestat-message-body'));
+    }
+
+    _renderProviderError(providerId, error) {
+        if (!this._isProviderSetupError(providerId, error)) {
+            this._content.add_child(this._wrappedLabel(error, 'usagestat-message-body'));
+            return;
+        }
+
+        this._renderMessage(
+            _('%s setup required').format(this._providerName(this._providerForKey(providerId) || providerId)),
+            this._providerSetupMessage(providerId),
+            true,
+        );
+        this._content.add_child(this._wrappedLabel(this._cleanErrorText(error), 'usagestat-error-detail'));
+
+        const actions = new St.BoxLayout({style_class: 'usagestat-action-row'});
+        actions.add_child(this._actionButton(_('Open Setup'), 'document-edit-symbolic', () => {
+            this._openProviderPreferences(providerId);
         }));
+        this._content.add_child(actions);
+    }
+
+    _isProviderSetupError(providerId, error) {
+        const provider = this._providerForKey(providerId) || providerId;
+        const baseId = providerBaseId(provider);
+        const message = String(error || '').toLowerCase();
+        if (baseId === 't3chat') {
+            return message.includes('not configured')
+                || message.includes('cookie')
+                || message.includes('curl')
+                || message.includes('vercel')
+                || message.includes('challenge');
+        }
+        return message.includes('not configured')
+            || message.includes('missing')
+            || message.includes('api key')
+            || message.includes('cookie')
+            || message.includes('auth');
+    }
+
+    _providerSetupMessage(providerId) {
+        const provider = this._providerForKey(providerId) || providerId;
+        if (providerBaseId(provider) === 't3chat')
+            return _('Open setup, paste the full browser cURL capture into "Cookie header or full cURL", then refresh. Use the T3 getCustomerData request from DevTools.');
+        return _('Open provider setup and add the required credentials or source settings.');
+    }
+
+    _cleanErrorText(error) {
+        return String(error || '')
+            .replace(/^error:\s*/i, '')
+            .replace(/\s+/g, ' ')
+            .trim();
+    }
+
+    _wrappedLabel(text, styleClass) {
+        const label = new St.Label({
+            text: String(text || ''),
+            style_class: styleClass,
+        });
+        label.clutter_text.set_line_wrap(true);
+        label.clutter_text.set_line_wrap_mode(Pango.WrapMode.WORD_CHAR);
+        label.clutter_text.set_ellipsize(Pango.EllipsizeMode.NONE);
+        return label;
     }
 
     _snapshotPercent(snapshot, providerId) {
@@ -1908,9 +1963,9 @@ export default class AIUsageBarExtension extends Extension {
         return _('Updated %sd ago').format(Math.round(seconds / 86400));
     }
 
-    _openProviderPreferences() {
-        if (this._activeId)
-            this._settings.set_string('preferences-provider', this._activeId);
+    _openProviderPreferences(providerId = this._activeId) {
+        if (providerId)
+            this._settings.set_string('preferences-provider', providerId);
         this.openPreferences();
         this._indicator.menu.close();
     }

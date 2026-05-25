@@ -87,6 +87,7 @@
 
 .usagestat-menu {
   min-width: 420px;
+  max-width: 420px;
 }
 
 .usagestat-header {
@@ -190,7 +191,8 @@
 }
 
 .usagestat-message-body {
-  max-width: 330px;
+  width: 390px;
+  max-width: 390px;
   color: #aeb6c2;
 }
 
@@ -207,6 +209,17 @@
   color: #aeb6c2;
   font-size: 11px;
   max-width: 390px;
+}
+
+.usagestat-error-detail {
+  width: 390px;
+  max-width: 390px;
+  color: #aeb6c2;
+  font-size: 11px;
+}
+
+.usagestat-action-row {
+  spacing: 6px;
 }
 
 .usagestat-separator {
