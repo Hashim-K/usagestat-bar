@@ -1715,11 +1715,6 @@ export default class AIUsageBarExtension extends Extension {
         const mode = this._settings.get_string('provider-logo-fill-mode');
         if (!['vertical', 'horizontal', 'pie'].includes(mode))
             return this._providerIcon(provider, height);
-        if (mode === 'vertical' || mode === 'horizontal') {
-            const clipped = this._clippedProviderIcon(provider, height, percentage, mode);
-            if (clipped)
-                return clipped;
-        }
 
         const providerId = providerBaseId(provider);
         const fileName = this._providerIconFile(provider, providerId);
@@ -1745,34 +1740,6 @@ export default class AIUsageBarExtension extends Extension {
         icon.set_height(height);
         icon.set_width(Math.round(height * (width / viewBoxHeight)));
         return icon;
-    }
-
-    _clippedProviderIcon(provider, height, percentage, mode) {
-        const pct = Math.max(0, Math.min(100, Number(percentage) || 0));
-        const baseIcon = this._providerIcon(provider, height);
-        const fillIcon = this._providerIcon(provider, height);
-        if (typeof fillIcon.set_clip !== 'function')
-            return null;
-
-        const width = Math.max(1, baseIcon.width || fillIcon.width || height);
-        const fillWidth = mode === 'horizontal' ? Math.round(width * pct / 100) : width;
-        const fillHeight = mode === 'vertical' ? Math.round(height * pct / 100) : height;
-        const clipX = 0;
-        const clipY = mode === 'vertical' ? height - fillHeight : 0;
-
-        baseIcon.opacity = 56;
-        fillIcon.set_clip(clipX, clipY, fillWidth, fillHeight);
-
-        const frame = new St.Widget({
-            layout_manager: new Clutter.BinLayout(),
-            style_class: 'usagestat-provider-icon',
-            y_align: Clutter.ActorAlign.CENTER,
-        });
-        frame.set_width(width);
-        frame.set_height(height);
-        frame.add_child(baseIcon);
-        frame.add_child(fillIcon);
-        return frame;
     }
 
     _usageFilledProviderIconFile(file, mode, percentage) {
@@ -1827,6 +1794,7 @@ export default class AIUsageBarExtension extends Extension {
         const body = bodyMatch[1]
             .replace(/<title[\s\S]*?<\/title>/gi, '')
             .replace(/<desc[\s\S]*?<\/desc>/gi, '');
+        const presentationAttrs = this._svgRootPresentationAttributes(source);
         const clipId = `usageClip${Math.round(pct)}${mode}`;
         const clip = this._providerLogoClipPath(mode, pct, minX, minY, width, height);
         return [
@@ -1834,14 +1802,39 @@ export default class AIUsageBarExtension extends Extension {
             '<defs>',
             `<clipPath id="${clipId}">${clip}</clipPath>`,
             '</defs>',
-            '<g opacity="0.22">',
+            `<g opacity="0.22"${presentationAttrs}>`,
             body,
             '</g>',
-            `<g clip-path="url(#${clipId})">`,
+            `<g clip-path="url(#${clipId})"${presentationAttrs}>`,
             body,
             '</g>',
             '</svg>',
         ].join('');
+    }
+
+    _svgRootPresentationAttributes(source) {
+        const root = source.match(/<svg\b([^>]*)>/i)?.[1] || '';
+        const allowed = new Set([
+            'color',
+            'fill',
+            'fill-rule',
+            'stroke',
+            'stroke-width',
+            'stroke-linecap',
+            'stroke-linejoin',
+            'stroke-miterlimit',
+            'stroke-opacity',
+            'fill-opacity',
+            'clip-rule',
+        ]);
+        const attrs = [];
+        const re = /([A-Za-z_:][-A-Za-z0-9_:.]*)=(["'])(.*?)\2/g;
+        let match;
+        while ((match = re.exec(root)) !== null) {
+            if (allowed.has(match[1]))
+                attrs.push(`${match[1]}=${match[2]}${match[3]}${match[2]}`);
+        }
+        return attrs.length ? ` ${attrs.join(' ')}` : '';
     }
 
     _providerLogoClipPath(mode, pct, minX, minY, width, height) {
@@ -1871,7 +1864,7 @@ export default class AIUsageBarExtension extends Extension {
         const endX = cx + r * Math.cos(toRadians(endAngle));
         const endY = cy + r * Math.sin(toRadians(endAngle));
         const largeArcFlag = angle > 180 ? 1 : 0;
-        return `<path d="M ${cx} ${cy} L ${startX} ${startY} A ${r} ${r} 0 ${largeArcFlag} 1 ${endX} ${endY} Z"/>`;
+        return `<path d="M ${cx} ${cy} L ${startX} ${startY} A ${r} ${r} 0 ${largeArcFlag} 1 ${endX} ${endY} Z" fill="#fff"/>`;
     }
 
     _usageIcon(percentage, size) {
