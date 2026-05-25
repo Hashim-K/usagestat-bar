@@ -277,6 +277,8 @@ function normalizeCostSummary(summary) {
     const today = localDateString(0);
     const yesterday = localDateString(-1);
     const totals = summary.totals || {};
+    if (!hasCostData(totals) && !daily.some(hasCostData))
+        return null;
 
     return {
         currency,
@@ -286,6 +288,15 @@ function normalizeCostSummary(summary) {
             costLine(`Last ${Number(summary.periodDays) || 30} Days`, totals, currency),
         ],
     };
+}
+
+function hasCostData(source) {
+    return Number(source?.totalCost) > 0
+        || Number(source?.totalTokens) > 0
+        || Number(source?.inputTokens) > 0
+        || Number(source?.outputTokens) > 0
+        || Number(source?.cacheCreationTokens) > 0
+        || Number(source?.cacheReadTokens) > 0;
 }
 
 function costLine(label, source, currency) {

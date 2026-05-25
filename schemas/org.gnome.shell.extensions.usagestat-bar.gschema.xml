@@ -133,6 +133,10 @@
       <default>true</default>
       <summary>Show provider status page link button in the popup header</summary>
     </key>
+    <key name="show-dashboard-link" type="b">
+      <default>true</default>
+      <summary>Show provider usage dashboard link button in the popup header</summary>
+    </key>
     <key name="usagestat-cli-path" type="s">
       <default>''</default>
       <summary>Path to the usagestat CLI binary (empty = auto-detect)</summary>

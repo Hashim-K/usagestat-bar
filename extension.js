@@ -5,7 +5,7 @@ import Clutter from 'gi://Clutter';
 import {Extension, gettext as _} from 'resource:///org/gnome/shell/extensions/extension.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
-import {fetchProviderUsage, findAiUsage} from './cli.js';
+import {fetchProviderManifests, fetchProviderUsage, findAiUsage} from './cli.js';
 import {configPath, enabledProviders, loadConfig, PROVIDER_NAMES, providerBaseId, providerDisplayName, providerKey} from './config.js';
 
 const TIERS = ['primary', 'secondary', 'tertiary', 'quaternary'];
@@ -91,6 +91,7 @@ export default class AIUsageBarExtension extends Extension {
         this._usage = new Map();
         this._errors = new Map();
         this._thresholdStates = new Map();
+        this._manifests = new Map();
         this._activeId = null;
         this._loading = false;
         this._lastRefreshAt = null;
@@ -164,6 +165,7 @@ export default class AIUsageBarExtension extends Extension {
             'neutral-color',
             'show-pace',
             'show-status-link',
+            'show-dashboard-link',
             'panel-bar-count',
             'panel-usage-bar-count',
             'panel-usage-bar-layout',
@@ -228,6 +230,7 @@ export default class AIUsageBarExtension extends Extension {
         this._usage = null;
         this._errors = null;
         this._thresholdStates = null;
+        this._manifests = null;
     }
 
     _attachIndicator(initial = false) {
@@ -371,6 +374,7 @@ export default class AIUsageBarExtension extends Extension {
         this._render();
 
         try {
+            await this._loadProviderManifests();
             for (const provider of this._providers) {
                 if (!this._cancellable || this._cancellable.is_cancelled())
                     break;
@@ -399,6 +403,22 @@ export default class AIUsageBarExtension extends Extension {
             if (this._title)
                 this._title.set_text(_('UsageStat Bar'));
             this._render();
+        }
+    }
+
+    async _loadProviderManifests() {
+        const binary = findAiUsage(this._settings.get_string('usagestat-cli-path')) || '';
+        if (!binary)
+            return;
+        try {
+            const manifests = await fetchProviderManifests(this._cancellable, {
+                cliPath: this._settings.get_string('usagestat-cli-path'),
+                pluginDir: this._settings.get_string('usagestat-plugin-dir'),
+                configFile: configPath(binary),
+            });
+            this._manifests = new Map(manifests.map(provider => [provider.id, provider]));
+        } catch {
+            // Non-critical; bundled icon and URL fallbacks remain available.
         }
     }
 
@@ -780,12 +800,13 @@ export default class AIUsageBarExtension extends Extension {
 
         this._renderPace(snapshot);
         this._renderMetricLines(providerId, usage);
-        this._renderCostSummary(usage.costSummary);
+        if (this._usageWindowVisible(providerId, 'costSummary'))
+            this._renderCostSummary(usage.costSummary);
 
-        if (snapshot.credits?.remaining !== undefined)
+        if (snapshot.credits?.remaining !== undefined && this._usageWindowVisible(providerId, 'credits'))
             this._renderCreditLine(_('Credits: %s left').format(String(snapshot.credits.remaining)));
 
-        if (snapshot.openaiDashboard?.codeReviewRemainingPercent !== undefined)
+        if (snapshot.openaiDashboard?.codeReviewRemainingPercent !== undefined && this._usageWindowVisible(providerId, 'codeReview'))
             this._renderCreditLine(_('Code review: %s%% left').format(Math.round(snapshot.openaiDashboard.codeReviewRemainingPercent)));
 
         for (const child of this._childProviders(providerId))
@@ -839,7 +860,8 @@ export default class AIUsageBarExtension extends Extension {
             this._renderProviderCost(usage.providerCost);
         this._renderPace(snapshot);
         this._renderMetricLines(key, usage);
-        this._renderCostSummary(usage.costSummary);
+        if (this._usageWindowVisible(key, 'costSummary'))
+            this._renderCostSummary(usage.costSummary);
     }
 
     _renderLoadingProvider(providerId) {
@@ -931,15 +953,21 @@ export default class AIUsageBarExtension extends Extension {
         headerBox.add_child(leftGroup);
 
         const dashboardUrl = this._providerDashboardUrl(snapshot, providerId);
-        if (dashboardUrl) {
-            const dashboardBtn = this._actionButton(_('Usage dashboard'), 'document-open-symbolic', () => {
+        if (this._settings.get_boolean('show-dashboard-link') && dashboardUrl) {
+            const dashboardBtn = new St.Button({
+                child: this._usageIcon(this._snapshotUsedPercent(snapshot, providerId), 16),
+                style_class: 'usagestat-icon-button',
+                can_focus: true,
+            });
+            dashboardBtn.connect('clicked', () => {
                 this._openUri(dashboardUrl);
                 this._indicator.menu.close();
             });
             headerBox.add_child(dashboardBtn);
         }
 
-        if (this._settings.get_boolean('show-status-link') && snapshot.statusPageUrl) {
+        const statusPageUrl = snapshot.statusPageUrl || this._providerManifest(providerId)?.statusPageUrl;
+        if (this._settings.get_boolean('show-status-link') && statusPageUrl) {
             const statusIconFile = Gio.File.new_for_path(
                 GLib.build_filenamev([EXTENSION_DIR, 'assets', 'status-icons', 'uptimekit-light.svg'])
             );
@@ -950,7 +978,7 @@ export default class AIUsageBarExtension extends Extension {
             });
             const statusBtn = new St.Button({child: statusIcon, style_class: 'usagestat-icon-button', can_focus: true});
             statusBtn.connect('clicked', () => {
-                this._openUri(snapshot.statusPageUrl);
+                this._openUri(statusPageUrl);
                 this._indicator.menu.close();
             });
             headerBox.add_child(statusBtn);
@@ -1221,12 +1249,17 @@ export default class AIUsageBarExtension extends Extension {
         const usage = snapshot?.usage || {};
         const configured = this._providerForKey(providerId);
         const baseId = providerBaseId(configured || providerId);
+        const manifest = this._providerManifest(providerId);
         return snapshot?.dashboardUrl
+            || snapshot?.usageDashboardUrl
             || usage.dashboardUrl
+            || usage.usageDashboardUrl
             || configured?.dashboardUrl
             || configured?.usageDashboardUrl
             || configured?.settings?.dashboardUrl
             || configured?.settings?.usageDashboardUrl
+            || manifest?.usageDashboardUrl
+            || manifest?.dashboardUrl
             || PROVIDER_DASHBOARD_URLS[baseId]
             || '';
     }
@@ -1434,6 +1467,12 @@ export default class AIUsageBarExtension extends Extension {
         }
         if (usage.providerCost && Number(usage.providerCost.limit) > 0)
             windows.extraUsage = usage.providerCost.currencyCode === 'Quota' ? _('Quota usage') : _('Extra usage');
+        if (this._costSummaryHasData(usage.costSummary))
+            windows.costSummary = _('Cost');
+        if (snapshot.credits?.remaining !== undefined)
+            windows.credits = _('Credits');
+        if (snapshot.openaiDashboard?.codeReviewRemainingPercent !== undefined)
+            windows.codeReview = _('Code review');
         for (const line of usage.extraTextLines || []) {
             const id = this._metricLineId('text', line.label || line.value);
             if (id)
@@ -1518,6 +1557,10 @@ export default class AIUsageBarExtension extends Extension {
         }
     }
 
+    _costSummaryHasData(summary) {
+        return (summary?.lines || []).some(line => Number(line?.cost) > 0 || Number(line?.tokens) > 0);
+    }
+
     _panelUsageTier(providerId) {
         return this._providerUsageSettings(providerId).panelUsageTier || 'auto';
     }
@@ -1584,6 +1627,60 @@ export default class AIUsageBarExtension extends Extension {
         });
     }
 
+    _usageIcon(percentage, size) {
+        const file = this._usageIconFile(percentage);
+        return new St.Icon({
+            gicon: Gio.FileIcon.new(file),
+            icon_size: size,
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+    }
+
+    _usageIconFile(percentage) {
+        const pct = Math.max(0, Math.min(100, Math.round(Number(percentage) || 0)));
+        const color = this._settings.get_string('neutral-color') || '#ffffff';
+        const hash = GLib.compute_checksum_for_string(GLib.ChecksumType.SHA256, `${pct}:${color}`, -1).slice(0, 16);
+        const cacheDir = Gio.File.new_for_path(GLib.build_filenamev([GLib.get_user_cache_dir(), 'usagestat-bar', 'usage-icons']));
+        if (!cacheDir.query_exists(null))
+            cacheDir.make_directory_with_parents(null);
+
+        const path = GLib.build_filenamev([cacheDir.get_path(), `usage-${hash}.svg`]);
+        const file = Gio.File.new_for_path(path);
+        if (!file.query_exists(null)) {
+            file.replace_contents(
+                new TextEncoder().encode(this._usageIconSvg(pct, color)),
+                null,
+                false,
+                Gio.FileCreateFlags.REPLACE_DESTINATION,
+                null,
+            );
+        }
+        return file;
+    }
+
+    _usageIconSvg(percentage, color) {
+        const pct = Math.max(0, Math.min(100, Number(percentage) || 0));
+        const angle = pct / 100 * 360;
+        const r = 10;
+        const cx = 12;
+        const cy = 12;
+        const startAngle = -90;
+        const endAngle = startAngle + angle;
+        const toRadians = deg => deg * Math.PI / 180;
+        const startX = cx + r * Math.cos(toRadians(startAngle));
+        const startY = cy + r * Math.sin(toRadians(startAngle));
+        const endX = cx + r * Math.cos(toRadians(endAngle));
+        const endY = cy + r * Math.sin(toRadians(endAngle));
+        const largeArcFlag = angle > 180 ? 1 : 0;
+        const pathData = pct >= 100
+            ? `M ${cx} ${cy} m -${r} 0 a ${r} ${r} 0 1 0 ${r * 2} 0 a ${r} ${r} 0 1 0 -${r * 2} 0`
+            : pct <= 0
+                ? ''
+                : `M ${cx} ${cy} L ${startX} ${startY} A ${r} ${r} 0 ${largeArcFlag} 1 ${endX} ${endY} Z`;
+        const path = pathData ? `<path d="${pathData}" fill="${color}"/>` : '';
+        return `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="${cx}" cy="${cy}" r="${r}" fill="${color}" opacity="0.18"/>${path}</svg>`;
+    }
+
     _providerIconFile(provider, providerId) {
         if (provider && typeof provider === 'object' && provider.iconPath) {
             const customFile = Gio.File.new_for_path(provider.iconPath);
@@ -1593,6 +1690,12 @@ export default class AIUsageBarExtension extends Extension {
 
         const iconId = this._providerIconSource(provider, providerId);
         const style = this._providerIconStyle(provider);
+        if (iconId === providerId) {
+            const manifestFile = this._providerManifestIconFile(providerId, style);
+            if (manifestFile)
+                return manifestFile;
+        }
+
         const baseFile = PROVIDER_ICON_FILES[iconId] || `${iconId}.svg`;
         const colorFile = style === 'color' && baseFile ? baseFile.replace(/\.svg$/, '-color.svg') : null;
         if (colorFile) {
@@ -1602,6 +1705,26 @@ export default class AIUsageBarExtension extends Extension {
         }
         const file = this._providerIconGFile(baseFile);
         return file.query_exists(null) ? baseFile : null;
+    }
+
+    _providerManifest(providerId) {
+        const provider = this._providerForKey(providerId);
+        return this._manifests?.get(providerBaseId(provider || providerId)) || null;
+    }
+
+    _providerManifestIconFile(providerId, style) {
+        const icon = this._providerManifest(providerId)?.icon;
+        if (!icon || typeof icon !== 'object')
+            return null;
+
+        const candidate = style === 'color'
+            ? icon.colorPath || icon.variants?.color?.path || icon.path
+            : icon.monochromePath || icon.variants?.monochrome?.path || icon.path;
+        if (!candidate || !GLib.path_is_absolute(candidate))
+            return null;
+
+        const file = Gio.File.new_for_path(candidate);
+        return file.query_exists(null) ? candidate : null;
     }
 
     _providerIconGFile(fileName) {
