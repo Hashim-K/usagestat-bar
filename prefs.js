@@ -25,6 +25,12 @@ const ICON_STYLE_OPTIONS = [
     ['color', 'Color'],
     ['monochromatic', 'Monochromatic'],
 ];
+const LOGO_FILL_OPTIONS = [
+    ['full', 'Default'],
+    ['vertical', 'Vertical fill'],
+    ['horizontal', 'Horizontal fill'],
+    ['pie', 'Pie chart'],
+];
 const PROVIDER_ICON_FILES = {
     codex: 'codex.svg',
     openai: 'openai.svg',
@@ -866,6 +872,19 @@ class AppearancePage extends Adw.PreferencesPage {
             this._settings.set_string('provider-icon-style', values[row.selected] || 'monochromatic');
         });
         group.add(row);
+
+        const fillLabels = LOGO_FILL_OPTIONS.map(([, label]) => _(label));
+        const fillValues = LOGO_FILL_OPTIONS.map(([value]) => value);
+        const fillSelected = fillValues.includes(this._settings.get_string('provider-logo-fill-mode'))
+            ? this._settings.get_string('provider-logo-fill-mode')
+            : 'full';
+        const fillRow = combo(fillLabels, fillLabels[fillValues.indexOf(fillSelected)]);
+        fillRow.title = _('Logo fill');
+        fillRow.subtitle = _('How panel logos mirror the selected usage percentage.');
+        fillRow.connect('notify::selected', () => {
+            this._settings.set_string('provider-logo-fill-mode', fillValues[fillRow.selected] || 'full');
+        });
+        group.add(fillRow);
 
         return group;
     }

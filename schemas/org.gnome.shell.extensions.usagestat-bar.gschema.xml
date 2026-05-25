@@ -93,6 +93,10 @@
       <default>'monochromatic'</default>
       <summary>Default provider icon style</summary>
     </key>
+    <key name="provider-logo-fill-mode" type="s">
+      <default>'full'</default>
+      <summary>How provider logos mirror usage in the panel</summary>
+    </key>
     <key name="panel-bar-count" type="i">
       <default>1</default>
       <summary>Number of provider bars shown simultaneously in the panel</summary>

@@ -155,6 +155,7 @@ export default class AIUsageBarExtension extends Extension {
             'provider-usage-windows',
             'provider-usage-settings',
             'provider-icon-style',
+            'provider-logo-fill-mode',
             'reset-time-format',
             'warning-threshold',
             'danger-threshold',
@@ -670,7 +671,7 @@ export default class AIUsageBarExtension extends Extension {
             });
             percentLabel.set_style(`color: ${neutralColor};`);
 
-            const icon = this._providerIcon(this._providerForKey(providerId) || providerId, this._panelIconHeight(16));
+            const icon = this._panelProviderIcon(this._providerForKey(providerId) || providerId, this._panelIconHeight(16), usedPercent);
             icon.add_style_class_name('usagestat-panel-icon');
             icon.set_y_align(Clutter.ActorAlign.CENTER);
 
@@ -1708,6 +1709,136 @@ export default class AIUsageBarExtension extends Extension {
             icon_size: height,
             style_class: 'usagestat-provider-icon fallback',
         });
+    }
+
+    _panelProviderIcon(provider, height, percentage) {
+        const mode = this._settings.get_string('provider-logo-fill-mode');
+        if (!['vertical', 'horizontal', 'pie'].includes(mode))
+            return this._providerIcon(provider, height);
+
+        const providerId = providerBaseId(provider);
+        const fileName = this._providerIconFile(provider, providerId);
+        if (!fileName)
+            return this._providerIcon(provider, height);
+
+        const file = this._providerIconGFile(fileName);
+        if (!file.query_exists(null))
+            return this._providerIcon(provider, height);
+
+        const renderFile = this._providerIconRenderFile(file, fileName);
+        const fillFile = this._usageFilledProviderIconFile(renderFile, mode, percentage);
+        if (!fillFile)
+            return this._providerIcon(provider, height);
+
+        const icon = new St.Icon({
+            gicon: Gio.FileIcon.new(fillFile),
+            icon_size: height,
+            style_class: 'usagestat-provider-icon',
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        const {width, height: viewBoxHeight} = this._svgViewBox(fillFile);
+        icon.set_height(height);
+        icon.set_width(Math.round(height * (width / viewBoxHeight)));
+        return icon;
+    }
+
+    _usageFilledProviderIconFile(file, mode, percentage) {
+        try {
+            const [ok, bytes] = file.load_contents(null);
+            if (!ok)
+                return null;
+            const source = new TextDecoder().decode(bytes);
+            const svg = this._usageFilledProviderIconSvg(source, mode, percentage);
+            if (!svg)
+                return null;
+
+            const cacheDir = Gio.File.new_for_path(GLib.build_filenamev([GLib.get_user_cache_dir(), 'usagestat-bar', 'provider-icons']));
+            if (!cacheDir.query_exists(null))
+                cacheDir.make_directory_with_parents(null);
+            const sourcePath = file.get_path() || 'provider-icon';
+            const pct = Math.max(0, Math.min(100, Math.round(Number(percentage) || 0)));
+            const hash = GLib.compute_checksum_for_string(GLib.ChecksumType.SHA256, `${sourcePath}:${mode}:${pct}:${svg}`, -1).slice(0, 16);
+            const basename = GLib.path_get_basename(sourcePath).replace(/\.svg$/i, '');
+            const path = GLib.build_filenamev([cacheDir.get_path(), `${basename}-${mode}-${pct}-${hash}.svg`]);
+            const outFile = Gio.File.new_for_path(path);
+            if (!outFile.query_exists(null)) {
+                outFile.replace_contents(
+                    new TextEncoder().encode(svg),
+                    null,
+                    false,
+                    Gio.FileCreateFlags.REPLACE_DESTINATION,
+                    null,
+                );
+            }
+            return outFile;
+        } catch (error) {
+            logError(error, 'UsageStat Bar: failed to create usage-filled provider icon');
+            return null;
+        }
+    }
+
+    _usageFilledProviderIconSvg(source, mode, percentage) {
+        const viewBoxMatch = source.match(/viewBox=["']\s*([-\d.]+)\s+([-\d.]+)\s+([\d.]+)\s+([\d.]+)\s*["']/);
+        const bodyMatch = source.match(/<svg\b[^>]*>([\s\S]*?)<\/svg>/i);
+        if (!viewBoxMatch || !bodyMatch)
+            return null;
+
+        const minX = Number(viewBoxMatch[1]);
+        const minY = Number(viewBoxMatch[2]);
+        const width = Number(viewBoxMatch[3]);
+        const height = Number(viewBoxMatch[4]);
+        if (![minX, minY, width, height].every(Number.isFinite) || width <= 0 || height <= 0)
+            return null;
+
+        const pct = Math.max(0, Math.min(100, Number(percentage) || 0));
+        const body = bodyMatch[1]
+            .replace(/<title[\s\S]*?<\/title>/gi, '')
+            .replace(/<desc[\s\S]*?<\/desc>/gi, '');
+        const clipId = `usageClip${Math.round(pct)}${mode}`;
+        const clip = this._providerLogoClipPath(mode, pct, minX, minY, width, height);
+        return [
+            `<svg width="${width}" height="${height}" viewBox="${minX} ${minY} ${width} ${height}" fill="none" xmlns="http://www.w3.org/2000/svg">`,
+            '<defs>',
+            `<clipPath id="${clipId}">${clip}</clipPath>`,
+            '</defs>',
+            '<g opacity="0.22">',
+            body,
+            '</g>',
+            `<g clip-path="url(#${clipId})">`,
+            body,
+            '</g>',
+            '</svg>',
+        ].join('');
+    }
+
+    _providerLogoClipPath(mode, pct, minX, minY, width, height) {
+        if (pct >= 100)
+            return `<rect x="${minX}" y="${minY}" width="${width}" height="${height}"/>`;
+        if (pct <= 0)
+            return '<rect width="0" height="0"/>';
+
+        if (mode === 'horizontal') {
+            const fillWidth = width * pct / 100;
+            return `<rect x="${minX}" y="${minY}" width="${fillWidth}" height="${height}"/>`;
+        }
+        if (mode === 'vertical') {
+            const fillHeight = height * pct / 100;
+            return `<rect x="${minX}" y="${minY + height - fillHeight}" width="${width}" height="${fillHeight}"/>`;
+        }
+
+        const cx = minX + width / 2;
+        const cy = minY + height / 2;
+        const r = Math.sqrt(width * width + height * height) / 2;
+        const angle = pct / 100 * 360;
+        const startAngle = -90;
+        const endAngle = startAngle + angle;
+        const toRadians = deg => deg * Math.PI / 180;
+        const startX = cx + r * Math.cos(toRadians(startAngle));
+        const startY = cy + r * Math.sin(toRadians(startAngle));
+        const endX = cx + r * Math.cos(toRadians(endAngle));
+        const endY = cy + r * Math.sin(toRadians(endAngle));
+        const largeArcFlag = angle > 180 ? 1 : 0;
+        return `<path d="M ${cx} ${cy} L ${startX} ${startY} A ${r} ${r} 0 ${largeArcFlag} 1 ${endX} ${endY} Z"/>`;
     }
 
     _usageIcon(percentage, size) {
