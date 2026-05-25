@@ -205,7 +205,7 @@ function parseConfigToml(text) {
     const config = {refreshSec: 60, pluginDirs: [], providers: []};
     let currentProvider = null;
 
-    for (const rawLine of text.split('\n')) {
+    for (const rawLine of logicalTomlLines(text)) {
         const line = stripTomlComment(rawLine).trim();
         if (!line)
             continue;
@@ -264,6 +264,59 @@ function assignTomlKey(target, key, value) {
     current[parts[parts.length - 1]] = value;
 }
 
+function logicalTomlLines(text) {
+    const lines = [];
+    let pending = null;
+
+    for (const rawLine of text.split('\n')) {
+        if (pending !== null) {
+            pending += `\n${rawLine}`;
+            if (tomlQuotedValueClosed(pending)) {
+                lines.push(pending);
+                pending = null;
+            }
+            continue;
+        }
+
+        const trimmed = rawLine.trim();
+        const match = trimmed.match(/^([A-Za-z0-9_.-]+)\s*=\s*(.+)$/);
+        if (match && match[2].startsWith('"') && !tomlQuotedValueClosed(trimmed))
+            pending = rawLine;
+        else
+            lines.push(rawLine);
+    }
+
+    if (pending !== null)
+        lines.push(pending);
+
+    return lines;
+}
+
+function tomlQuotedValueClosed(line) {
+    const match = line.trim().match(/^([A-Za-z0-9_.-]+)\s*=\s*(.*)$/s);
+    if (!match)
+        return true;
+    const value = match[2];
+    if (!value.startsWith('"'))
+        return true;
+
+    let escaped = false;
+    for (let i = 1; i < value.length; i++) {
+        const char = value[i];
+        if (escaped) {
+            escaped = false;
+            continue;
+        }
+        if (char === '\\') {
+            escaped = true;
+            continue;
+        }
+        if (char === '"')
+            return true;
+    }
+    return false;
+}
+
 function parseTomlValue(value) {
     if (value === 'true')
         return true;
@@ -272,7 +325,7 @@ function parseTomlValue(value) {
     if (/^-?\d+(\.\d+)?$/.test(value))
         return Number(value);
     if (value.startsWith('"') && value.endsWith('"'))
-        return value.slice(1, -1).replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+        return parseTomlString(value.slice(1, -1));
     if (value.startsWith('[') && value.endsWith(']')) {
         return value.slice(1, -1).split(',')
             .map(part => parseTomlValue(part.trim()))
@@ -317,7 +370,14 @@ function formatConfigToml(config) {
 }
 
 function quoteTomlString(value) {
-    return `"${String(value).replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+    return `"${String(value)
+        .replace(/\\/g, '\\\\')
+        .replace(/\x08/g, '\\b')
+        .replace(/\t/g, '\\t')
+        .replace(/\n/g, '\\n')
+        .replace(/\f/g, '\\f')
+        .replace(/\r/g, '\\r')
+        .replace(/"/g, '\\"')}"`;
 }
 
 function formatTomlValue(value) {
@@ -328,4 +388,33 @@ function formatTomlValue(value) {
     if (Array.isArray(value))
         return `[${value.map(formatTomlValue).join(', ')}]`;
     return quoteTomlString(value);
+}
+
+function parseTomlString(value) {
+    let output = '';
+    let escaped = false;
+    for (const char of value) {
+        if (!escaped) {
+            if (char === '\\') {
+                escaped = true;
+                continue;
+            }
+            output += char;
+            continue;
+        }
+
+        output += {
+            b: '\b',
+            t: '\t',
+            n: '\n',
+            f: '\f',
+            r: '\r',
+            '"': '"',
+            '\\': '\\',
+        }[char] ?? char;
+        escaped = false;
+    }
+    if (escaped)
+        output += '\\';
+    return output;
 }
