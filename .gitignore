@@ -3,3 +3,5 @@ schemas/gschemas.compiled
 .fuse_hidden*
 schemas/.fuse_hidden*
 inspo/
+artifacts/
+__pycache__/

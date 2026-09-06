@@ -2,12 +2,23 @@
 set -euo pipefail
 
 uuid="usagestat-bar@hashimkarim"
-out="${uuid}.shell-extension.zip"
+source_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+out="${1:-$source_dir/${uuid}.shell-extension.zip}"
+if [[ "$out" != /* ]]; then
+    out="$PWD/$out"
+fi
+stage_dir="$(mktemp -d -t usagestat-package.XXXXXX)"
+trap 'rm -rf -- "$stage_dir"' EXIT
 
-glib-compile-schemas schemas/
+for app_file in extension.js prefs.js cli.js config.js stylesheet.css metadata.json schemas assets LICENSE; do
+    cp -a "$source_dir/$app_file" "$stage_dir/"
+done
+glib-compile-schemas --strict "$stage_dir/schemas/"
 
+mkdir -p "$(dirname "$out")"
 rm -f "$out"
-zip -r "$out" \
+cd "$stage_dir"
+zip -qr "$out" \
     extension.js \
     prefs.js \
     cli.js \

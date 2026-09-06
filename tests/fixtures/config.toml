@@ -1,0 +1,17 @@
+refreshSec = 60
+
+[[providers]]
+id = "codex"
+enabled = true
+
+[[providers]]
+id = "claude"
+enabled = true
+
+[[providers]]
+id = "codex"
+instanceId = "codex:fixture-work"
+tabParent = "codex"
+displayName = "Fixture work account"
+source = "api"
+enabled = true

@@ -3,6 +3,9 @@ set -euo pipefail
 
 uuid="usagestat-bar@hashimkarim"
 source_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [[ "${1:-}" == --fixtures ]]; then
+  exec "$source_dir/tests/gnome-session.sh" --interactive
+fi
 shell_major="$(gnome-shell --version | awk '{split($3, parts, "."); print parts[1] + 0}')"
 
 "${source_dir}/dev-link.sh" >/dev/null

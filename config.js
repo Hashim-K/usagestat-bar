@@ -43,7 +43,7 @@ export const DEFAULT_HIDDEN_IDS = new Set(["synthetic", "smoke"]);
 export function configPath(binary = '') {
     const binaryName = binary ? GLib.path_get_basename(binary) : '';
     const configDir = binaryName.includes('usagestat-dev') ? 'usagestat-dev' : 'usagestat';
-    return GLib.build_filenamev([GLib.get_home_dir(), '.config', configDir, 'config.toml']);
+    return GLib.build_filenamev([GLib.get_user_config_dir(), configDir, 'config.toml']);
 }
 
 export function defaultConfig() {
@@ -155,15 +155,9 @@ function writeConfig(config, path) {
         bytes,
         null,
         false,
-        Gio.FileCreateFlags.REPLACE_DESTINATION,
+        Gio.FileCreateFlags.REPLACE_DESTINATION | Gio.FileCreateFlags.PRIVATE,
         null,
     );
-
-    try {
-        Gio.Subprocess.new(['chmod', '600', path], Gio.SubprocessFlags.NONE);
-    } catch (error) {
-        logError(error, 'UsageStat Bar: failed to chmod config');
-    }
 }
 
 export function enabledProviders(config) {
@@ -201,7 +195,7 @@ export function providerAlias(id) {
     }[id] || id;
 }
 
-function parseConfigToml(text) {
+export function parseConfigToml(text) {
     const config = {refreshSec: 60, pluginDirs: [], providers: []};
     let currentProvider = null;
 
@@ -327,14 +321,47 @@ function parseTomlValue(value) {
     if (value.startsWith('"') && value.endsWith('"'))
         return parseTomlString(value.slice(1, -1));
     if (value.startsWith('[') && value.endsWith(']')) {
-        return value.slice(1, -1).split(',')
-            .map(part => parseTomlValue(part.trim()))
-            .filter(part => typeof part === 'string' && part);
+        return splitTomlArray(value.slice(1, -1))
+            .filter(part => part.trim())
+            .map(part => parseTomlValue(part.trim()));
     }
     return value;
 }
 
-function formatConfigToml(config) {
+function splitTomlArray(text) {
+    const parts = [];
+    let start = 0;
+    let quoted = false;
+    let escaped = false;
+    let depth = 0;
+    for (let i = 0; i < text.length; i++) {
+        const char = text[i];
+        if (escaped) {
+            escaped = false;
+            continue;
+        }
+        if (quoted && char === '\\') {
+            escaped = true;
+            continue;
+        }
+        if (char === '"')
+            quoted = !quoted;
+        if (quoted)
+            continue;
+        if (char === '[')
+            depth++;
+        else if (char === ']')
+            depth--;
+        else if (char === ',' && depth === 0) {
+            parts.push(text.slice(start, i));
+            start = i + 1;
+        }
+    }
+    parts.push(text.slice(start));
+    return parts;
+}
+
+export function formatConfigToml(config) {
     const normalized = ensureProviderShape(config);
     const lines = [
         `refreshSec = ${normalized.refreshSec}`,

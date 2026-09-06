@@ -1,0 +1,27 @@
+{
+  "referenceCommit": "9436c3834522745076c60937dc7c4c4a1649e6e8",
+  "fetchedAt": "2026-01-15T12:00:00Z",
+  "manifests": [
+    {"id": "codex", "name": "Codex", "displayName": "Codex", "sources": ["cli", "api"]},
+    {"id": "claude", "name": "Claude", "displayName": "Claude", "sources": ["cli", "api"]}
+  ],
+  "scenarios": {
+    "normal": {"used": 25, "weeklyUsed": 80},
+    "zero": {"used": 0, "weeklyUsed": 0},
+    "warning": {"used": 75, "weeklyUsed": 75},
+    "danger": {"used": 90, "weeklyUsed": 90},
+    "full": {"used": 100, "weeklyUsed": 100},
+    "over-limit": {"used": 125, "weeklyUsed": -10},
+    "no-cost": {"used": 25, "weeklyUsed": 80, "cost": false},
+    "cost-failure": {"used": 25, "weeklyUsed": 80, "costExit": 2},
+    "many-windows": {"used": 25, "weeklyUsed": 80, "extraWindows": 4},
+    "missing-fields": {"minimal": true},
+    "legacy": {"legacy": true, "used": 25, "weeklyUsed": 80},
+    "array": {"array": true, "used": 25, "weeklyUsed": 80},
+    "empty": {"empty": true},
+    "malformed": {"malformed": true},
+    "failure": {"exit": 7, "stderr": "Fixture backend failed\nAdditional diagnostic"},
+    "api-error": {"error": {"code": "fixture_error", "message": "Fixture account needs setup"}},
+    "hang": {"delaySeconds": 120, "used": 25, "weeklyUsed": 80}
+  }
+}

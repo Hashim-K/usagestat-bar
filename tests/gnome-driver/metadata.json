@@ -1,0 +1,6 @@
+{
+  "uuid": "usagestat-baseline-test@local",
+  "name": "UsageStat isolated baseline test driver",
+  "description": "Only installed inside the disposable UsageStat test session.",
+  "shell-version": ["45", "46", "47", "48", "49", "50"]
+}

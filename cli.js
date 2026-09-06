@@ -39,14 +39,18 @@ export function findAiUsage(override = '') {
     return null;
 }
 
-function runAsync(argv, cancellable) {
+export function runAsync(argv, cancellable, timeoutMs = COMMAND_TIMEOUT_SECONDS * 1000) {
     return new Promise((resolve, reject) => {
+        cancellable?.set_error_if_cancelled();
         const proc = Gio.Subprocess.new(
             argv,
             Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE,
         );
 
-        const timeoutId = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, COMMAND_TIMEOUT_SECONDS, () => {
+        let timedOut = false;
+        let timeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, timeoutMs, () => {
+            timeoutId = 0;
+            timedOut = true;
             try {
                 proc.force_exit();
             } catch {
@@ -54,17 +58,22 @@ function runAsync(argv, cancellable) {
             }
             return GLib.SOURCE_REMOVE;
         });
+        const cancelId = cancellable?.connect(() => proc.force_exit());
 
         proc.communicate_utf8_async(null, cancellable, (process, result) => {
             if (timeoutId)
                 GLib.source_remove(timeoutId);
+            if (cancelId)
+                cancellable.disconnect(cancelId);
 
             try {
                 const [, stdout, stderr] = process.communicate_utf8_finish(result);
+                if (timedOut)
+                    throw new Error(`Command timed out after ${timeoutMs} ms.`);
                 resolve({
                     stdout: stdout || '',
                     stderr: stderr || '',
-                    status: process.get_exit_status(),
+                    status: process.get_if_exited() ? process.get_exit_status() : 128 + process.get_term_sig(),
                 });
             } catch (error) {
                 reject(error);
@@ -179,7 +188,7 @@ async function fetchCustomCommandUsage(provider, cancellable) {
     return payload;
 }
 
-function parseUsageJson(stdout, sourceName) {
+export function parseUsageJson(stdout, sourceName) {
     try {
         const parsed = JSON.parse(stdout);
         return Array.isArray(parsed) ? parsed[0] : parsed;
@@ -190,7 +199,7 @@ function parseUsageJson(stdout, sourceName) {
     }
 }
 
-function normalizeBackendSnapshot(snapshot, fallbackProviderId) {
+export function normalizeBackendSnapshot(snapshot, fallbackProviderId) {
     if (!Array.isArray(snapshot?.metrics))
         return snapshot;
 
@@ -263,7 +272,7 @@ function normalizeBackendSnapshot(snapshot, fallbackProviderId) {
     };
 }
 
-function normalizeCostSummary(summary) {
+export function normalizeCostSummary(summary) {
     if (!summary || typeof summary !== 'object')
         return null;
 

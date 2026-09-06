@@ -1,0 +1,119 @@
+#!/usr/bin/env python3
+"""Credential-free implementation of the CLI calls used by UsageStat Bar.
+
+Select a scenario with USAGESTAT_FIXTURE_SCENARIO, or change the JSON file
+named by USAGESTAT_FIXTURE_STATE between refreshes. Never calls a real backend.
+"""
+
+import datetime
+import json
+import os
+from pathlib import Path
+import sys
+import time
+
+
+def main():
+    data = json.loads(Path(__file__).with_name("scenarios.json").read_text())
+    state_path = os.environ.get("USAGESTAT_FIXTURE_STATE")
+    state = json.loads(Path(state_path).read_text()) if state_path else {}
+    name = state.get("scenario", os.environ.get("USAGESTAT_FIXTURE_SCENARIO", "normal"))
+    if name not in data["scenarios"]:
+        raise ValueError(f"Unknown fixture scenario: {name}")
+    scenario = dict(data["scenarios"][name])
+    scenario.update(state.get("overrides", {}))
+    args = iter(sys.argv[1:])
+    options = {}
+    command = None
+    for arg in args:
+        if arg in ("--config", "--plugin-dir", "--provider", "--source"):
+            options[arg] = next(args)
+        elif arg == "--json":
+            continue
+        elif arg in ("list", "usage", "cost") and command is None:
+            command = arg
+        elif arg == "--version":
+            print("usagestat fixture 1 (reference " + data["referenceCommit"] + ")")
+            return 0
+        else:
+            raise ValueError(f"Unsupported fixture argument: {arg}")
+    if command is None:
+        raise ValueError("Expected list, usage, or cost")
+
+    if log_path := os.environ.get("USAGESTAT_FIXTURE_LOG"):
+        with open(log_path, "a") as log:
+            log.write(json.dumps({"pid": os.getpid(), "command": command,
+                                  "options": options, "scenario": name}) + "\n")
+    time.sleep(float(scenario.get("delaySeconds", 0)))
+    if scenario.get("exit"):
+        print(scenario["stderr"], file=sys.stderr)
+        return scenario["exit"]
+    if scenario.get("malformed"):
+        print("{fixture: invalid json")
+        return 0
+    if scenario.get("empty"):
+        if command == "list":
+            print("[]")
+        return 0
+    if scenario.get("error"):
+        print(json.dumps({"error": scenario["error"]}))
+        return 0
+
+    provider = options.get("--provider", "codex")
+    used = float(scenario.get("used", 0))
+    if name == "normal" and provider == "claude" and "used" not in state.get("overrides", {}):
+        used = 60
+    if command == "list":
+        result = data["manifests"]
+    elif command == "cost":
+        if scenario.get("costExit"):
+            print("Fixture cost unavailable", file=sys.stderr)
+            return scenario["costExit"]
+        today = datetime.date.today()
+        result = {"currency": "USD", "periodDays": 30, "totals": {}, "daily": []}
+        if scenario.get("cost", True):
+            result.update(totals={"totalCost": 12.5, "totalTokens": 10000}, daily=[
+                {"date": today.isoformat(), "totalCost": 2.5, "totalTokens": 2000},
+                {"date": (today - datetime.timedelta(days=1)).isoformat(),
+                 "totalCost": 1.25, "totalTokens": 1000},
+            ])
+    elif scenario.get("legacy"):
+        result = {"provider": provider, "usage": {
+            "updatedAt": data["fetchedAt"], "primary": {"usedPercent": used},
+            "secondary": {"usedPercent": scenario["weeklyUsed"]},
+        }}
+    elif scenario.get("minimal"):
+        result = {"metrics": [None, {"type": "progress", "limit": 0},
+                              {"type": "progress", "used": 20, "limit": 100}]}
+    else:
+        result = {
+            "providerId": provider, "displayName": provider.capitalize(),
+            "source": options.get("--source", "cli"), "plan": "Fixture plan",
+            "fetchedAt": data["fetchedAt"],
+            "statusPageUrl": "https://example.invalid/status",
+            "usageDashboardUrl": "https://example.invalid/usage",
+            "metrics": [
+                {"type": "progress", "label": "Session", "used": used, "limit": 100,
+                 "periodDurationMs": 18000000, "resetsAt": "2099-01-15T17:00:00Z"},
+                {"type": "progress", "label": "Weekly", "used": scenario.get("weeklyUsed", 80),
+                 "limit": 100, "periodDurationMs": 604800000},
+                {"type": "text", "label": "Account", "value": "Fixture account"},
+                {"type": "text", "label": "Today", "value": "$2.50"},
+                {"type": "badge", "label": "Plan", "text": "Fixture", "color": "#8ab4f8"},
+            ],
+        }
+        for index in range(scenario.get("extraWindows", 0)):
+            result["metrics"].append({"type": "progress", "label": f"Extra {index + 1}",
+                                      "used": 10 * (index + 1), "limit": 100})
+    if command == "usage" and scenario.get("array"):
+        result = [result]
+    print(json.dumps(result))
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except (ValueError, StopIteration, OSError) as error:
+        print(f"Fixture error: {error}", file=sys.stderr)
+        sys.exit(2)

@@ -68,6 +68,19 @@ If the CLI is in a non-standard location, set `USAGESTAT_CLI=/path/to/usagestat`
 
 ## Development
 
+Run the credential-free baseline checks:
+
+```bash
+./tests/run.sh       # CLI, usage and config contract checks
+./tests/package.sh   # Release archive and isolated install checks
+./test-nested.sh     # Isolated GNOME UI checks, logs and screenshots
+./dev-shell.sh --fixtures  # Interactive desktop with a fake backend
+```
+
+See [testing instructions](docs/TESTING.md), the
+[current-version port baseline](docs/BASELINE.md), and the
+[platform roadmap](https://github.com/Hashim-K/usagestat-bar/issues/2).
+
 Link the repo into the extensions directory for live reloading:
 
 ```bash
@@ -80,11 +93,10 @@ Schema changes still need:
 glib-compile-schemas schemas
 ```
 
-On Wayland, test in a nested GNOME Shell:
+For live development with your normal provider config, open a nested Shell:
 
 ```bash
-./install.sh
-./test-nested.sh
+./dev-shell.sh
 ```
 
 Build the submission zip:
