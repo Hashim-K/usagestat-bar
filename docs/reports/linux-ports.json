@@ -1,0 +1,669 @@
+{
+  "date": "2026-09-06",
+  "fixtureVersion": 1,
+  "runs": [
+    {
+      "environment": {
+        "target": "plasma",
+        "commit": "7fe78b7fa53aa484f2bc3ae9c13168e2f46bbd7a",
+        "dirty": false,
+        "hostKernel": "7.1.10-200.fc44.x86_64",
+        "architecture": "x86_64",
+        "image": "09acea43b48878b7200b572ed4db59b8fb9bfb8d9727c3e4887b5a06f8c2bab5"
+      },
+      "artifactDirectory": "artifacts/linux-plasma.R1FLPG",
+      "result": {
+        "target": "plasma",
+        "checks": [
+          {
+            "name": "fixture accounts, grouping, automatic mean and costs",
+            "passed": true
+          },
+          {
+            "name": "panel process launched; screenshot requires visual review",
+            "passed": true
+          },
+          {
+            "name": "mapped GTK provider details window",
+            "passed": true
+          },
+          {
+            "name": "provider switching",
+            "passed": true
+          },
+          {
+            "name": "settings update panel selection and used/remaining mode",
+            "passed": true
+          },
+          {
+            "name": "backend failure remains visible",
+            "passed": true
+          },
+          {
+            "name": "backend recovers on next refresh",
+            "passed": true
+          },
+          {
+            "name": "mapped existing preferences outside GNOME",
+            "passed": true
+          },
+          {
+            "name": "extra windows, optional cost, legacy, array and boundary fixtures",
+            "passed": true
+          },
+          {
+            "name": "service restart preserves appearance settings",
+            "passed": true
+          }
+        ],
+        "passed": true
+      }
+    },
+    {
+      "environment": {
+        "target": "cinnamon",
+        "commit": "7fe78b7fa53aa484f2bc3ae9c13168e2f46bbd7a",
+        "dirty": false,
+        "hostKernel": "7.1.10-200.fc44.x86_64",
+        "architecture": "x86_64",
+        "image": "09acea43b48878b7200b572ed4db59b8fb9bfb8d9727c3e4887b5a06f8c2bab5"
+      },
+      "artifactDirectory": "artifacts/linux-cinnamon.JQoEkl",
+      "result": {
+        "target": "cinnamon",
+        "checks": [
+          {
+            "name": "fixture accounts, grouping, automatic mean and costs",
+            "passed": true
+          },
+          {
+            "name": "panel process launched; screenshot requires visual review",
+            "passed": true
+          },
+          {
+            "name": "mapped GTK provider details window",
+            "passed": true
+          },
+          {
+            "name": "provider switching",
+            "passed": true
+          },
+          {
+            "name": "settings update panel selection and used/remaining mode",
+            "passed": true
+          },
+          {
+            "name": "backend failure remains visible",
+            "passed": true
+          },
+          {
+            "name": "backend recovers on next refresh",
+            "passed": true
+          },
+          {
+            "name": "mapped existing preferences outside GNOME",
+            "passed": true
+          },
+          {
+            "name": "extra windows, optional cost, legacy, array and boundary fixtures",
+            "passed": true
+          },
+          {
+            "name": "service restart preserves appearance settings",
+            "passed": true
+          }
+        ],
+        "passed": true
+      }
+    },
+    {
+      "environment": {
+        "target": "mate",
+        "commit": "7fe78b7fa53aa484f2bc3ae9c13168e2f46bbd7a",
+        "dirty": false,
+        "hostKernel": "7.1.10-200.fc44.x86_64",
+        "architecture": "x86_64",
+        "image": "09acea43b48878b7200b572ed4db59b8fb9bfb8d9727c3e4887b5a06f8c2bab5"
+      },
+      "artifactDirectory": "artifacts/linux-mate.OSVBPp",
+      "result": {
+        "target": "mate",
+        "checks": [
+          {
+            "name": "fixture accounts, grouping, automatic mean and costs",
+            "passed": true
+          },
+          {
+            "name": "panel process launched; screenshot requires visual review",
+            "passed": true
+          },
+          {
+            "name": "mapped GTK provider details window",
+            "passed": true
+          },
+          {
+            "name": "provider switching",
+            "passed": true
+          },
+          {
+            "name": "settings update panel selection and used/remaining mode",
+            "passed": true
+          },
+          {
+            "name": "backend failure remains visible",
+            "passed": true
+          },
+          {
+            "name": "backend recovers on next refresh",
+            "passed": true
+          },
+          {
+            "name": "mapped existing preferences outside GNOME",
+            "passed": true
+          },
+          {
+            "name": "extra windows, optional cost, legacy, array and boundary fixtures",
+            "passed": true
+          },
+          {
+            "name": "service restart preserves appearance settings",
+            "passed": true
+          }
+        ],
+        "passed": true
+      }
+    },
+    {
+      "environment": {
+        "target": "xfce",
+        "commit": "7fe78b7fa53aa484f2bc3ae9c13168e2f46bbd7a",
+        "dirty": false,
+        "hostKernel": "7.1.10-200.fc44.x86_64",
+        "architecture": "x86_64",
+        "image": "09acea43b48878b7200b572ed4db59b8fb9bfb8d9727c3e4887b5a06f8c2bab5"
+      },
+      "artifactDirectory": "artifacts/linux-xfce.hG4OGp",
+      "result": {
+        "target": "xfce",
+        "checks": [
+          {
+            "name": "fixture accounts, grouping, automatic mean and costs",
+            "passed": true
+          },
+          {
+            "name": "two indicators registered with the real desktop tray",
+            "passed": true
+          },
+          {
+            "name": "removing and restoring indicators leaves no stale tray items",
+            "passed": true
+          },
+          {
+            "name": "tray pixmaps and context menu implement the desktop protocol",
+            "passed": true
+          },
+          {
+            "name": "mapped GTK provider details window",
+            "passed": true
+          },
+          {
+            "name": "provider switching",
+            "passed": true
+          },
+          {
+            "name": "settings update panel selection and used/remaining mode",
+            "passed": true
+          },
+          {
+            "name": "backend failure remains visible",
+            "passed": true
+          },
+          {
+            "name": "backend recovers on next refresh",
+            "passed": true
+          },
+          {
+            "name": "mapped existing preferences outside GNOME",
+            "passed": true
+          },
+          {
+            "name": "extra windows, optional cost, legacy, array and boundary fixtures",
+            "passed": true
+          },
+          {
+            "name": "service restart preserves appearance settings",
+            "passed": true
+          }
+        ],
+        "passed": true
+      }
+    },
+    {
+      "environment": {
+        "target": "lxqt",
+        "commit": "7fe78b7fa53aa484f2bc3ae9c13168e2f46bbd7a",
+        "dirty": false,
+        "hostKernel": "7.1.10-200.fc44.x86_64",
+        "architecture": "x86_64",
+        "image": "09acea43b48878b7200b572ed4db59b8fb9bfb8d9727c3e4887b5a06f8c2bab5"
+      },
+      "artifactDirectory": "artifacts/linux-lxqt.XZAd44",
+      "result": {
+        "target": "lxqt",
+        "checks": [
+          {
+            "name": "fixture accounts, grouping, automatic mean and costs",
+            "passed": true
+          },
+          {
+            "name": "two indicators registered with the real desktop tray",
+            "passed": true
+          },
+          {
+            "name": "removing and restoring indicators leaves no stale tray items",
+            "passed": true
+          },
+          {
+            "name": "tray pixmaps and context menu implement the desktop protocol",
+            "passed": true
+          },
+          {
+            "name": "mapped GTK provider details window",
+            "passed": true
+          },
+          {
+            "name": "provider switching",
+            "passed": true
+          },
+          {
+            "name": "settings update panel selection and used/remaining mode",
+            "passed": true
+          },
+          {
+            "name": "backend failure remains visible",
+            "passed": true
+          },
+          {
+            "name": "backend recovers on next refresh",
+            "passed": true
+          },
+          {
+            "name": "real notification daemon receives upward crossings only",
+            "passed": true
+          },
+          {
+            "name": "mapped existing preferences outside GNOME",
+            "passed": true
+          },
+          {
+            "name": "extra windows, optional cost, legacy, array and boundary fixtures",
+            "passed": true
+          },
+          {
+            "name": "service restart preserves appearance settings",
+            "passed": true
+          }
+        ],
+        "passed": true
+      }
+    },
+    {
+      "environment": {
+        "target": "budgie",
+        "commit": "7fe78b7fa53aa484f2bc3ae9c13168e2f46bbd7a",
+        "dirty": false,
+        "hostKernel": "7.1.10-200.fc44.x86_64",
+        "architecture": "x86_64",
+        "image": "09acea43b48878b7200b572ed4db59b8fb9bfb8d9727c3e4887b5a06f8c2bab5"
+      },
+      "artifactDirectory": "artifacts/linux-budgie.xdPcPI",
+      "result": {
+        "target": "budgie",
+        "checks": [
+          {
+            "name": "fixture accounts, grouping, automatic mean and costs",
+            "passed": true
+          },
+          {
+            "name": "two indicators registered with the real desktop tray",
+            "passed": true
+          },
+          {
+            "name": "removing and restoring indicators leaves no stale tray items",
+            "passed": true
+          },
+          {
+            "name": "tray pixmaps and context menu implement the desktop protocol",
+            "passed": true
+          },
+          {
+            "name": "mapped GTK provider details window",
+            "passed": true
+          },
+          {
+            "name": "provider switching",
+            "passed": true
+          },
+          {
+            "name": "settings update panel selection and used/remaining mode",
+            "passed": true
+          },
+          {
+            "name": "backend failure remains visible",
+            "passed": true
+          },
+          {
+            "name": "backend recovers on next refresh",
+            "passed": true
+          },
+          {
+            "name": "mapped existing preferences outside GNOME",
+            "passed": true
+          },
+          {
+            "name": "extra windows, optional cost, legacy, array and boundary fixtures",
+            "passed": true
+          },
+          {
+            "name": "service restart preserves appearance settings",
+            "passed": true
+          }
+        ],
+        "passed": true
+      }
+    },
+    {
+      "environment": {
+        "target": "cosmic",
+        "commit": "7fe78b7fa53aa484f2bc3ae9c13168e2f46bbd7a",
+        "dirty": false,
+        "hostKernel": "7.1.10-200.fc44.x86_64",
+        "architecture": "x86_64",
+        "image": "09acea43b48878b7200b572ed4db59b8fb9bfb8d9727c3e4887b5a06f8c2bab5"
+      },
+      "artifactDirectory": "artifacts/linux-cosmic.14E7oQ",
+      "result": {
+        "target": "cosmic",
+        "checks": [
+          {
+            "name": "fixture accounts, grouping, automatic mean and costs",
+            "passed": true
+          },
+          {
+            "name": "two indicators registered with the real desktop tray",
+            "passed": true
+          },
+          {
+            "name": "removing and restoring indicators leaves no stale tray items",
+            "passed": true
+          },
+          {
+            "name": "tray pixmaps and context menu implement the desktop protocol",
+            "passed": true
+          },
+          {
+            "name": "mapped GTK provider details window",
+            "passed": true
+          },
+          {
+            "name": "provider switching",
+            "passed": true
+          },
+          {
+            "name": "settings update panel selection and used/remaining mode",
+            "passed": true
+          },
+          {
+            "name": "backend failure remains visible",
+            "passed": true
+          },
+          {
+            "name": "backend recovers on next refresh",
+            "passed": true
+          },
+          {
+            "name": "mapped existing preferences outside GNOME",
+            "passed": true
+          },
+          {
+            "name": "extra windows, optional cost, legacy, array and boundary fixtures",
+            "passed": true
+          },
+          {
+            "name": "service restart preserves appearance settings",
+            "passed": true
+          }
+        ],
+        "passed": true
+      }
+    },
+    {
+      "environment": {
+        "target": "sway",
+        "commit": "7fe78b7fa53aa484f2bc3ae9c13168e2f46bbd7a",
+        "dirty": false,
+        "hostKernel": "7.1.10-200.fc44.x86_64",
+        "architecture": "x86_64",
+        "image": "09acea43b48878b7200b572ed4db59b8fb9bfb8d9727c3e4887b5a06f8c2bab5"
+      },
+      "artifactDirectory": "artifacts/linux-sway.11Oby1",
+      "result": {
+        "target": "sway",
+        "checks": [
+          {
+            "name": "fixture accounts, grouping, automatic mean and costs",
+            "passed": true
+          },
+          {
+            "name": "panel process launched; screenshot requires visual review",
+            "passed": true
+          },
+          {
+            "name": "mapped GTK provider details window",
+            "passed": true
+          },
+          {
+            "name": "provider switching",
+            "passed": true
+          },
+          {
+            "name": "settings update panel selection and used/remaining mode",
+            "passed": true
+          },
+          {
+            "name": "backend failure remains visible",
+            "passed": true
+          },
+          {
+            "name": "backend recovers on next refresh",
+            "passed": true
+          },
+          {
+            "name": "mapped existing preferences outside GNOME",
+            "passed": true
+          },
+          {
+            "name": "extra windows, optional cost, legacy, array and boundary fixtures",
+            "passed": true
+          },
+          {
+            "name": "service restart preserves appearance settings",
+            "passed": true
+          }
+        ],
+        "passed": true
+      }
+    },
+    {
+      "environment": {
+        "target": "hyprland",
+        "commit": "7fe78b7fa53aa484f2bc3ae9c13168e2f46bbd7a",
+        "dirty": false,
+        "hostKernel": "7.1.10-200.fc44.x86_64",
+        "architecture": "x86_64",
+        "image": "d4e8146633e635449b0e714b28aaf94018a23d80e33b5ffa28746f2c6db865d5"
+      },
+      "artifactDirectory": "artifacts/linux-hyprland.EFKLuI",
+      "result": {
+        "target": "hyprland",
+        "checks": [
+          {
+            "name": "fixture accounts, grouping, automatic mean and costs",
+            "passed": true
+          },
+          {
+            "name": "panel process launched; screenshot requires visual review",
+            "passed": true
+          },
+          {
+            "name": "mapped GTK provider details window",
+            "passed": true
+          },
+          {
+            "name": "provider switching",
+            "passed": true
+          },
+          {
+            "name": "settings update panel selection and used/remaining mode",
+            "passed": true
+          },
+          {
+            "name": "backend failure remains visible",
+            "passed": true
+          },
+          {
+            "name": "backend recovers on next refresh",
+            "passed": true
+          },
+          {
+            "name": "mapped existing preferences outside GNOME",
+            "passed": true
+          },
+          {
+            "name": "extra windows, optional cost, legacy, array and boundary fixtures",
+            "passed": true
+          },
+          {
+            "name": "service restart preserves appearance settings",
+            "passed": true
+          }
+        ],
+        "passed": true
+      }
+    },
+    {
+      "environment": {
+        "target": "i3",
+        "commit": "7fe78b7fa53aa484f2bc3ae9c13168e2f46bbd7a",
+        "dirty": false,
+        "hostKernel": "7.1.10-200.fc44.x86_64",
+        "architecture": "x86_64",
+        "image": "09acea43b48878b7200b572ed4db59b8fb9bfb8d9727c3e4887b5a06f8c2bab5"
+      },
+      "artifactDirectory": "artifacts/linux-i3.cgDXHk",
+      "result": {
+        "target": "i3",
+        "checks": [
+          {
+            "name": "fixture accounts, grouping, automatic mean and costs",
+            "passed": true
+          },
+          {
+            "name": "panel process launched; screenshot requires visual review",
+            "passed": true
+          },
+          {
+            "name": "mapped GTK provider details window",
+            "passed": true
+          },
+          {
+            "name": "provider switching",
+            "passed": true
+          },
+          {
+            "name": "settings update panel selection and used/remaining mode",
+            "passed": true
+          },
+          {
+            "name": "backend failure remains visible",
+            "passed": true
+          },
+          {
+            "name": "backend recovers on next refresh",
+            "passed": true
+          },
+          {
+            "name": "mapped existing preferences outside GNOME",
+            "passed": true
+          },
+          {
+            "name": "extra windows, optional cost, legacy, array and boundary fixtures",
+            "passed": true
+          },
+          {
+            "name": "service restart preserves appearance settings",
+            "passed": true
+          }
+        ],
+        "passed": true
+      }
+    },
+    {
+      "environment": {
+        "target": "bspwm",
+        "commit": "7fe78b7fa53aa484f2bc3ae9c13168e2f46bbd7a",
+        "dirty": false,
+        "hostKernel": "7.1.10-200.fc44.x86_64",
+        "architecture": "x86_64",
+        "image": "09acea43b48878b7200b572ed4db59b8fb9bfb8d9727c3e4887b5a06f8c2bab5"
+      },
+      "artifactDirectory": "artifacts/linux-bspwm.SF6rKM",
+      "result": {
+        "target": "bspwm",
+        "checks": [
+          {
+            "name": "fixture accounts, grouping, automatic mean and costs",
+            "passed": true
+          },
+          {
+            "name": "panel process launched; screenshot requires visual review",
+            "passed": true
+          },
+          {
+            "name": "mapped GTK provider details window",
+            "passed": true
+          },
+          {
+            "name": "provider switching",
+            "passed": true
+          },
+          {
+            "name": "settings update panel selection and used/remaining mode",
+            "passed": true
+          },
+          {
+            "name": "backend failure remains visible",
+            "passed": true
+          },
+          {
+            "name": "backend recovers on next refresh",
+            "passed": true
+          },
+          {
+            "name": "mapped existing preferences outside GNOME",
+            "passed": true
+          },
+          {
+            "name": "extra windows, optional cost, legacy, array and boundary fixtures",
+            "passed": true
+          },
+          {
+            "name": "service restart preserves appearance settings",
+            "passed": true
+          }
+        ],
+        "passed": true
+      }
+    }
+  ]
+}
