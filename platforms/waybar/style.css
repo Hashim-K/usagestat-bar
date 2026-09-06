@@ -1,0 +1,4 @@
+#custom-usagestat { padding: 0 10px; color: #e6edf3; background: #20242b; }
+#custom-usagestat.warning { color: #f6d32d; }
+#custom-usagestat.danger, #custom-usagestat.error { color: #ff5f57; }
+#custom-usagestat.loading { opacity: 0.6; }

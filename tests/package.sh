@@ -20,7 +20,7 @@ from pathlib import Path
 import sys
 import zipfile
 archive, target = sys.argv[1:]
-expected = {'extension.js', 'prefs.js', 'cli.js', 'config.js', 'stylesheet.css',
+expected = {'extension.js', 'prefs.js', 'preferences.js', 'providerMetadata.js', 'cli.js', 'config.js', 'stylesheet.css',
             'metadata.json', 'schemas', 'assets', 'LICENSE'}
 with zipfile.ZipFile(archive) as package:
     paths = package.namelist()

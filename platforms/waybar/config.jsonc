@@ -1,0 +1,14 @@
+{
+  "custom/usagestat": {
+    "exec": "usagestat-bar waybar",
+    "return-type": "json",
+    "interval": 2,
+    "format": "{text}",
+    "on-click": "usagestat-bar details",
+    "on-click-right": "usagestat-bar preferences",
+    "on-click-middle": "usagestat-bar refresh",
+    "on-scroll-up": "usagestat-bar previous",
+    "on-scroll-down": "usagestat-bar next",
+    "escape": false
+  }
+}

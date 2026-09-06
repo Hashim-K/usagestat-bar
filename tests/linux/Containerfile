@@ -1,0 +1,9 @@
+FROM registry.fedoraproject.org/fedora:44
+RUN dnf install -y --setopt=install_weak_deps=False \
+    gjs libadwaita gtk4 glib2 dconf dbus-daemon python3 python3-gobject \
+    xorg-x11-server-Xvfb xorg-x11-xauth openbox xdotool ImageMagick \
+    plasma-workspace plasma-desktop kwin kwin-x11 cinnamon cinnamon-settings-daemon \
+    xfce4-panel xfce4-session xfce4-genmon-plugin lxqt-panel mate-panel \
+    budgie-desktop cosmic-panel cosmic-comp cosmic-applets sway waybar polybar i3 bspwm \
+    labwc grim wlrctl dunst procps-ng which zip unzip rsync findutils diffutils \
+    && dnf clean all

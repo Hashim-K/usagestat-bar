@@ -114,4 +114,6 @@ behavior.
    distro, architecture or GNOME version.
 
 See [testing instructions](TESTING.md) and the
-[initial GNOME report](reports/gnome-50.4.md).
+[initial GNOME report](reports/gnome-50.4.md). The
+[initial Linux ports report](reports/linux-ports.md) records the new desktop
+checks and remaining parity work.

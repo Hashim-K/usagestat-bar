@@ -1,6 +1,8 @@
 # UsageStat Bar
 
-GNOME Shell extension that shows normalized AI provider usage in the panel. Reads from the `usagestat` CLI and lets you toggle providers from preferences.
+AI provider usage in your Linux panel, using the `usagestat` CLI. The existing GNOME extension now has initial ports for Plasma, Cinnamon, MATE, tray desktops, Waybar and Polybar.
+
+For other Linux desktops, see [installation and desktop checks](docs/LINUX.md) and the [current parity report](docs/reports/linux-ports.md). Windows and macOS are tracked in the [platform roadmap](https://github.com/Hashim-K/usagestat-bar/issues/2).
 
 ## Install
 
@@ -35,7 +37,7 @@ chmod +x usagestat
 sudo install -Dm755 usagestat /usr/local/bin/usagestat
 ```
 
-### Step 2 — Install the extension
+### Step 2 — Install the GNOME extension
 
 **From GNOME Extensions:**
 
@@ -75,9 +77,12 @@ Run the credential-free baseline checks:
 ./tests/package.sh   # Release archive and isolated install checks
 ./test-nested.sh     # Isolated GNOME UI checks, logs and screenshots
 ./dev-shell.sh --fixtures  # Interactive desktop with a fake backend
+./tests/linux/run.sh       # Standalone Linux model and rendering checks
+./tests/linux/lab.sh plasma # Native desktop check after building the lab image
 ```
 
 See [testing instructions](docs/TESTING.md), the
+[Linux desktop lab](docs/LINUX.md#repeatable-desktop-checks-from-gnome), the
 [current-version port baseline](docs/BASELINE.md), and the
 [platform roadmap](https://github.com/Hashim-K/usagestat-bar/issues/2).
 

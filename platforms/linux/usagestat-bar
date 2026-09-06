@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -euo pipefail
+app_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+case "${1:-tray}" in
+    service) exec gjs -m "$app_dir/main.js" ;;
+    --help|-h)
+        printf '%s\n' 'Usage: usagestat-bar [tray|details|preferences|refresh|next|previous|select ID|snapshot|waybar|polybar|image|quit]' ;;
+    *) exec gjs -m "$app_dir/client.js" "$@" ;;
+esac

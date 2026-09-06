@@ -1,0 +1,6 @@
+FROM docker.io/library/archlinux:base
+RUN pacman -Syu --noconfirm --needed \
+    gjs libadwaita gtk4 dconf dbus python-gobject python \
+    xorg-server-xvfb xorg-xauth xorg-xwayland openbox xdotool imagemagick \
+    hyprland waybar labwc grim mesa ttf-dejavu procps-ng which zip unzip rsync diffutils \
+    && pacman -Scc --noconfirm

@@ -1,5 +1,10 @@
 # Baseline checks and fixture development
 
+For the new Linux ports, use the [Linux desktop lab](LINUX.md#repeatable-desktop-checks-from-gnome).
+It runs real panels/compositors in isolated containers, installs the release
+bundle, uses these same fixtures, and retains screenshots and results. The
+[Linux parity report](reports/linux-ports.md) records coverage and gaps.
+
 ## Fast contract checks
 
 Requirements: GJS (`gjs`), Python 3 and Bash. No Node/npm packages, accounts,

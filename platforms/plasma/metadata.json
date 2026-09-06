@@ -1,0 +1,15 @@
+{
+  "KPlugin": {
+    "Id": "io.github.HashimK.usagestat",
+    "Name": "UsageStat Bar",
+    "Description": "AI provider quotas and costs",
+    "Icon": "office-chart-pie",
+    "Version": "0.1.0",
+    "License": "MIT",
+    "Authors": [{"Name": "UsageStat contributors"}],
+    "Website": "https://github.com/Hashim-K/usagestat-bar",
+    "Category": "System Information"
+  },
+  "KPackageStructure": "Plasma/Applet",
+  "X-Plasma-API-Minimum-Version": "6.0"
+}

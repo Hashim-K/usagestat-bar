@@ -1,0 +1,8 @@
+{
+  "uuid": "usagestat-bar@hashimkarim",
+  "name": "UsageStat Bar",
+  "description": "AI provider usage, costs and preferences",
+  "version": "0.1.0",
+  "max-instances": 1,
+  "icon": "office-chart-pie"
+}
