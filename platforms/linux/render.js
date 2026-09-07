@@ -1,10 +1,11 @@
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import GdkPixbuf from 'gi://GdkPixbuf';
+import Rsvg from 'gi://Rsvg?version=2.0';
 import Pango from 'gi://Pango';
 import PangoCairo from 'gi://PangoCairo';
 import {ROOT, writePrivate} from './settings.js';
-import {clamp} from './model.js';
+import {clamp, safeColor} from './model.js';
 import {PROVIDER_ICON_FILES} from '../../providerMetadata.js';
 
 export const escapeXml = value => String(value ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;')
@@ -59,9 +60,9 @@ export function logoSvg(provider, appearance) {
 }
 
 const fontContext = PangoCairo.FontMap.get_default().create_context();
-function textWidth(text) {
+function textWidth(text, size = 13, bold = false) {
     const layout = Pango.Layout.new(fontContext);
-    layout.set_font_description(Pango.FontDescription.from_string('Sans 13px'));
+    layout.set_font_description(Pango.FontDescription.from_string(`Sans${bold ? ' Bold' : ''} ${size}px`));
     layout.set_text(text, -1);
     return layout.get_pixel_size()[0];
 }
@@ -130,42 +131,112 @@ export function panelSvg(state) {
     return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${Math.ceil(x)}" height="28" viewBox="0 0 ${Math.ceil(x)} 28">${parts.join('')}</svg>`;
 }
 
-export function traySvg(provider, appearance = {components: ['bar', 'percent'], bars: 1, neutral: '#ffffff', fill: 'full'}) {
-    const components = appearance.components;
+function luminance(color) {
+    const channels = [1, 3, 5].map(offset => parseInt(color.slice(offset, offset + 2), 16) / 255)
+        .map(value => value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4);
+    return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
+}
+
+function trayTrackColor(fill, background) {
+    const fillLight = luminance(fill), backgroundLight = luminance(background);
+    const contrast = (a, b) => (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+    let bestColor = '#23262e', bestContrast = 0;
+    // Keep the empty segment opaque. Choose a neutral shade that separates
+    // it from both the usage fill and the surface selected by Icon contrast.
+    for (let step = 0; step <= 16; step++) {
+        const color = '#' + [35, 38, 46].map((channel, index) => Math.round(channel
+            + ([244, 245, 246][index] - channel) * step / 16).toString(16).padStart(2, '0')).join('');
+        const light = luminance(color);
+        const score = Math.min(contrast(light, fillLight), contrast(light, backgroundLight));
+        if (score > bestContrast) { bestContrast = score; bestColor = color; }
+    }
+    return bestColor;
+}
+
+export function traySvg(provider, appearance = {}) {
+    const style = appearance.style || 'logo-meter';
+    const neutral = appearance.neutral || '#23262e';
     const pct = clamp(provider?.percent);
-    const text = provider?.error ? '!' : provider?.percent === null || !provider ? '…' : String(Math.round(pct));
-    const parts = ['<rect width="64" height="64" rx="14" fill="#20242b"/>'];
-    if (components.includes('bar')) usageBars(provider || {}, appearance).forEach((bar, i) => {
-        const r = 28 - i * 5, circumference = Math.PI * 2 * r;
-        parts.push(`<circle cx="32" cy="32" r="${r}" fill="none" stroke="#79818d" stroke-width="3"/>`);
-        parts.push(`<circle cx="32" cy="32" r="${r}" fill="none" stroke="${provider?.error ? '#ff5f57' : bar.color || '#8ab4f8'}" stroke-width="3" stroke-dasharray="${circumference * clamp(bar.percent) / 100} ${circumference}" transform="rotate(-90 32 32)"/>`);
-    });
-    const center = components.filter(c => c !== 'bar');
-    if (!center.length || provider?.error) center.splice(0, center.length, 'percent');
-    const size = center.length === 1 ? 32 : center.length === 2 ? 21 : 15;
-    center.forEach((component, i) => {
-        const y = (64 - size * center.length) / 2 + size * i;
-        if (component === 'logo' && provider)
-            parts.push(inlineLogo(provider, {...appearance, neutral: '#ffffff'}, (64 - size) / 2, y, size, 'tray_'));
-        else {
-            const value = component === 'text' ? initials(provider?.name) : text;
-            parts.push(`<text x="32" y="${y + size * .8}" text-anchor="middle" fill="#ffffff" font-family="sans-serif" font-size="${Math.min(size, value.length >= 3 ? size * .8 : size)}" font-weight="bold">${escapeXml(value)}</text>`);
+    const parts = [];
+    if (!provider) {
+        for (const [x, height] of [[5, 10], [13, 18], [21, 26]])
+            parts.push(`<rect x="${x}" y="${29 - height}" width="6" height="${height}" rx="1.5" fill="${neutral}"/>`);
+    } else if (style === 'percentage') {
+        const numeric = !provider.error && !provider.loading && Number.isFinite(provider.percent);
+        const text = provider.error ? '!' : provider.loading ? '…' : numeric ? String(Math.round(pct)) : '—';
+        // Fit the complete percentage, including 100%, without clipping or
+        // squeezing the glyphs. The smaller suffix leaves more room for digits.
+        const scale = numeric ? Math.min(1, 30 / (textWidth(text, 26, true) + textWidth('%', 14, true))) : 1;
+        const size = 26 * scale;
+        parts.push(`<text x="16" y="${16 + size * 0.36}" text-anchor="middle" fill="${provider.error ? '#ff5f57' : neutral}" font-family="sans-serif" font-size="${size}" font-weight="bold">${escapeXml(text)}${numeric ? `<tspan font-size="${14 * scale}">%</tspan>` : ''}</text>`);
+    } else {
+        const withMeter = style === 'logo-meter';
+        const vertical = appearance.barOrientation === 'vertical';
+        const thickness = Math.max(2, Math.min(8, appearance.barThickness ?? 5));
+        const space = 29 - thickness;
+        const size = withMeter ? Math.min(24, space) : 28;
+        const fill = ['vertical', 'horizontal', 'pie'].includes(appearance.fill) ? appearance.fill : 'vertical';
+        // A tray slot is only about 22–24 pixels. Give the logo the space;
+        // detailed numbers remain in the tooltip and usage window.
+        parts.push(inlineLogo({...provider, iconStyle: appearance.logoStyle || 'monochromatic'},
+            {neutral, fill: style === 'logo-fill' && !provider.error ? fill : 'full'},
+            withMeter && vertical ? (space - size) / 2 : (32 - size) / 2,
+            withMeter && !vertical ? (space - size) / 2 : (32 - size) / 2, size, 'tray_'));
+        if (withMeter) {
+            const color = safeColor(provider.error ? '#ff5f57' : provider.threshold ? provider.color : appearance.accent);
+            const background = safeColor(appearance.background, luminance(neutral) > 0.5 ? '#23262e' : '#f4f5f6');
+            const track = trayTrackColor(color, background);
+            const fraction = provider.error ? 1 : provider.loading ? 0.26 : pct / 100;
+            const x = vertical ? 31 - thickness : 4, y = vertical ? 4 : 31 - thickness;
+            const width = vertical ? thickness : 24, height = vertical ? 24 : thickness;
+            const radius = Math.min(2, thickness / 2);
+            parts.push(`<rect x="${x}" y="${y}" width="${width}" height="${height}" rx="${radius}" fill="${track}"/>`);
+            if (fraction > 0) parts.push(`<rect x="${x}" y="${vertical ? y + height * (1 - fraction) : y}" width="${vertical ? width : width * fraction}" height="${vertical ? height * fraction : height}" rx="${radius}" fill="${color}"/>`);
+        } else if (provider.error) {
+            parts.push('<circle cx="26" cy="26" r="5" fill="#ff5f57"/>');
+            parts.push('<path d="M26 23v3m0 2v.1" stroke="white" stroke-width="1.5" stroke-linecap="round"/>');
         }
-    });
-    return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="64" height="64" viewBox="0 0 64 64">${parts.join('')}</svg>`;
+    }
+    return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="32" height="32" viewBox="0 0 32 32">${parts.join('')}</svg>`;
+}
+
+export function svgPixels(svg, width, height = width) {
+    // Render our composed SVG directly through librsvg. Recent GdkPixbuf
+    // versions send SVG to an external decoder, whose font sandbox can fail
+    // in nested desktops. Explicit dimensions keep each output crisp.
+    const sized = svg.replace(/<svg\b[^>]*>/, tag => tag.replace(/\s(?:width|height)=["'][^"']*["']/g, '')
+        .replace('<svg', `<svg width="${Math.round(width)}" height="${Math.round(height)}"`));
+    return Rsvg.Handle.new_from_data(new TextEncoder().encode(sized)).get_pixbuf();
+}
+
+function writePanelPng(path, svg, width) {
+    // QtSvg does not implement clipPath. Rasterize through librsvg, as the
+    // GTK/tray adapters do, at 3x resolution for sharp scaled Plasma panels.
+    const [, bytes] = svgPixels(svg, width * 3, 84).save_to_bufferv('png', [], []);
+    Gio.File.new_for_path(path).replace_contents(bytes, null, false,
+        Gio.FileCreateFlags.PRIVATE | Gio.FileCreateFlags.REPLACE_DESTINATION, null);
 }
 
 export function renderFiles(state) {
     const directory = `${GLib.get_user_cache_dir()}/usagestat-bar-linux`;
     const panel = panelSvg(state);
     const path = `${directory}/panel.svg`;
-    if (read(path) !== panel) writePrivate(path, panel);
+    const panelChanged = read(path) !== panel;
+    if (panelChanged) writePrivate(path, panel);
     state.panelImage = path;
     state.panelImageLight = `${directory}/panel-light.svg`;
     const light = panelSvg({...state, appearance: {...state.appearance,
         neutral: state.appearance.neutral === '#e6edf3' ? '#23262e' : state.appearance.neutral}});
-    if (read(state.panelImageLight) !== light) writePrivate(state.panelImageLight, light);
+    const lightChanged = read(state.panelImageLight) !== light;
+    if (lightChanged) writePrivate(state.panelImageLight, light);
     state.panelWidth = Number(panel.match(/width="([\d.]+)"/)[1]);
+    state.panelImagePng = `${directory}/panel.png`;
+    state.panelImageLightPng = `${directory}/panel-light.png`;
+    if (panelChanged || !Gio.File.new_for_path(state.panelImagePng).query_exists(null))
+        writePanelPng(state.panelImagePng, panel, state.panelWidth);
+    if (lightChanged || !Gio.File.new_for_path(state.panelImageLightPng).query_exists(null))
+        writePanelPng(state.panelImageLightPng, light, state.panelWidth);
+    state.panelImageKey = GLib.compute_checksum_for_string(GLib.ChecksumType.SHA256, panel + light, -1).slice(0, 16);
     state.providers.forEach((provider, i) => {
         provider.logo = `${directory}/provider-${i}.svg`;
         const svg = logoSvg(provider, {...state.appearance, fill: 'full'});
@@ -187,14 +258,14 @@ export function panelText(state, polybar = false, markup = false) {
     const color = (value, hex) => polybar ? `%{F${hex}}${value}%{F-}` : markup ? `<span foreground="${hex}">${value}</span>` : value;
     return state.panel.map(key => state.providers.find(p => p.key === key)).filter(Boolean).map(p => {
         const meters = usageBars(p, state.appearance).map(bar => {
-            const filled = Math.round(clamp(bar.percent) / 20);
-            const meter = p.error ? '!' : p.percent === null ? '…' : polybar
-                ? '[' + '|'.repeat(filled) + '.'.repeat(5 - filled) + ']'
-                : '▰'.repeat(filled) + '▱'.repeat(5 - filled);
-            return color(meter, bar.color || p.color || '#8ab4f8');
+            const filled = Math.round(clamp(bar.percent) * 6 / 100);
+            const fill = safeColor(p.error ? '#ff5f57' : bar.color || p.color);
+            const background = luminance(safeColor(state.appearance.neutral, '#e6edf3')) > 0.5 ? '#23262e' : '#f4f5f6';
+            if (p.error || p.percent === null) return color(p.error ? '!' : '…', fill);
+            return color('━'.repeat(filled), fill) + color('━'.repeat(6 - filled), trayTrackColor(fill, background));
         }).join(!polybar && markup && state.appearance.layout === 'vertical' ? '\n' : ' ');
         return state.appearance.components.map(c => c === 'bar' ? meters : c === 'percent'
-            ? color(clean(p.error ? 'Error' : p.text), p.color || '#8ab4f8') : c === 'text' ? clean(compactName(p.name))
+            ? color(p.error ? '!' : p.percent === null ? '—' : `${Math.round(clamp(p.percent))}%`, safeColor(p.error ? '#ff5f57' : p.color)) : c === 'text' ? clean(compactName(p.name))
             : c === 'logo' ? clean(`[${initials(p.name)}]`) : '').filter(Boolean).join(' ');
     }).join(' '.repeat(Math.max(1, Math.min(20, Math.round((state.appearance.spacing ?? 12) / 4))))) || 'UsageStat · Set up providers';
 }

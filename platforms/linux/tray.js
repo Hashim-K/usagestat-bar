@@ -1,7 +1,9 @@
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
-import GdkPixbuf from 'gi://GdkPixbuf';
-import {traySvg} from './render.js';
+import Adw from 'gi://Adw?version=1';
+import {traySvg, svgPixels} from './render.js';
+import {safeColor} from './model.js';
+import {desktopName} from './desktop.js';
 
 const ITEM = `<node><interface name="org.kde.StatusNotifierItem">
   <property name="Category" type="s" access="read"/><property name="Id" type="s" access="read"/>
@@ -35,14 +37,16 @@ const MENU = `<node><interface name="com.canonical.dbusmenu">
 </interface></node>`;
 
 class Menu {
-    constructor(tray, path, connection) {
+    constructor(tray, path, connection, provider) {
         this.tray = tray;
+        this.provider = provider;
         this.Version = 3; this.TextDirection = 'ltr'; this.Status = 'normal'; this.IconThemePath = [];
         this.object = Gio.DBusExportedObject.wrapJSObject(MENU, this);
         this.object.export(connection, path);
     }
     entries() {
-        return [[1, 'Show usage', () => this.tray.actions.details('')], [2, 'Refresh', this.tray.actions.refresh],
+        return [[1, 'Show usage', () => this.tray.actions.details(this.provider()?.key || '')], [2, 'Refresh', this.tray.actions.refresh],
+            [5, 'Tray settings', this.tray.actions.trayPreferences],
             [3, 'Preferences', () => this.tray.actions.preferences('')],
             ...this.tray.state.providers.filter(p => !p.parent).map((p, i) => [100 + i, `${p.name}: ${p.text}`, () => this.tray.actions.details(p.key)]),
             [4, 'Quit UsageStat', this.tray.actions.quit]];
@@ -66,10 +70,7 @@ class Menu {
 }
 
 function pixmap(svg, size) {
-    const loader = GdkPixbuf.PixbufLoader.new_with_type('svg');
-    loader.set_size(size, size);
-    loader.write(new TextEncoder().encode(svg)); loader.close();
-    const pixbuf = loader.get_pixbuf(), pixels = pixbuf.get_pixels();
+    const pixbuf = svgPixels(svg, size), pixels = pixbuf.get_pixels();
     const channels = pixbuf.get_n_channels(), stride = pixbuf.get_rowstride();
     const result = new Uint8Array(size * size * 4);
     for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
@@ -81,48 +82,69 @@ function pixmap(svg, size) {
 }
 
 class Item {
-    constructor(tray, index) {
+    constructor(tray, key) {
         this.tray = tray;
         this.path = '/StatusNotifierItem';
         // A separate connection gives each item a lifetime the watcher can track.
-        // Removing a pinned provider closes its connection and removes that item.
+        // Removing a selected provider closes its connection and removes that item.
         this.connection = Gio.DBusConnection.new_for_address_sync(GLib.getenv('DBUS_SESSION_BUS_ADDRESS'),
             Gio.DBusConnectionFlags.AUTHENTICATION_CLIENT | Gio.DBusConnectionFlags.MESSAGE_BUS_CONNECTION, null, null);
-        this.Category = 'ApplicationStatus'; this.Id = `usagestat-bar-${index}`;
+        this.Category = 'ApplicationStatus';
+        this.Id = `usagestat-bar-${key === 'active' || key === 'setup' ? key : GLib.compute_checksum_for_string(GLib.ChecksumType.SHA256, key, -1).slice(0, 16)}`;
         this.WindowId = 0; this.IconName = ''; this.OverlayIconName = ''; this.AttentionIconName = '';
         this.OverlayIconPixmap = []; this.AttentionIconPixmap = []; this.AttentionMovieName = '';
         this.ItemIsMenu = false; this.Menu = `${this.path}/Menu`;
-        this.menu = new Menu(tray, this.Menu, this.connection);
+        this.menu = new Menu(tray, this.Menu, this.connection, () => this.provider);
         this.object = Gio.DBusExportedObject.wrapJSObject(ITEM, this);
         this.object.export(this.connection, this.path);
     }
     get Title() { return this.provider?.name || 'UsageStat Bar'; }
     get Status() { return this.provider?.error ? 'NeedsAttention' : 'Active'; }
-    get ToolTip() { return ['', [], this.Title, this.provider?.error || this.provider?.text || 'Set up providers']; }
+    get ToolTip() {
+        const description = this.provider?.error || [this.provider?.text,
+            ...(this.provider?.windows || []).map(window => `${window.label}: ${window.text}`)].filter(Boolean).join('\n');
+        return ['', [], this.Title, description || 'Set up providers'];
+    }
     update(provider) {
+        const title = this.Title, status = this.Status, tooltip = JSON.stringify(this.ToolTip);
         this.provider = provider;
-        const svg = traySvg(provider, this.tray.state.appearance);
+        const svg = traySvg(provider, this.tray.appearance());
         if (svg !== this.svg) {
             this.svg = svg;
-            this.IconPixmap = [32, 64].map(size => pixmap(svg, size));
+            this.IconPixmap = [16, 22, 24, 32, 48, 64].map(size => pixmap(svg, size));
             this.object.emit_signal('NewIcon', null);
         }
-        this.object.emit_signal('NewTitle', null);
-        this.object.emit_signal('NewToolTip', null);
-        this.object.emit_signal('NewStatus', new GLib.Variant('(s)', [this.Status]));
+        if (title !== this.Title) this.object.emit_signal('NewTitle', null);
+        if (tooltip !== JSON.stringify(this.ToolTip)) this.object.emit_signal('NewToolTip', null);
+        if (status !== this.Status) this.object.emit_signal('NewStatus', new GLib.Variant('(s)', [this.Status]));
         this.menu.object.emit_signal('LayoutUpdated', new GLib.Variant('(ui)', [this.tray.state.revision, 0]));
     }
     Activate() { this.tray.actions.details(this.provider?.key || ''); }
     SecondaryActivate() { this.tray.actions.refresh(); }
-    ContextMenu() { this.tray.actions.preferences(this.provider?.key || ''); }
-    Scroll(delta) { this.tray.actions.cycle(delta > 0 ? -1 : 1); }
+    ContextMenu() { this.tray.actions.trayPreferences(); }
+    Scroll(delta) {
+        if (delta && ['active', 'count'].includes(this.tray.settings.get_string('provider-mode'))
+            && this.tray.settings.get_boolean('scroll-to-switch-provider')) this.tray.actions.cycle(delta > 0 ? -1 : 1);
+    }
     close() { this.object.unexport(); this.menu.object.unexport(); this.connection.close_sync(null); }
 }
 
 export class Tray {
-    constructor(actions, missingHost) {
-        this.actions = actions; this.missingHost = missingHost; this.items = []; this.available = false;
+    constructor(settings, actions, missingHost) {
+        this.settings = settings;
+        this.actions = actions; this.missingHost = missingHost; this.items = new Map(); this.available = false; this.closed = false;
         this.state = {providers: [], panel: [], revision: 0};
+        this.style = Adw.StyleManager.get_default();
+        this.styleSignal = this.style.connect('notify::dark', () => this.update(this.state));
+        if (desktopName().includes('budgie')) {
+            // Budgie's panel has an independent dark-theme preference, often
+            // enabled while application windows use the light theme.
+            const schema = Gio.SettingsSchemaSource.get_default().lookup('com.solus-project.budgie-panel', true);
+            if (schema?.has_key('dark-theme')) {
+                this.panelTheme = new Gio.Settings({settings_schema: schema});
+                this.panelThemeSignal = this.panelTheme.connect('changed::dark-theme', () => this.update(this.state));
+            }
+        }
         this.watch = Gio.bus_watch_name(Gio.BusType.SESSION, 'org.kde.StatusNotifierWatcher', Gio.BusNameWatcherFlags.NONE,
             () => { this.available = true; this.items.forEach(item => this.register(item)); this.checkHost(); },
             () => { this.available = false; this.missingHost(true); });
@@ -131,10 +153,21 @@ export class Tray {
         this.hostRemovedSignal = Gio.DBus.session.signal_subscribe('org.kde.StatusNotifierWatcher', 'org.kde.StatusNotifierWatcher',
             'StatusNotifierHostUnregistered', '/StatusNotifierWatcher', null, Gio.DBusSignalFlags.NONE, () => this.checkHost());
     }
+    appearance() {
+        const foreground = this.settings.get_string('foreground');
+        const darkPanel = this.panelTheme ? this.panelTheme.get_boolean('dark-theme') : this.style.dark;
+        const light = foreground === 'light' || (foreground === 'auto' && darkPanel);
+        return {style: this.settings.get_string('icon-style'), logoStyle: this.settings.get_string('logo-style'),
+            fill: this.settings.get_string('logo-fill-mode'), barOrientation: this.settings.get_string('bar-orientation'),
+            barThickness: this.settings.get_int('bar-thickness'),
+            background: light ? '#23262e' : '#f4f5f6',
+            neutral: light ? '#f4f5f6' : '#23262e', accent: safeColor(this.settings.get_string('accent-color'))};
+    }
     checkHost() {
         Gio.DBus.session.call('org.kde.StatusNotifierWatcher', '/StatusNotifierWatcher', 'org.freedesktop.DBus.Properties',
             'Get', new GLib.Variant('(ss)', ['org.kde.StatusNotifierWatcher', 'IsStatusNotifierHostRegistered']),
             null, Gio.DBusCallFlags.NONE, 5000, null, (connection, result) => {
+                if (this.closed) return;
                 try { this.missingHost(!connection.call_finish(result).recursiveUnpack()[0]); }
                 catch { this.missingHost(true); }
             });
@@ -142,21 +175,48 @@ export class Tray {
     register(item) {
         item.connection.call('org.kde.StatusNotifierWatcher', '/StatusNotifierWatcher', 'org.kde.StatusNotifierWatcher',
             'RegisterStatusNotifierItem', new GLib.Variant('(s)', [item.connection.get_unique_name()]), null, Gio.DBusCallFlags.NONE, 5000, null,
-            (connection, result) => { try { connection.call_finish(result); } catch (error) { console.error(error.message); this.missingHost(true); } });
+            (connection, result) => {
+                if (this.closed || item.connection.is_closed()) return;
+                try { connection.call_finish(result); }
+                catch (error) { console.error(error.message); this.missingHost(true); }
+            });
     }
     update(state) {
+        if (this.closed) return;
         this.state = state;
-        const providers = state.panel.map(key => state.providers.find(p => p.key === key));
-        const count = Math.max(1, providers.length);
-        while (this.items.length > count) this.items.pop().close();
-        while (this.items.length < count) {
-            const item = new Item(this, this.items.length);
-            this.items.push(item); item.update(providers[this.items.length - 1]);
-            if (this.available) this.register(item);
+        const mode = this.settings.get_string('provider-mode');
+        const selected = new Set(this.settings.get_strv('providers'));
+        const visible = state.providers.filter(provider => !provider.parent);
+        let providers;
+        if (mode === 'count') {
+            const start = Math.max(0, visible.findIndex(provider => provider.key === state.active));
+            const count = Math.min(this.settings.get_int('provider-count'), visible.length);
+            providers = Array.from({length: count}, (_, index) => visible[(start + index) % visible.length]);
+        } else {
+            providers = visible.filter(provider => mode === 'all'
+                || (mode === 'custom' ? selected.has(provider.key) : provider.key === state.active));
         }
-        this.items.forEach((item, i) => item.update(providers[i]));
+        // Keep the same tray registrations while rotating their contents, so
+        // scrolling does not remove, recreate or reorder the icon slots.
+        const entries = providers.map((provider, index) => [mode === 'count' ? index === 0 ? 'active' : `slot:${index}`
+            : mode === 'active' ? 'active' : `provider:${provider.key}`, provider]);
+        if (!state.providers.length && mode !== 'custom') entries.push(['setup', null]);
+        const keys = new Set(entries.map(([key]) => key));
+        for (const [key, item] of this.items) {
+            if (!keys.has(key)) { item.close(); this.items.delete(key); }
+        }
+        for (const [key, provider] of entries) {
+            let item = this.items.get(key);
+            const added = !item;
+            if (added) { item = new Item(this, key); this.items.set(key, item); }
+            item.update(provider);
+            if (added && this.available) this.register(item);
+        }
     }
     close() {
+        this.closed = true;
+        this.style.disconnect(this.styleSignal);
+        if (this.panelThemeSignal) this.panelTheme.disconnect(this.panelThemeSignal);
         Gio.bus_unwatch_name(this.watch);
         Gio.DBus.session.signal_unsubscribe(this.hostSignal);
         Gio.DBus.session.signal_unsubscribe(this.hostRemovedSignal);

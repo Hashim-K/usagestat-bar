@@ -1,10 +1,12 @@
 {
   "custom/usagestat": {
-    "exec": "usagestat-bar waybar",
+    "exec": "usagestat-bar waybar --watch",
     "return-type": "json",
-    "interval": 2,
+    "restart-interval": 1,
+    "exec-on-event": false,
+    "smooth-scrolling-threshold": 1,
     "format": "{text}",
-    "on-click": "usagestat-bar details",
+    "on-click": "usagestat-bar toggle",
     "on-click-right": "usagestat-bar preferences",
     "on-click-middle": "usagestat-bar refresh",
     "on-scroll-up": "usagestat-bar scroll-previous",

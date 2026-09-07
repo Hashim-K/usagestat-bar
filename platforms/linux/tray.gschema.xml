@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="io.github.HashimK.UsageStatBar.Tray" path="/io/github/HashimK/UsageStatBar/tray/">
+    <key name="enabled" type="b">
+      <default>false</default>
+      <summary>Show icons in the desktop system tray</summary>
+    </key>
+    <key name="provider-mode" type="s">
+      <choices><choice value="active"/><choice value="count"/><choice value="all"/><choice value="custom"/></choices>
+      <default>'active'</default>
+      <summary>Show the current provider, a scrolling provider count, all providers, or a custom selection</summary>
+    </key>
+    <key name="provider-count" type="i">
+      <range min="1" max="20"/>
+      <default>2</default>
+      <summary>Number of providers shown together in scrolling mode</summary>
+    </key>
+    <key name="providers" type="as">
+      <default>[]</default>
+      <summary>Provider keys selected for the system tray</summary>
+    </key>
+    <key name="icon-style" type="s">
+      <choices><choice value="logo-meter"/><choice value="logo-fill"/><choice value="logo"/><choice value="percentage"/></choices>
+      <default>'logo-meter'</default>
+      <summary>Content shown in each tray icon</summary>
+    </key>
+    <key name="logo-style" type="s">
+      <choices><choice value="monochromatic"/><choice value="color"/></choices>
+      <default>'monochromatic'</default>
+      <summary>Use monochrome or provider colors for tray logos</summary>
+    </key>
+    <key name="logo-fill-mode" type="s">
+      <choices><choice value="vertical"/><choice value="horizontal"/><choice value="pie"/></choices>
+      <default>'vertical'</default>
+      <summary>Direction or shape of quota fill in tray logos</summary>
+    </key>
+    <key name="bar-orientation" type="s">
+      <choices><choice value="horizontal"/><choice value="vertical"/></choices>
+      <default>'horizontal'</default>
+      <summary>Place the usage bar below or beside the tray logo</summary>
+    </key>
+    <key name="bar-thickness" type="i">
+      <range min="2" max="8"/>
+      <default>5</default>
+      <summary>Usage bar thickness, scaled to the tray icon size</summary>
+    </key>
+    <key name="foreground" type="s">
+      <choices><choice value="auto"/><choice value="light"/><choice value="dark"/></choices>
+      <default>'auto'</default>
+      <summary>Tray icon contrast, independent of panel colors</summary>
+    </key>
+    <key name="accent-color" type="s">
+      <default>'#8ab4f8'</default>
+      <summary>Normal usage bar color in tray icons</summary>
+    </key>
+    <key name="scroll-to-switch-provider" type="b">
+      <default>true</default>
+      <summary>Scroll on current-provider or provider-count tray icons to switch providers</summary>
+    </key>
+  </schema>
+</schemalist>

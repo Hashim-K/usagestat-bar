@@ -5,6 +5,11 @@ and VM lifecycle checks. **The tested combinations pass; full Linux baseline
 acceptance remains open for the explicit limitations and untested combinations
 below.** This supersedes the [initial Linux report](linux-ports.md).
 
+Subsequent Plasma, application and tray refinements were reviewed manually with
+the real backend; Plasma is now **tentatively complete**. See the
+[Plasma manual review](plasma-manual-review.md) for that scope. The automated
+results in this report apply to the revisions recorded below.
+
 Implementation: `ca215bf` on local branch `linux-ports`, following the panel
 and VM work in `44e29ec`. The 11-profile matrix ran on `9113641`; Plasma and
 Polybar were repeated on `3763642` with screenshots delayed for their polling

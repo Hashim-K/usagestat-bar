@@ -12,6 +12,9 @@ struct UsageStatWidget {
     guint subscription, watch;
     int height;
     gboolean vertical;
+    gboolean scroll_enabled;
+    double scroll_amount;
+    gint64 scroll_time;
     char *dark_path, *light_path;
 };
 
@@ -56,10 +59,13 @@ static void changed(GDBusConnection *bus, const char *sender, const char *path,
         JsonNode *root = json_parser_get_root(parser);
         if (JSON_NODE_HOLDS_OBJECT(root)) {
             JsonObject *state = json_node_get_object(root);
+            JsonObject *interaction = json_object_has_member(state, "interaction") ? json_object_get_object_member(state, "interaction") : NULL;
+            self->scroll_enabled = !interaction || !json_object_has_member(interaction, "panelScroll")
+                || json_object_get_boolean_member(interaction, "panelScroll");
             if (json_object_has_member(state, "panelImage") && json_object_has_member(state, "panelImageLight")) {
                 g_free(self->dark_path); g_free(self->light_path);
-                self->dark_path = g_strdup(json_object_get_string_member(state, "panelImage"));
-                self->light_path = g_strdup(json_object_get_string_member(state, "panelImageLight"));
+                self->dark_path = g_strdup(json_object_get_string_member(state, json_object_has_member(state, "panelImagePng") ? "panelImagePng" : "panelImage"));
+                self->light_path = g_strdup(json_object_get_string_member(state, json_object_has_member(state, "panelImageLightPng") ? "panelImageLightPng" : "panelImageLight"));
                 GString *tooltip = g_string_new("UsageStat");
                 JsonArray *providers = json_object_get_array_member(state, "providers");
                 for (guint i = 0; providers && i < json_array_get_length(providers); i++) {
@@ -88,15 +94,33 @@ static void vanished(GDBusConnection *bus, const char *name, gpointer data) {
     gtk_widget_set_tooltip_text(self->button, "UsageStat is stopped. Click to start and open usage.");
 }
 
-static void clicked(GtkButton *button, gpointer data) { call(data, "Details", g_variant_new("(s)", "")); }
+static void clicked(GtkButton *button, gpointer data) { call(data, "ToggleDetails", g_variant_new("(s)", "")); }
 static gboolean press(GtkWidget *widget, GdkEventButton *event, gpointer data) {
     if (event->button == 2) { call(data, "Refresh", NULL); return TRUE; }
     if (event->button == 3) { call(data, "Preferences", g_variant_new("(s)", "")); return TRUE; }
     return FALSE;
 }
 static gboolean scroll(GtkWidget *widget, GdkEventScroll *event, gpointer data) {
-    if (event->direction == GDK_SCROLL_UP || event->direction == GDK_SCROLL_DOWN) {
-        call(data, "Scroll", g_variant_new("(i)", event->direction == GDK_SCROLL_DOWN ? 1 : -1));
+    UsageStatWidget *self = data;
+    if (!self->scroll_enabled) return FALSE;
+    if (event->direction == GDK_SCROLL_SMOOTH) {
+        double dx = 0, dy = 0;
+        if (!gdk_event_get_scroll_deltas((GdkEvent *)event, &dx, &dy)) return FALSE;
+        double delta = ABS(dy) >= ABS(dx) ? dy : dx;
+        gint64 now = g_get_monotonic_time();
+        if (now - self->scroll_time > 250000 || delta * self->scroll_amount < 0) self->scroll_amount = 0;
+        self->scroll_time = now;
+        self->scroll_amount += delta;
+        if (ABS(self->scroll_amount) >= 1) {
+            call(self, "Scroll", g_variant_new("(i)", self->scroll_amount > 0 ? 1 : -1));
+            self->scroll_amount = 0;
+        }
+        return TRUE;
+    }
+    if (event->direction == GDK_SCROLL_UP || event->direction == GDK_SCROLL_DOWN
+        || event->direction == GDK_SCROLL_LEFT || event->direction == GDK_SCROLL_RIGHT) {
+        self->scroll_amount = 0;
+        call(self, "Scroll", g_variant_new("(i)", event->direction == GDK_SCROLL_DOWN || event->direction == GDK_SCROLL_RIGHT ? 1 : -1));
         return TRUE;
     }
     return FALSE;
@@ -107,11 +131,18 @@ static void scale(GtkWidget *widget, GParamSpec *spec, gpointer data) { render(d
 UsageStatWidget *usagestat_widget_new(GtkContainer *container, int height, gboolean vertical) {
     UsageStatWidget *self = g_new0(UsageStatWidget, 1);
     self->height = CLAMP(height, 16, 96); self->vertical = vertical;
+    self->scroll_enabled = TRUE;
     self->button = gtk_button_new(); self->image = gtk_image_new_from_icon_name("view-refresh-symbolic", GTK_ICON_SIZE_MENU);
     gtk_button_set_relief(GTK_BUTTON(self->button), GTK_RELIEF_NONE);
     gtk_widget_set_name(self->button, "usagestat-panel");
+    GtkCssProvider *css = gtk_css_provider_new();
+    gtk_css_provider_load_from_data(css,
+        "#usagestat-panel { padding: 0 4px; border: none; box-shadow: none; background: transparent; color: inherit; }"
+        "#usagestat-panel:hover { background: alpha(currentColor, 0.08); border-radius: 6px; }", -1, NULL);
+    gtk_style_context_add_provider(gtk_widget_get_style_context(self->button), GTK_STYLE_PROVIDER(css), GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
+    g_object_unref(css);
     gtk_widget_set_can_focus(self->button, TRUE);
-    gtk_widget_add_events(self->button, GDK_SCROLL_MASK);
+    gtk_widget_add_events(self->button, GDK_SCROLL_MASK | GDK_SMOOTH_SCROLL_MASK);
     gtk_container_add(GTK_CONTAINER(self->button), self->image);
     gtk_container_add(container, self->button);
     g_signal_connect(self->button, "clicked", G_CALLBACK(clicked), self);

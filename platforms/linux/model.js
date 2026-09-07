@@ -11,6 +11,28 @@ export const shown = (used, mode) => mode === 'used' ? clamp(used) : 100 - clamp
 export const percentText = (used, mode) => `${Number(shown(used, mode).toFixed(1))}% ${mode === 'used' ? 'used' : 'left'}`;
 export const safeColor = (color, fallback = '#8ab4f8') => /^#[\da-f]{6}$/i.test(color || '') ? color : fallback;
 
+export function formatMoney(value, currency = 'USD') {
+    try { return new Intl.NumberFormat(undefined, {style: 'currency', currency,
+        minimumFractionDigits: 2, maximumFractionDigits: 2}).format(Number(value) || 0); }
+    catch { return `${currency} ${Number(value || 0).toFixed(2)}`; }
+}
+
+export function compactNumber(value) {
+    const number = Math.max(0, Number(value) || 0);
+    for (const [size, suffix] of [[1e9, 'B'], [1e6, 'M'], [1e3, 'K']]) {
+        if (number >= size) return (number / size).toFixed(number >= size * 10 ? 0 : 1).replace(/\.0$/, '') + suffix;
+    }
+    return String(Math.round(number));
+}
+
+function statusColor(error, loading, status) {
+    if (error) return '#ff5f57';
+    if (loading) return '#f6d32d';
+    if (status && !['none', 'unknown'].includes(status.indicator))
+        return status.indicator === 'minor' ? '#f6d32d' : '#ff5f57';
+    return '#33d17a';
+}
+
 export function windows(usage = {}) {
     const result = TIERS.filter(id => usage[id]?.usedPercent !== undefined).map(id => ({id, ...usage[id]}));
     for (const item of usage.extraRateWindows || []) {
@@ -142,13 +164,24 @@ export class Model {
                 while (queue.length && !this.cancellable.is_cancelled()) {
                     const provider = queue.shift();
                     const key = providerKey(provider);
-                    try {
-                        const snapshot = normalizeBackendSnapshot(await fetchProviderUsage(provider, this.cancellable, options), provider.id);
-                        if (this.cancellable.is_cancelled()) break;
+                    const publish = snapshot => {
+                        if (this.cancellable.is_cancelled() || this.closed) return;
+                        snapshot = normalizeBackendSnapshot(snapshot, provider.id);
                         this.usage.set(key, snapshot);
                         this.errors.delete(key);
                         this.rememberWindows(key, snapshot);
                         this.checkThreshold(provider, snapshot);
+                    };
+                    try {
+                        const snapshot = await fetchProviderUsage(provider, this.cancellable, {...options, onUsage: partial => {
+                            // Retain existing totals during refresh so the cost
+                            // section does not disappear while new totals load.
+                            const cost = partial.usage?.costSummary || this.usage.get(key)?.usage?.costSummary;
+                            publish({...partial, usage: {...partial.usage, costSummary: cost}});
+                            this.emit();
+                        }});
+                        if (this.cancellable.is_cancelled()) break;
+                        publish(snapshot);
                     } catch (error) {
                         if (this.cancellable.is_cancelled()) break;
                         this.errors.set(key, error.message || String(error));
@@ -192,7 +225,8 @@ export class Model {
     }
 
     select(key) {
-        if (this.providers.some(p => !p.tabParent && providerKey(p) === key)) this.active = key;
+        if (key === this.active || !this.providers.some(p => !p.tabParent && providerKey(p) === key)) return;
+        this.active = key;
         this.emit();
     }
 
@@ -219,17 +253,24 @@ export class Model {
             const errorBadge = (usage.badges || []).find(b => /error/i.test(b.label) && /red|error/i.test(b.color));
             const error = this.errors.get(key) || snapshot?.error?.message || (errorBadge ? errorBadge.text : '') || '';
             const manifest = this.manifests.get(config.id) || {};
+            const cost = hidden.includes('costSummary') ? null : usage.costSummary || null;
             const view = {key, id: config.id, name: providerDisplayName(config), parent: config.tabParent || '',
                 used, percent: used === null ? null : shown(used, mode), text: error ? 'Error' : used === null ? '—' : percentText(used, mode),
                 threshold: used === null ? null : thresholdAt(used, list),
                 color: safeColor(thresholdAt(used, list)?.color || settings.get_string('accent-color')),
                 error, loading: this.loading && !snapshot && !error, source: snapshot?.source || config.source || 'auto',
+                statusColor: statusColor(error, this.loading && !snapshot, snapshot?.status),
                 plan: usage.plan || snapshot?.plan || '', updatedAt: usage.updatedAt || '', serviceStatus: snapshot?.status || null,
                 windows: windows(usage).filter(w => !hidden.includes(w.id)).map(w => ({...w, label: windowLabel(w),
                     percent: shown(w.usedPercent, mode), text: percentText(w.usedPercent, mode),
                     color: safeColor(thresholdAt(w.usedPercent, list)?.color || settings.get_string('accent-color')),
+                    quantityText: w.limit !== undefined && ['currency', 'count'].includes(w.format?.kind)
+                        ? [w.used, w.limit].map(value => w.format.kind === 'currency'
+                            ? formatMoney(value, w.format.currency) : Number(value || 0).toLocaleString()).join(' / ') : '',
                     reset: resetText(w, settings.get_string('reset-time-format'))})),
-                cost: hidden.includes('costSummary') ? null : usage.costSummary || null,
+                cost: cost ? {...cost, lines: (cost.lines || []).map(line => ({...line,
+                    moneyText: formatMoney(line.cost, line.currency || cost.currency || 'USD'),
+                    tokensText: `${compactNumber(line.tokens)} tokens`}))} : null,
                 credits: hidden.includes('credits') ? null : snapshot?.credits?.remaining ?? null,
                 codeReview: hidden.includes('codeReview') ? null : snapshot?.openaiDashboard?.codeReviewRemainingPercent ?? null,
                 badges: (usage.badges || []).filter(b => !hidden.includes(`badge:${b.label || b.text}`)),
@@ -246,6 +287,8 @@ export class Model {
         });
         return {protocol: 1, revision: this.revision, active: this.active, loading: this.loading,
             updatedAt: this.updatedAt || '', mode, providers,
+            interaction: {panelScroll: settings.get_boolean('scroll-to-switch-provider'),
+                popupScroll: settings.get_boolean('scroll-popup-to-switch-provider')},
             panel: panelProviders(providers, this.active, jsonSetting(settings, 'panel-pinned-providers', []), settings.get_int('panel-bar-count')).map(p => p.key),
             appearance: {components: settings.get_string('panel-components').split(','),
                 bars: Math.min(3, Math.max(1, settings.get_int('panel-usage-bar-count'))),
@@ -282,9 +325,10 @@ export function resetText(window, mode = 'smart', now = new Date()) {
     const date = new Date(window.resetsAt);
     if (Number.isNaN(date.getTime())) return '';
     const seconds = Math.max(0, Math.round((date - now) / 1000));
+    const minutes = Math.round(seconds / 60);
     let text;
     if (mode === 'relative' || (mode === 'smart' && seconds < 86400 && date.toDateString() === now.toDateString()))
-        text = seconds < 60 ? `${seconds}s` : seconds < 3600 ? `${Math.round(seconds / 60)}m` : seconds < 86400 ? `${Math.floor(seconds / 3600)}h ${Math.round(seconds % 3600 / 60)}m` : `${Math.round(seconds / 86400)}d`;
+        text = seconds < 60 ? `${seconds}s` : minutes < 60 ? `${minutes}m` : seconds < 86400 ? `${Math.floor(minutes / 60)}h ${minutes % 60}m` : `${Math.round(seconds / 86400)}d`;
     else if (mode === 'time') text = date.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
     else text = date.toLocaleDateString([], mode === 'weekday-time' || (mode === 'smart' && (window.windowMinutes >= 10080 || seconds < 604800))
         ? {weekday: 'short', hour: '2-digit', minute: '2-digit'} : {month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'});

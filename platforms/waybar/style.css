@@ -1,4 +1,6 @@
-#custom-usagestat { padding: 0 10px; color: #e6edf3; background: #20242b; }
+#custom-usagestat { padding: 0 8px; background: transparent; }
+#usagestat-panel { padding: 0 4px; border: none; box-shadow: none; background: transparent; color: inherit; }
+#usagestat-panel:hover { background: alpha(currentColor, 0.08); border-radius: 6px; }
 #custom-usagestat.warning { color: #f6d32d; }
 #custom-usagestat.danger, #custom-usagestat.error { color: #ff5f57; }
 #custom-usagestat.loading { opacity: 0.6; }

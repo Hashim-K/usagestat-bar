@@ -10,7 +10,7 @@ import tarfile
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[2]
-RUNTIME = ['main.js', 'client.js', 'model.js', 'render.js', 'protocol.js', 'settings.js', 'tray.js', 'ui.js', 'usagestat-bar', 'install.py']
+RUNTIME = ['main.js', 'client.js', 'model.js', 'render.js', 'protocol.js', 'settings.js', 'tray.js', 'trayPreferences.js', 'desktop.js', 'panelWindow.js', 'waybarPreferences.js', 'waybar_config.py', 'ui.js', 'usagestat-bar', 'install.py']
 
 def stage(target):
     for name in ['cli.js', 'config.js', 'preferences.js', 'providerMetadata.js', 'LICENSE']:
@@ -28,6 +28,7 @@ def stage(target):
     xml = (ROOT / 'schemas/org.gnome.shell.extensions.usagestat-bar.gschema.xml').read_text()
     xml = xml.replace('org.gnome.shell.extensions.usagestat-bar', 'io.github.HashimK.UsageStatBar').replace('/org/gnome/shell/extensions/usagestat-bar/', '/io/github/HashimK/UsageStatBar/')
     (schemas / 'io.github.HashimK.UsageStatBar.gschema.xml').write_text(xml)
+    shutil.copy2(ROOT / 'platforms/linux/tray.gschema.xml', schemas / 'io.github.HashimK.UsageStatBar.Tray.gschema.xml')
     compiler = '/usr/bin/glib-compile-schemas' if Path('/usr/bin/glib-compile-schemas').exists() else 'glib-compile-schemas'
     subprocess.run([compiler, '--strict', str(schemas)], check=True)
     (target / '.usagestat-linux-bundle').write_text('1\n')

@@ -7,12 +7,19 @@ tracked in [the roadmap](https://github.com/Hashim-K/usagestat-bar/issues/2).
 See the [parity report](reports/linux-acceptance.md) before treating a combination
 as fully supported. Windows and macOS remain separate, later tasks.
 
+**Plasma is tentatively complete**, following the user's manual review on
+2026-09-07 with the real backend. The [manual review record](reports/plasma-manual-review.md)
+covers the panel, popup, application and tray refinements. Other desktops still
+need their own manual review of the current version. The
+[remaining-desktop review notes](reports/linux-manual-review.md) describe the
+follow-up changes and how to open each preview.
+
 ## Choose the integration
 
 | Desktop / panel | Integration | Start / add it |
 | --- | --- | --- |
 | GNOME | Existing Shell extension | Follow the [root README](../README.md) |
-| KDE Plasma 6 | Native QML panel widget and popup | Add **UsageStat Bar** in Plasma's widget picker |
+| KDE Plasma 6.4+ | Native QML panel widget and popup | Add **UsageStat Bar** in Plasma's widget picker |
 | Cinnamon | Native panel applet | Add **UsageStat Bar** in Cinnamon's Applets settings |
 | MATE | Native out-of-process panel applet | Set the applet search path below; add **UsageStat Bar** |
 | Xfce | Native GTK panel plugin, or tray fallback | Install with `--native xfce`; add **UsageStat Bar** in panel settings |
@@ -24,27 +31,78 @@ as fully supported. Windows and macOS remain separate, later tasks.
 
 Plasma, Cinnamon, MATE, Xfce and the native Waybar widget show ordered bars,
 percentages, logos and names, with multiple windows and vertical panels.
-Tray hosts use one square icon per selected provider: quota rings, logos,
-percentages and abbreviated names follow the appearance settings. The desktop
-controls tray size, placement and order. Polybar and the Waybar text fallback
+Tray icons use a large logo and a small usage bar on a transparent background,
+rendered at native tray sizes. **Preferences → Tray** controls them independently
+of the panel: show the current provider as one icon, a fixed number of scrolling
+providers, all providers, or a chosen set. With a fixed count, scrolling over any
+icon advances the group one provider and wraps around at the end.
+Choose a logo with a bar, a quota-filled logo, a logo alone, or a usage percentage.
+Logo fill supports vertical, horizontal and pie shapes. Usage bars have adjustable
+thickness and horizontal or vertical orientation. Empty tracks automatically
+contrast with the usage color and the surface chosen by **Icon contrast**.
+Logo colors, contrast, bar color
+and scrolling have their own settings. The
+right-click menu also opens **Tray settings**. Tray visibility is remembered;
+turn **Show tray icons** off to use only a panel widget or the application.
+The desktop controls tray size, placement and order. Polybar and the Waybar text fallback
 show multiple text meters with custom colors and provider initials in place
 of image logos. Full names remain in details/tooltips.
 
-All integrations open the same GTK details and preferences. Square tray slots
-and text-only Polybar modules retain appearance limits; they are documented
+Plasma has its own panel popup, with compact provider tiles matching GNOME's
+logo, name, mini meter and status-dot layout. Only the selected provider and
+its grouped accounts appear in the body. It receives changes over D-Bus;
+scrolling and tab selection do not wait for polling or launch CLI processes.
+Panel images are rasterized through librsvg at 3× resolution and shared by the
+native adapters, so logo fills work consistently in Qt and GTK. Native panel
+buttons follow the panel's foreground color and handle smooth scrolling.
+The popup uses Plasma's own rounded frame and shadow as its single background.
+**Preferences → Appearance → Edit panel** opens Plasma edit mode;
+**Open settings** opens Plasma's color-scheme settings.
+The same preferences page opens the appropriate settings on Cinnamon and Xfce,
+and appearance settings on MATE and LXQt. MATE and LXQt panel placement rows
+explain the panel's own context-menu controls. Budgie and COSMIC open their
+desktop settings. On Sway and Hyprland, **Panel placement** selects the Waybar
+edge, **Provider position** selects its start/center/end module group,
+**Position index** sets the order among items in that group (`0` is first), and
+**Desktop appearance** selects System/Light/Dark for UsageStat and that Waybar
+stylesheet. Changes reload the current session's Waybar. Other modules and
+JSONC comments are retained; the original config and stylesheet get a
+`.usagestat-backup` copy before the first edit. Polybar shows configuration guidance.
+The index range follows the number of other items in the selected group;
+when UsageStat is its only item, the index is fixed at `0`. Changing groups
+retains the index where possible and clamps it to the new group's last slot.
+
+On LXQt, Budgie and COSMIC, preferences open directly to **Tray**. Controls for
+native panel widgets are hidden on these tray integrations so provider count,
+scrolling and icon appearance have one clear place to change them.
+
+The separate GTK details window is used by the other integrations and remains
+available with `usagestat-bar details`. It follows the popup's provider tiles,
+compact account header, quota layout and aligned cost rows. Its tabs stay
+visible while long details scroll vertically. Opening usage with a panel's
+toggle fits its height to the selected provider, including short loading and
+error states. Hyprland caps it to the available monitor area and keeps it
+beside the panel when its height changes. All integrations share GTK
+preferences. Both details views use the same currency formatting and compact
+token counts (`K`, `M`, `B`) as GNOME. Square tray slots and text-only Polybar
+modules retain appearance limits; they are documented
 in the report and are not claimed as full graphical parity.
 
 ## Build and install
 
 Runtime dependencies: Bash, GJS, GTK 4, libadwaita, GObject introspection,
-GdkPixbuf with SVG support, the Adwaita icon theme, a session D-Bus and dconf,
+GdkPixbuf with SVG support, librsvg with its `Rsvg-2.0` introspection bindings,
+the Adwaita icon theme, a session D-Bus and dconf,
 plus the `usagestat` CLI. Standalone GTK windows use `adwaita-icon-theme` so
 their symbolic controls remain visible in both light and dark application themes.
 The UI uses GTK 4.12 / libadwaita 1.4 APIs; older library combinations have not
 been verified. Python 3 and `glib-compile-schemas` are needed to build/install.
 MATE additionally needs Python GObject bindings, GTK 3 and the MatePanelApplet
-4.0 typelib. Plasma needs its Plasma 5 Support executable data engine
-(`org.kde.plasma.plasma5support`). These are system runtime packages, not npm
+4.0 typelib. Plasma needs the `org.kde.plasma.workspace.dbus` QML module with
+`Properties` support (Plasma 6.4+) and its Plasma 5 Support executable data
+engine (`org.kde.plasma.plasma5support`) for starting a missing service. The
+optional desktop appearance button opens `systemsettings` or `kcmshell6`.
+These are system runtime packages, not npm
 or pip dependencies. Exact tested packages are recorded by the lab.
 
 From the checkout:
@@ -121,10 +179,22 @@ For Polybar, merge `platforms/polybar/config.ini` and add `usagestat` to your
 bar's modules list. Installed copies are in
 `~/.local/share/usagestat-bar/platforms/`.
 
-Both examples use left click for details, right click for preferences, middle
-click to refresh, and the wheel to switch providers. Plasma's left click opens
+Both examples use left click to toggle usage, right click for preferences, middle
+click to refresh, and the wheel to switch providers. They keep a `--watch`
+client connected to D-Bus, so switching and preference changes update the bar
+immediately. Text meters have distinct filled and empty segments, and numeric
+indicators include `%`. Plasma's left click opens
 its native overview, with a **Details** button for the full GTK view. Cinnamon
 has a panel context menu. MATE uses right click for preferences.
+
+Cinnamon, MATE, Xfce and native Waybar also toggle the usage window on a second
+left click. On Hyprland, opening from Waybar places it beside the clicked
+panel on that monitor, with room for the panel and screen edges. This uses
+Hyprland's IPC and does not require adding window rules. The application
+launcher and explicit `details` command continue to show the application.
+Placement controls work with UsageStat directly in a `modules-left`,
+`modules-center` or `modules-right` list. They locate the running Waybar's
+config and stylesheet, including explicit `--config` and `--style` paths.
 
 ### Upgrade and remove
 
@@ -165,15 +235,102 @@ They do not overwrite each other's panel settings.
 | `platforms/waybar/`, `platforms/polybar/` | Panel module examples |
 
 `usagestat-bar snapshot` exposes the presentation model as JSON over the private
-session bus. `refresh`, `details`, `preferences [PROVIDER_KEY]`, `select KEY`,
+session bus. `refresh`, `details`, `toggle [PROVIDER_KEY]`, `preferences [PROVIDER_KEY]`, `select KEY`,
 `next`, `previous` and `quit` control the same service. Explicit next/previous
 commands always switch; `scroll-next`/`scroll-previous` respect the scroll
-preference. In the details window, scroll over the header to switch providers;
+preference. In the details window, scroll over the header or tabs to switch providers;
 the body scrolls through long quota/cost views. `image [light]` prints
 the rendered panel SVG path and tooltip. Generated files stay in the user's
 private cache. The standalone launcher defaults to the CPU renderer so it also
 works without a 3D driver; an explicit `GSK_RENDERER` overrides that choice.
 Provider credentials are not part of the presentation model.
+`waybar --watch` and `polybar --watch` stream changes until stopped and reconnect
+when the service returns. The commands without `--watch` still print once.
+
+## Try a desktop yourself with your real backend
+
+Open an interactive Plasma desktop in a window on your current desktop:
+
+```bash
+python3 tests/linux/manual.py plasma --backend /usr/bin/usagestat-dev
+```
+
+The Hyprland preview uses the GPU for GTK and capture, a 60 FPS stream limit,
+512 MiB of shared memory and no container CPU or RAM cap. Preview animations
+and blur are disabled, and VNC input travels independently of frame delivery.
+Use `--fps 30` to lower the stream limit, or `--fps 90` for a higher limit.
+The preview's writable Waybar config/style are disposable, so placement and
+theme changes stay inside that session.
+
+To review the ten remaining desktop profiles one at a time:
+
+```bash
+python3 tests/linux/manual.py remaining --backend /usr/bin/usagestat-dev
+```
+
+Closing a viewer advances to the next desktop. Ctrl+C stops the queue. To
+resume a particular desktop, replace `remaining` with its name below.
+
+Pass the absolute path of the backend you use in GNOME (`usagestat` or
+`usagestat-dev`). The launcher selects its matching config under `~/.config`;
+use `--config-home /custom/config/directory` for another location. It requires
+the Fedora lab image described below (the Arch image for Hyprland), rootless
+Podman and `remote-viewer`. The other profiles also require `Xvnc` and
+`vncpasswd`; Hyprland uses WayVNC from its container image. On Fedora 44 the viewer/server packages are `virt-viewer`,
+`tigervnc-x11-server` and `tigervnc-server-common`.
+
+The window stays open for you to click the panel, switch providers, refresh,
+inspect details and edit preferences. No automated scenarios, assertions or
+screenshots run. Closing the viewer (or pressing Ctrl+C in the launching
+terminal) stops its container, private display and backend bridge. Preferences
+are disposable, so restarting gives you a fresh session.
+Usage/reset times follow your host timezone; `--timezone Europe/Amsterdam`
+overrides it. The tiling-desktop previews start UsageStat as a floating window
+so you can review its intended dimensions. The preview images include desktop
+appearance tools, and the relevant settings daemons run in the private session.
+
+The guest gets a copy of provider names, enabled states, sources and grouping.
+Your actual CLI runs on the host through a private Unix socket. Only version,
+provider list, usage and cost queries are forwarded; host config and account
+credentials are not mounted in the container. Custom commands are omitted.
+The backend uses its normal host cache and authentication behavior. Editing
+guest credentials, running login/install tools or choosing another plugin path
+does not reconfigure the host backend; manage those from your host session.
+
+The container has no network access. The viewer connects over
+password-protected loopback VNC. Hyprland streams a private headless output
+through a Unix socket and a host loopback relay; the other profiles use a
+separate X server. Logs remain in the
+printed private session directory and are not added to acceptance reports.
+Live data is visible in the window, so screenshots you take yourself may
+contain your account details or usage.
+
+The launcher accepts `plasma`, `cinnamon`, `mate`, `xfce`, `lxqt`, `budgie`,
+`cosmic`, `sway`, `hyprland`, `i3` and `bspwm`. COSMIC and Hyprland use a
+private Wayland compositor to initialize graphics; they need access to
+`/dev/dri/renderD128` (override with `USAGESTAT_LAB_RENDER_NODE`). Hyprland's
+viewer captures its own `USAGESTAT-LAB` output directly. Its unused nested
+window is disabled because Aquamarine 0.15 can send a frame before acknowledging
+the parent's initial configuration, leaving the old Xvnc preview black.
+Rebuild older Hyprland images with `bash tests/linux/build-lab.sh hyprland`
+to include WayVNC. The launcher restricts the relay to VNC password
+authentication because the bundled NeatVNC's Apple DH negotiation aborts
+with the host GtkVnc viewer.
+These launcher options are separate from the acceptance results below;
+each desktop still needs its own human review.
+
+If a coding app uses a separate data directory, the launcher also looks for
+the images in the conventional user Podman store. You can explicitly select
+an existing image store:
+
+```bash
+USAGESTAT_PODMAN_ROOT="$HOME/.local/share/containers/storage" \
+  python3 tests/linux/manual.py plasma --backend /usr/bin/usagestat-dev
+```
+
+Display options follow the upstream [TigerVNC server documentation](https://tigervnc.org/doc/Xvnc.html),
+[WayVNC manual](https://github.com/any1/wayvnc/blob/master/wayvnc.scd)
+and [remote-viewer connection format](https://gitlab.com/virt-viewer/virt-viewer/-/blob/master/man/remote-viewer.pod).
 
 ## Repeatable desktop checks from GNOME
 

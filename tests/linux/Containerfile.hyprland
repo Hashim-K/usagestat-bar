@@ -4,4 +4,4 @@ RUN pacman -Syu --noconfirm --needed \
     xorg-server-xvfb xorg-xauth xorg-xwayland openbox xdotool imagemagick \
     hyprland waybar labwc grim mesa ttf-dejavu procps-ng which zip unzip rsync diffutils \
     && pacman -Scc --noconfirm
-RUN pacman -S --noconfirm --needed gcc pkgconf gtk3 json-glib && pacman -Scc --noconfirm
+RUN pacman -S --noconfirm --needed gcc pkgconf gtk3 json-glib wayvnc && pacman -Scc --noconfirm

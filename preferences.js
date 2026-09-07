@@ -194,12 +194,14 @@ function hexFromRgba(rgba) {
 
 const BehaviourPage = GObject.registerClass(
 class BehaviourPage extends Adw.PreferencesPage {
-    _init(settings, onPluginRefresh = null) {
+    _init(settings, onPluginRefresh = null, {trayOnly = false, desktopPlacement = false} = {}) {
         super._init({
             title: _('Behaviour'),
             icon_name: 'preferences-system-symbolic',
         });
         this._settings = settings;
+        this._trayOnly = trayOnly;
+        this._desktopPlacement = desktopPlacement;
         this._onPluginRefresh = onPluginRefresh;
         this.add(this._buildRefreshGroup());
         this.add(this._buildInteractionGroup());
@@ -545,11 +547,13 @@ class BehaviourPage extends Adw.PreferencesPage {
             active: this._settings.get_boolean('scroll-to-switch-provider'),
         });
         this._settings.bind('scroll-to-switch-provider', scrollRow, 'active', Gio.SettingsBindFlags.DEFAULT);
-        group.add(scrollRow);
+        if (!this._trayOnly) group.add(scrollRow);
 
         const popupScrollRow = new Adw.SwitchRow({
             title: _('Scroll popup to switch provider'),
-            subtitle: _('Scroll inside the popup to cycle through every provider, including pinned providers.'),
+            subtitle: this._desktopPlacement
+                ? _('Scroll over the header or provider tabs to switch providers. The details body scrolls through usage.')
+                : _('Scroll inside the popup to cycle through every provider, including pinned providers.'),
             active: this._settings.get_boolean('scroll-popup-to-switch-provider'),
         });
         this._settings.bind('scroll-popup-to-switch-provider', popupScrollRow, 'active', Gio.SettingsBindFlags.DEFAULT);
@@ -594,19 +598,21 @@ class BehaviourPage extends Adw.PreferencesPage {
 
 const AppearancePage = GObject.registerClass(
 class AppearancePage extends Adw.PreferencesPage {
-    _init(settings, desktopPlacement = false) {
+    _init(settings, desktopPlacement = false, desktopActions = null, trayOnly = false) {
         super._init({
             title: _('Appearance'),
             icon_name: 'preferences-desktop-display-symbolic',
         });
         this._settings = settings;
         this._desktopPlacement = desktopPlacement;
+        this._desktopActions = desktopActions;
+        this._trayOnly = trayOnly;
         this._config = loadConfig(settingsBinary(this._settings));
         listen(this, this._settings, 'changed::panel-bar-count', () => this._renderPinnedProviders());
         this.connect('map', () => this._renderPinnedProviders());
         this.add(this._buildPanelGroup());
         this.add(this._buildIconGroup());
-        this._buildComponentGroups();
+        if (!trayOnly) this._buildComponentGroups();
         this.add(this._buildThresholdGroup());
         this.add(this._buildColorGroup());
     }
@@ -647,8 +653,39 @@ class AppearancePage extends Adw.PreferencesPage {
         if (!this._desktopPlacement)
             group.add(indexRow);
         if (this._desktopPlacement) {
-            group.add(new Adw.ActionRow({title: _('Panel placement'), subtitle: _('Move and resize UsageStat using your desktop or bar settings.')}));
-            group.add(new Adw.ActionRow({title: _('Desktop appearance'), subtitle: _('Native widgets show all components. Tray icons use quota rings and abbreviated names; text modules use meters and initials.')}));
+            if (this._desktopActions?.length) {
+                for (const {title, subtitle, label: text, run: action, rows} of this._desktopActions) {
+                    if (rows) { rows.forEach(row => group.add(row)); continue; }
+                    const row = new Adw.ActionRow({title, subtitle});
+                    group.add(row);
+                    if (!action) continue;
+                    const open = new Gtk.Button({label: text, valign: Gtk.Align.CENTER});
+                    row.add_suffix(open);
+                    row.activatable_widget = open;
+                    open.connect('clicked', async () => {
+                        open.sensitive = false;
+                        try { await action(); }
+                        catch (error) {
+                            const dialog = new Adw.MessageDialog({transient_for: this.get_root(),
+                                heading: _('Could not open desktop settings'), body: error.message});
+                            dialog.add_response('ok', _('OK'));
+                            dialog.present();
+                        } finally { open.sensitive = true; }
+                    });
+                }
+            } else {
+                group.description = _('Placement is controlled by your desktop or bar. Configure UsageStat’s display below.');
+            }
+        }
+
+        if (this._trayOnly) {
+            const row = new Adw.ActionRow({title: _('Tray icons'),
+                subtitle: _('Manage provider count, scrolling, logo fill and usage bars on the Tray page.')});
+            const open = new Gtk.Button({label: _('Tray settings'), valign: Gtk.Align.CENTER});
+            open.connect('clicked', () => this.get_root().set_visible_page_name('tray'));
+            row.add_suffix(open); row.activatable_widget = open;
+            group.add(row);
+            return group;
         }
 
         const barCountRow = new Adw.SpinRow({
@@ -709,6 +746,7 @@ class AppearancePage extends Adw.PreferencesPage {
     }
 
     _renderPinnedProviders() {
+        if (this._trayOnly) return;
         if (!this._pinnedList)
             return;
         while (this._pinnedList.get_first_child())
@@ -876,7 +914,7 @@ class AppearancePage extends Adw.PreferencesPage {
         fillRow.connect('notify::selected', () => {
             this._settings.set_string('provider-logo-fill-mode', fillValues[fillRow.selected] || 'full');
         });
-        group.add(fillRow);
+        if (!this._trayOnly) group.add(fillRow);
 
         return group;
     }
@@ -3283,14 +3321,14 @@ class MaintenancePage extends Adw.PreferencesPage {
     }
 });
 
-export function fillPreferencesWindow(window, settings, {gettext = text => text, desktopPlacement = false} = {}) {
+export function fillPreferencesWindow(window, settings, {gettext = text => text, desktopPlacement = false, desktopActions = null, trayOnly = false, extraPages = []} = {}) {
     _ = gettext;
     if (desktopPlacement) Gtk.Settings.get_for_display(window.get_display()).gtk_icon_theme_name = 'Adwaita';
     const targetProviderId = settings.get_string('preferences-provider');
     const providersPage = new ProvidersPage(settings);
     window.set_default_size(760, 760);
-    const pages = [new BehaviourPage(settings, () => providersPage.refreshPluginManifests()),
-        new AppearancePage(settings, desktopPlacement), providersPage, new MaintenancePage(settings)];
+    const pages = [new BehaviourPage(settings, () => providersPage.refreshPluginManifests(), {trayOnly, desktopPlacement}),
+        new AppearancePage(settings, desktopPlacement, desktopActions, trayOnly), ...extraPages, providersPage, new MaintenancePage(settings)];
     for (const page of pages) window.add(page);
     window.connect('close-request', () => {
         for (const page of pages) closePage(page);

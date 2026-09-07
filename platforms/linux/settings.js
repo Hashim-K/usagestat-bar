@@ -4,11 +4,21 @@ import GLib from 'gi://GLib';
 export const ROOT = Gio.File.new_for_uri(import.meta.url).get_parent().get_parent().get_parent().get_path();
 export const APP_ID = 'io.github.HashimK.UsageStatBar';
 export const SCHEMA_ID = 'io.github.HashimK.UsageStatBar';
+export const TRAY_SCHEMA_ID = `${SCHEMA_ID}.Tray`;
 
-export function settings() {
+export function unixSignal(signum, callback) {
+    // GLib's Unix APIs moved namespaces; keep compatibility with older LTS
+    // desktops without a deprecation warning on current distributions.
+    let unix;
+    try { unix = imports.gi.GLibUnix; } catch { /* Older GLib. */ }
+    return unix ? unix.signal_add(GLib.PRIORITY_DEFAULT, signum, callback)
+        : GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, signum, callback);
+}
+
+export function settings(schemaId = SCHEMA_ID) {
     const directory = GLib.getenv('USAGESTAT_BAR_SCHEMA_DIR') || `${ROOT}/platforms/linux/schemas`;
     const source = Gio.SettingsSchemaSource.new_from_directory(directory, Gio.SettingsSchemaSource.get_default(), false);
-    return new Gio.Settings({settings_schema: source.lookup(SCHEMA_ID, false)});
+    return new Gio.Settings({settings_schema: source.lookup(schemaId, false)});
 }
 
 export function jsonSetting(settings, key, fallback = {}) {

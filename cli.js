@@ -82,7 +82,7 @@ export function runAsync(argv, cancellable, timeoutMs = COMMAND_TIMEOUT_SECONDS 
     });
 }
 
-export async function fetchProviderUsage(provider, cancellable, {cliPath = '', pluginDir = '', configFile = ''} = {}) {
+export async function fetchProviderUsage(provider, cancellable, {cliPath = '', pluginDir = '', configFile = '', onUsage = null} = {}) {
     const providerId = providerBaseId(provider);
     pluginDir = pluginDir.trim();
     if (provider?.customCommand || provider?.custom === true || provider?.source === 'custom')
@@ -115,6 +115,8 @@ export async function fetchProviderUsage(provider, cancellable, {cliPath = '', p
         throw new Error(message);
     }
     const snapshot = normalizeBackendSnapshot(payload, providerId);
+    // Desktop clients can display quotas while optional cost aggregation runs.
+    onUsage?.(snapshot);
     try {
         const costSummary = await fetchProviderCostSummary(binary, providerId, cancellable, {pluginDir, configFile});
         if (costSummary) {
