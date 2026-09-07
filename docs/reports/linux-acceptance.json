@@ -1,0 +1,3047 @@
+{
+  "date": "2026-09-07",
+  "status": "tested combinations pass; full baseline acceptance remains open",
+  "implementationCommit": "ca215bfbf75c9343de89376ec36f6528f337c976",
+  "published": false,
+  "reference": "9436c3834522745076c60937dc7c4c4a1649e6e8",
+  "desktopChecks": 147,
+  "desktops": [
+    {
+      "target": "plasma",
+      "evidence": "artifacts/linux-plasma.JukRaz",
+      "passed": true,
+      "checks": 13,
+      "environment": {
+        "target": "plasma",
+        "commit": "37636422445725cee11c6f6166c49b58d4b2ae73",
+        "dirty": false,
+        "hostKernel": "7.1.10-200.fc44.x86_64",
+        "architecture": "x86_64",
+        "image": "5c461d6888a329e4b6f3c14a70327a86c371e095442f8bb1d71b4aced5cf7e10"
+      },
+      "result": {
+        "target": "plasma",
+        "checks": [
+          {
+            "name": "fixture accounts, grouping, automatic mean and costs",
+            "passed": true
+          },
+          {
+            "name": "panel process launched; screenshot requires visual review",
+            "passed": true
+          },
+          {
+            "name": "mapped GTK provider details window",
+            "passed": true
+          },
+          {
+            "name": "provider switching",
+            "passed": true
+          },
+          {
+            "name": "settings update panel selection and used/remaining mode",
+            "passed": true
+          },
+          {
+            "name": "backend failure remains visible",
+            "passed": true
+          },
+          {
+            "name": "backend recovers on next refresh",
+            "passed": true
+          },
+          {
+            "name": "paid quota currency, credits, code review, pace and service status reach the view",
+            "passed": true
+          },
+          {
+            "name": "pin order, component order, multiple windows and custom threshold color",
+            "passed": true
+          },
+          {
+            "name": "native vertical panel configured; screenshot requires visual review",
+            "passed": true
+          },
+          {
+            "name": "mapped existing preferences outside GNOME",
+            "passed": true
+          },
+          {
+            "name": "extra windows, optional cost, legacy, array and boundary fixtures",
+            "passed": true
+          },
+          {
+            "name": "service restart preserves appearance settings",
+            "passed": true
+          }
+        ],
+        "passed": true
+      },
+      "packagesSha256": "65e637dd29c4e5dc694b96fa0a01031058a396c0e816bf1d57c0470040799b5e"
+    },
+    {
+      "target": "cinnamon",
+      "evidence": "artifacts/linux-cinnamon.X5Km27",
+      "passed": true,
+      "checks": 13,
+      "environment": {
+        "target": "cinnamon",
+        "commit": "9113641d2bbb8759ec923239e1457a90a7797274",
+        "dirty": false,
+        "hostKernel": "7.1.10-200.fc44.x86_64",
+        "architecture": "x86_64",
+        "image": "5c461d6888a329e4b6f3c14a70327a86c371e095442f8bb1d71b4aced5cf7e10"
+      },
+      "result": {
+        "target": "cinnamon",
+        "checks": [
+          {
+            "name": "fixture accounts, grouping, automatic mean and costs",
+            "passed": true
+          },
+          {
+            "name": "panel process launched; screenshot requires visual review",
+            "passed": true
+          },
+          {
+            "name": "mapped GTK provider details window",
+            "passed": true
+          },
+          {
+            "name": "provider switching",
+            "passed": true
+          },
+          {
+            "name": "settings update panel selection and used/remaining mode",
+            "passed": true
+          },
+          {
+            "name": "backend failure remains visible",
+            "passed": true
+          },
+          {
+            "name": "backend recovers on next refresh",
+            "passed": true
+          },
+          {
+            "name": "paid quota currency, credits, code review, pace and service status reach the view",
+            "passed": true
+          },
+          {
+            "name": "pin order, component order, multiple windows and custom threshold color",
+            "passed": true
+          },
+          {
+            "name": "native vertical panel configured; screenshot requires visual review",
+            "passed": true
+          },
+          {
+            "name": "mapped existing preferences outside GNOME",
+            "passed": true
+          },
+          {
+            "name": "extra windows, optional cost, legacy, array and boundary fixtures",
+            "passed": true
+          },
+          {
+            "name": "service restart preserves appearance settings",
+            "passed": true
+          }
+        ],
+        "passed": true
+      },
+      "packagesSha256": "65e637dd29c4e5dc694b96fa0a01031058a396c0e816bf1d57c0470040799b5e"
+    },
+    {
+      "target": "mate",
+      "evidence": "artifacts/linux-mate.18h2wB",
+      "passed": true,
+      "checks": 14,
+      "environment": {
+        "target": "mate",
+        "commit": "9113641d2bbb8759ec923239e1457a90a7797274",
+        "dirty": false,
+        "hostKernel": "7.1.10-200.fc44.x86_64",
+        "architecture": "x86_64",
+        "image": "5c461d6888a329e4b6f3c14a70327a86c371e095442f8bb1d71b4aced5cf7e10"
+      },
+      "result": {
+        "target": "mate",
+        "checks": [
+          {
+            "name": "fixture accounts, grouping, automatic mean and costs",
+            "passed": true
+          },
+          {
+            "name": "panel process launched; screenshot requires visual review",
+            "passed": true
+          },
+          {
+            "name": "mapped GTK provider details window",
+            "passed": true
+          },
+          {
+            "name": "provider switching",
+            "passed": true
+          },
+          {
+            "name": "settings update panel selection and used/remaining mode",
+            "passed": true
+          },
+          {
+            "name": "backend failure remains visible",
+            "passed": true
+          },
+          {
+            "name": "backend recovers on next refresh",
+            "passed": true
+          },
+          {
+            "name": "paid quota currency, credits, code review, pace and service status reach the view",
+            "passed": true
+          },
+          {
+            "name": "pin order, component order, multiple windows and custom threshold color",
+            "passed": true
+          },
+          {
+            "name": "rotated MATE indicator remains clickable beyond its old horizontal height",
+            "passed": true
+          },
+          {
+            "name": "native vertical panel configured; screenshot requires visual review",
+            "passed": true
+          },
+          {
+            "name": "mapped existing preferences outside GNOME",
+            "passed": true
+          },
+          {
+            "name": "extra windows, optional cost, legacy, array and boundary fixtures",
+            "passed": true
+          },
+          {
+            "name": "service restart preserves appearance settings",
+            "passed": true
+          }
+        ],
+        "passed": true
+      },
+      "packagesSha256": "65e637dd29c4e5dc694b96fa0a01031058a396c0e816bf1d57c0470040799b5e"
+    },
+    {
+      "target": "xfce",
+      "evidence": "artifacts/linux-xfce.ICSO9X",
+      "passed": true,
+      "checks": 13,
+      "environment": {
+        "target": "xfce",
+        "commit": "9113641d2bbb8759ec923239e1457a90a7797274",
+        "dirty": false,
+        "hostKernel": "7.1.10-200.fc44.x86_64",
+        "architecture": "x86_64",
+        "image": "5c461d6888a329e4b6f3c14a70327a86c371e095442f8bb1d71b4aced5cf7e10"
+      },
+      "result": {
+        "target": "xfce",
+        "checks": [
+          {
+            "name": "fixture accounts, grouping, automatic mean and costs",
+            "passed": true
+          },
+          {
+            "name": "panel process launched; screenshot requires visual review",
+            "passed": true
+          },
+          {
+            "name": "mapped GTK provider details window",
+            "passed": true
+          },
+          {
+            "name": "provider switching",
+            "passed": true
+          },
+          {
+            "name": "settings update panel selection and used/remaining mode",
+            "passed": true
+          },
+          {
+            "name": "backend failure remains visible",
+            "passed": true
+          },
+          {
+            "name": "backend recovers on next refresh",
+            "passed": true
+          },
+          {
+            "name": "paid quota currency, credits, code review, pace and service status reach the view",
+            "passed": true
+          },
+          {
+            "name": "pin order, component order, multiple windows and custom threshold color",
+            "passed": true
+          },
+          {
+            "name": "native vertical panel configured; screenshot requires visual review",
+            "passed": true
+          },
+          {
+            "name": "mapped existing preferences outside GNOME",
+            "passed": true
+          },
+          {
+            "name": "extra windows, optional cost, legacy, array and boundary fixtures",
+            "passed": true
+          },
+          {
+            "name": "service restart preserves appearance settings",
+            "passed": true
+          }
+        ],
+        "passed": true
+      },
+      "packagesSha256": "65e637dd29c4e5dc694b96fa0a01031058a396c0e816bf1d57c0470040799b5e"
+    },
+    {
+      "target": "lxqt",
+      "evidence": "artifacts/linux-lxqt.XHGubo",
+      "passed": true,
+      "checks": 15,
+      "environment": {
+        "target": "lxqt",
+        "commit": "9113641d2bbb8759ec923239e1457a90a7797274",
+        "dirty": false,
+        "hostKernel": "7.1.10-200.fc44.x86_64",
+        "architecture": "x86_64",
+        "image": "5c461d6888a329e4b6f3c14a70327a86c371e095442f8bb1d71b4aced5cf7e10"
+      },
+      "result": {
+        "target": "lxqt",
+        "checks": [
+          {
+            "name": "fixture accounts, grouping, automatic mean and costs",
+            "passed": true
+          },
+          {
+            "name": "two indicators registered with the real desktop tray",
+            "passed": true
+          },
+          {
+            "name": "removing and restoring indicators leaves no stale tray items",
+            "passed": true
+          },
+          {
+            "name": "tray pixmaps and context menu implement the desktop protocol",
+            "passed": true
+          },
+          {
+            "name": "mapped GTK provider details window",
+            "passed": true
+          },
+          {
+            "name": "provider switching",
+            "passed": true
+          },
+          {
+            "name": "settings update panel selection and used/remaining mode",
+            "passed": true
+          },
+          {
+            "name": "backend failure remains visible",
+            "passed": true
+          },
+          {
+            "name": "backend recovers on next refresh",
+            "passed": true
+          },
+          {
+            "name": "real notification daemon receives upward crossings only",
+            "passed": true
+          },
+          {
+            "name": "paid quota currency, credits, code review, pace and service status reach the view",
+            "passed": true
+          },
+          {
+            "name": "pin order, component order, multiple windows and custom threshold color",
+            "passed": true
+          },
+          {
+            "name": "mapped existing preferences outside GNOME",
+            "passed": true
+          },
+          {
+            "name": "extra windows, optional cost, legacy, array and boundary fixtures",
+            "passed": true
+          },
+          {
+            "name": "service restart preserves appearance settings",
+            "passed": true
+          }
+        ],
+        "passed": true
+      },
+      "packagesSha256": "65e637dd29c4e5dc694b96fa0a01031058a396c0e816bf1d57c0470040799b5e"
+    },
+    {
+      "target": "budgie",
+      "evidence": "artifacts/linux-budgie.UfgCfr",
+      "passed": true,
+      "checks": 14,
+      "environment": {
+        "target": "budgie",
+        "commit": "9113641d2bbb8759ec923239e1457a90a7797274",
+        "dirty": false,
+        "hostKernel": "7.1.10-200.fc44.x86_64",
+        "architecture": "x86_64",
+        "image": "5c461d6888a329e4b6f3c14a70327a86c371e095442f8bb1d71b4aced5cf7e10"
+      },
+      "result": {
+        "target": "budgie",
+        "checks": [
+          {
+            "name": "fixture accounts, grouping, automatic mean and costs",
+            "passed": true
+          },
+          {
+            "name": "two indicators registered with the real desktop tray",
+            "passed": true
+          },
+          {
+            "name": "removing and restoring indicators leaves no stale tray items",
+            "passed": true
+          },
+          {
+            "name": "tray pixmaps and context menu implement the desktop protocol",
+            "passed": true
+          },
+          {
+            "name": "mapped GTK provider details window",
+            "passed": true
+          },
+          {
+            "name": "provider switching",
+            "passed": true
+          },
+          {
+            "name": "settings update panel selection and used/remaining mode",
+            "passed": true
+          },
+          {
+            "name": "backend failure remains visible",
+            "passed": true
+          },
+          {
+            "name": "backend recovers on next refresh",
+            "passed": true
+          },
+          {
+            "name": "paid quota currency, credits, code review, pace and service status reach the view",
+            "passed": true
+          },
+          {
+            "name": "pin order, component order, multiple windows and custom threshold color",
+            "passed": true
+          },
+          {
+            "name": "mapped existing preferences outside GNOME",
+            "passed": true
+          },
+          {
+            "name": "extra windows, optional cost, legacy, array and boundary fixtures",
+            "passed": true
+          },
+          {
+            "name": "service restart preserves appearance settings",
+            "passed": true
+          }
+        ],
+        "passed": true
+      },
+      "packagesSha256": "65e637dd29c4e5dc694b96fa0a01031058a396c0e816bf1d57c0470040799b5e"
+    },
+    {
+      "target": "cosmic",
+      "evidence": "artifacts/linux-cosmic.vATwkZ",
+      "passed": true,
+      "checks": 14,
+      "environment": {
+        "target": "cosmic",
+        "commit": "9113641d2bbb8759ec923239e1457a90a7797274",
+        "dirty": false,
+        "hostKernel": "7.1.10-200.fc44.x86_64",
+        "architecture": "x86_64",
+        "image": "5c461d6888a329e4b6f3c14a70327a86c371e095442f8bb1d71b4aced5cf7e10"
+      },
+      "result": {
+        "target": "cosmic",
+        "checks": [
+          {
+            "name": "fixture accounts, grouping, automatic mean and costs",
+            "passed": true
+          },
+          {
+            "name": "two indicators registered with the real desktop tray",
+            "passed": true
+          },
+          {
+            "name": "removing and restoring indicators leaves no stale tray items",
+            "passed": true
+          },
+          {
+            "name": "tray pixmaps and context menu implement the desktop protocol",
+            "passed": true
+          },
+          {
+            "name": "mapped GTK provider details window",
+            "passed": true
+          },
+          {
+            "name": "provider switching",
+            "passed": true
+          },
+          {
+            "name": "settings update panel selection and used/remaining mode",
+            "passed": true
+          },
+          {
+            "name": "backend failure remains visible",
+            "passed": true
+          },
+          {
+            "name": "backend recovers on next refresh",
+            "passed": true
+          },
+          {
+            "name": "paid quota currency, credits, code review, pace and service status reach the view",
+            "passed": true
+          },
+          {
+            "name": "pin order, component order, multiple windows and custom threshold color",
+            "passed": true
+          },
+          {
+            "name": "mapped existing preferences outside GNOME",
+            "passed": true
+          },
+          {
+            "name": "extra windows, optional cost, legacy, array and boundary fixtures",
+            "passed": true
+          },
+          {
+            "name": "service restart preserves appearance settings",
+            "passed": true
+          }
+        ],
+        "passed": true
+      },
+      "packagesSha256": "65e637dd29c4e5dc694b96fa0a01031058a396c0e816bf1d57c0470040799b5e"
+    },
+    {
+      "target": "sway",
+      "evidence": "artifacts/linux-sway.cMAk5O",
+      "passed": true,
+      "checks": 14,
+      "environment": {
+        "target": "sway",
+        "commit": "9113641d2bbb8759ec923239e1457a90a7797274",
+        "dirty": false,
+        "hostKernel": "7.1.10-200.fc44.x86_64",
+        "architecture": "x86_64",
+        "image": "5c461d6888a329e4b6f3c14a70327a86c371e095442f8bb1d71b4aced5cf7e10"
+      },
+      "result": {
+        "target": "sway",
+        "checks": [
+          {
+            "name": "fixture accounts, grouping, automatic mean and costs",
+            "passed": true
+          },
+          {
+            "name": "panel process launched; screenshot requires visual review",
+            "passed": true
+          },
+          {
+            "name": "mapped GTK provider details window",
+            "passed": true
+          },
+          {
+            "name": "provider switching",
+            "passed": true
+          },
+          {
+            "name": "settings update panel selection and used/remaining mode",
+            "passed": true
+          },
+          {
+            "name": "backend failure remains visible",
+            "passed": true
+          },
+          {
+            "name": "backend recovers on next refresh",
+            "passed": true
+          },
+          {
+            "name": "paid quota currency, credits, code review, pace and service status reach the view",
+            "passed": true
+          },
+          {
+            "name": "pin order, component order, multiple windows and custom threshold color",
+            "passed": true
+          },
+          {
+            "name": "native vertical panel configured; screenshot requires visual review",
+            "passed": true
+          },
+          {
+            "name": "two real compositor outputs with mixed 1x/2x scale and moved details window",
+            "passed": true
+          },
+          {
+            "name": "mapped existing preferences outside GNOME",
+            "passed": true
+          },
+          {
+            "name": "extra windows, optional cost, legacy, array and boundary fixtures",
+            "passed": true
+          },
+          {
+            "name": "service restart preserves appearance settings",
+            "passed": true
+          }
+        ],
+        "passed": true
+      },
+      "packagesSha256": "65e637dd29c4e5dc694b96fa0a01031058a396c0e816bf1d57c0470040799b5e"
+    },
+    {
+      "target": "hyprland",
+      "evidence": "artifacts/linux-hyprland.zn3Eao",
+      "passed": true,
+      "checks": 13,
+      "environment": {
+        "target": "hyprland",
+        "commit": "9113641d2bbb8759ec923239e1457a90a7797274",
+        "dirty": false,
+        "hostKernel": "7.1.10-200.fc44.x86_64",
+        "architecture": "x86_64",
+        "image": "9b3b9c0d24debdac4dcd922ed4e54088906e3277841586892ab2eb088990877d"
+      },
+      "result": {
+        "target": "hyprland",
+        "checks": [
+          {
+            "name": "fixture accounts, grouping, automatic mean and costs",
+            "passed": true
+          },
+          {
+            "name": "panel process launched; screenshot requires visual review",
+            "passed": true
+          },
+          {
+            "name": "mapped GTK provider details window",
+            "passed": true
+          },
+          {
+            "name": "provider switching",
+            "passed": true
+          },
+          {
+            "name": "settings update panel selection and used/remaining mode",
+            "passed": true
+          },
+          {
+            "name": "backend failure remains visible",
+            "passed": true
+          },
+          {
+            "name": "backend recovers on next refresh",
+            "passed": true
+          },
+          {
+            "name": "paid quota currency, credits, code review, pace and service status reach the view",
+            "passed": true
+          },
+          {
+            "name": "pin order, component order, multiple windows and custom threshold color",
+            "passed": true
+          },
+          {
+            "name": "native vertical panel configured; screenshot requires visual review",
+            "passed": true
+          },
+          {
+            "name": "mapped existing preferences outside GNOME",
+            "passed": true
+          },
+          {
+            "name": "extra windows, optional cost, legacy, array and boundary fixtures",
+            "passed": true
+          },
+          {
+            "name": "service restart preserves appearance settings",
+            "passed": true
+          }
+        ],
+        "passed": true
+      },
+      "packagesSha256": "67b5faf53aefe264651636dcd264d970a07c90df8e0be970d96efd7ad842ea57"
+    },
+    {
+      "target": "i3",
+      "evidence": "artifacts/linux-i3.iJUWhV",
+      "passed": true,
+      "checks": 12,
+      "environment": {
+        "target": "i3",
+        "commit": "37636422445725cee11c6f6166c49b58d4b2ae73",
+        "dirty": false,
+        "hostKernel": "7.1.10-200.fc44.x86_64",
+        "architecture": "x86_64",
+        "image": "5c461d6888a329e4b6f3c14a70327a86c371e095442f8bb1d71b4aced5cf7e10"
+      },
+      "result": {
+        "target": "i3",
+        "checks": [
+          {
+            "name": "fixture accounts, grouping, automatic mean and costs",
+            "passed": true
+          },
+          {
+            "name": "panel process launched; screenshot requires visual review",
+            "passed": true
+          },
+          {
+            "name": "mapped GTK provider details window",
+            "passed": true
+          },
+          {
+            "name": "provider switching",
+            "passed": true
+          },
+          {
+            "name": "settings update panel selection and used/remaining mode",
+            "passed": true
+          },
+          {
+            "name": "backend failure remains visible",
+            "passed": true
+          },
+          {
+            "name": "backend recovers on next refresh",
+            "passed": true
+          },
+          {
+            "name": "paid quota currency, credits, code review, pace and service status reach the view",
+            "passed": true
+          },
+          {
+            "name": "pin order, component order, multiple windows and custom threshold color",
+            "passed": true
+          },
+          {
+            "name": "mapped existing preferences outside GNOME",
+            "passed": true
+          },
+          {
+            "name": "extra windows, optional cost, legacy, array and boundary fixtures",
+            "passed": true
+          },
+          {
+            "name": "service restart preserves appearance settings",
+            "passed": true
+          }
+        ],
+        "passed": true
+      },
+      "packagesSha256": "65e637dd29c4e5dc694b96fa0a01031058a396c0e816bf1d57c0470040799b5e"
+    },
+    {
+      "target": "bspwm",
+      "evidence": "artifacts/linux-bspwm.OHMDe6",
+      "passed": true,
+      "checks": 12,
+      "environment": {
+        "target": "bspwm",
+        "commit": "37636422445725cee11c6f6166c49b58d4b2ae73",
+        "dirty": false,
+        "hostKernel": "7.1.10-200.fc44.x86_64",
+        "architecture": "x86_64",
+        "image": "5c461d6888a329e4b6f3c14a70327a86c371e095442f8bb1d71b4aced5cf7e10"
+      },
+      "result": {
+        "target": "bspwm",
+        "checks": [
+          {
+            "name": "fixture accounts, grouping, automatic mean and costs",
+            "passed": true
+          },
+          {
+            "name": "panel process launched; screenshot requires visual review",
+            "passed": true
+          },
+          {
+            "name": "mapped GTK provider details window",
+            "passed": true
+          },
+          {
+            "name": "provider switching",
+            "passed": true
+          },
+          {
+            "name": "settings update panel selection and used/remaining mode",
+            "passed": true
+          },
+          {
+            "name": "backend failure remains visible",
+            "passed": true
+          },
+          {
+            "name": "backend recovers on next refresh",
+            "passed": true
+          },
+          {
+            "name": "paid quota currency, credits, code review, pace and service status reach the view",
+            "passed": true
+          },
+          {
+            "name": "pin order, component order, multiple windows and custom threshold color",
+            "passed": true
+          },
+          {
+            "name": "mapped existing preferences outside GNOME",
+            "passed": true
+          },
+          {
+            "name": "extra windows, optional cost, legacy, array and boundary fixtures",
+            "passed": true
+          },
+          {
+            "name": "service restart preserves appearance settings",
+            "passed": true
+          }
+        ],
+        "passed": true
+      },
+      "packagesSha256": "65e637dd29c4e5dc694b96fa0a01031058a396c0e816bf1d57c0470040799b5e"
+    }
+  ],
+  "containerImages": {
+    "5c461d6888a329e4b6f3c14a70327a86c371e095442f8bb1d71b4aced5cf7e10": {
+      "packages": [
+        "ImageMagick 7.1.2.27-1.fc44.x86_64",
+        "ImageMagick-libs 7.1.2.27-1.fc44.x86_64",
+        "LibRaw 0.22.2-1.fc44.x86_64",
+        "ModemManager-glib 1.24.2-3.fc44.x86_64",
+        "NetworkManager 1.56.1-2.fc44.x86_64",
+        "NetworkManager-libnm 1.56.1-2.fc44.x86_64",
+        "PackageKit-Qt6 1.1.4-4.fc44.x86_64",
+        "SDL3 3.4.16-1.fc44.x86_64",
+        "abattis-cantarell-vf-fonts 0.301-17.fc44.noarch",
+        "abseil-cpp 20260107.1-1.fc44.x86_64",
+        "accountsservice 23.13.9-16.fc44.x86_64",
+        "accountsservice-libs 23.13.9-16.fc44.x86_64",
+        "adobe-mappings-cmap 20231115-5.fc44.noarch",
+        "adobe-mappings-cmap-deprecated 20231115-5.fc44.noarch",
+        "adobe-mappings-pdf 20190401-12.fc44.noarch",
+        "adwaita-cursor-theme 50.0-1.fc44.noarch",
+        "adwaita-icon-theme 50.0-1.fc44.noarch",
+        "adwaita-icon-theme-legacy 46.2-7.fc44.noarch",
+        "alsa-lib 1.2.16.1-1.fc44.x86_64",
+        "alternatives 1.33-5.fc44.x86_64",
+        "appstream 1.1.3-1.fc44.x86_64",
+        "appstream-qt 1.1.3-1.fc44.x86_64",
+        "aribb24 1.0.3^20160216git5e9be27-5.fc44.x86_64",
+        "assimp 6.0.5-2.fc44.x86_64",
+        "at-spi2-atk 2.60.6-1.fc44.x86_64",
+        "at-spi2-atk-devel 2.60.6-1.fc44.x86_64",
+        "at-spi2-core 2.60.6-1.fc44.x86_64",
+        "at-spi2-core-devel 2.60.6-1.fc44.x86_64",
+        "atk 2.60.6-1.fc44.x86_64",
+        "atk-devel 2.60.6-1.fc44.x86_64",
+        "atkmm 2.28.5-1.fc44.x86_64",
+        "audit-libs 4.2.1-1.fc44.x86_64",
+        "aurorae 6.7.4-1.fc44.x86_64",
+        "authselect 1.7.1-1.fc44.x86_64",
+        "authselect-libs 1.7.1-1.fc44.x86_64",
+        "avahi 0.9~rc2-8.fc44.x86_64",
+        "avahi-glib 0.9~rc2-8.fc44.x86_64",
+        "avahi-libs 0.9~rc2-8.fc44.x86_64",
+        "bash 5.3.9-3.fc44.x86_64",
+        "binutils 2.46.1-1.fc44.x86_64",
+        "bluez-libs 5.87-6.fc44.x86_64",
+        "breeze-cursor-theme 6.7.4-2.fc44.noarch",
+        "breeze-icon-theme 6.29.0-1.fc44.noarch",
+        "brotli 1.2.0-3.fc44.x86_64",
+        "brotli-devel 1.2.0-3.fc44.x86_64",
+        "bspwm 0.9.9-19.fc44.x86_64",
+        "bubblewrap 0.12.0-1.fc44.x86_64",
+        "budgie-desktop 10.10.2-1.fc44.x86_64",
+        "budgie-desktop-services 1.0.2-1.fc44.x86_64",
+        "budgie-session 1.0.1-1.fc44.x86_64",
+        "bzip2 1.0.8-23.fc44.x86_64",
+        "bzip2-devel 1.0.8-23.fc44.x86_64",
+        "bzip2-libs 1.0.8-23.fc44.x86_64",
+        "ca-certificates 2026.2.90_v9.0.317-1.fc44.noarch",
+        "cairo 1.18.4-6.fc44.x86_64",
+        "cairo-devel 1.18.4-6.fc44.x86_64",
+        "cairo-gobject 1.18.4-6.fc44.x86_64",
+        "cairo-gobject-devel 1.18.4-6.fc44.x86_64",
+        "cairomm 1.14.5-15.fc44.x86_64",
+        "caja-schemas 1.28.0-11.fc44.x86_64",
+        "cdparanoia-libs 10.2-50.fc44.x86_64",
+        "cinnamon 6.6.7-7.fc44.x86_64",
+        "cinnamon-control-center-filesystem 6.6.0-3.fc44.x86_64",
+        "cinnamon-desktop 6.6.2-7.fc44.x86_64",
+        "cinnamon-menus 6.6.0-3.fc44.x86_64",
+        "cinnamon-screensaver 6.6.1-4.fc44.x86_64",
+        "cinnamon-session 6.6.4-1.fc44.x86_64",
+        "cinnamon-settings-daemon 6.6.3-1.fc44.x86_64",
+        "cinnamon-themes 2.3.8-1.fc44.noarch",
+        "cinnamon-translations 6.6.2-3.fc44.noarch",
+        "cjs 128.1-5.fc44.x86_64",
+        "cjson 1.7.19-1.fc44.x86_64",
+        "cmake-filesystem 4.3.0-1.fc44.x86_64",
+        "codec2 1.2.0-9.fc44.x86_64",
+        "color-filesystem 1-38.fc44.noarch",
+        "colord 1.4.8-4.fc44.x86_64",
+        "colord-libs 1.4.8-4.fc44.x86_64",
+        "coreutils 9.10-5.fc44.x86_64",
+        "coreutils-common 9.10-5.fc44.x86_64",
+        "cosmic-applets 1.6.0-3.fc44.x86_64",
+        "cosmic-comp 1.6.0-3.fc44.x86_64",
+        "cosmic-icon-theme 1.6.0-1.fc44.noarch",
+        "cosmic-panel 1.6.0-3.fc44.x86_64",
+        "cpp 16.2.1-2.fc44.x86_64",
+        "cracklib 2.10.3-1.fc44.x86_64",
+        "crypto-policies 20251128-3.git19878fe.fc44.noarch",
+        "cryptsetup-libs 2.8.7-1.fc44.x86_64",
+        "cups-client 2.4.19-3.fc44.x86_64",
+        "cups-filesystem 2.4.19-3.fc44.noarch",
+        "cups-libs 2.4.19-3.fc44.x86_64",
+        "curl 8.18.0-9.fc44.x86_64",
+        "cyrus-sasl-lib 2.1.28-35.fc44.x86_64",
+        "dbus 1.16.2-1.fc44.x86_64",
+        "dbus-broker 37-8.fc44.x86_64",
+        "dbus-common 1.16.2-1.fc44.noarch",
+        "dbus-daemon 1.16.2-1.fc44.x86_64",
+        "dbus-devel 1.16.2-1.fc44.x86_64",
+        "dbus-glib 0.112-13.fc44.x86_64",
+        "dbus-glib-devel 0.112-13.fc44.x86_64",
+        "dbus-libs 1.16.2-1.fc44.x86_64",
+        "dbus-tools 1.16.2-1.fc44.x86_64",
+        "dbus-x11 1.16.2-1.fc44.x86_64",
+        "dconf 0.49.0-5.fc44.x86_64",
+        "ddcutil 2.2.1-3.fc44.x86_64",
+        "default-fonts-core-sans 4.3-1.fc44.noarch",
+        "desktop-backgrounds-basic 44.0.0-2.fc44.noarch",
+        "desktop-backgrounds-gnome 44.0.0-2.fc44.noarch",
+        "desktop-backgrounds-kde 44.0.0-2.fc44.noarch",
+        "desktop-file-utils 0.28-5.fc44.x86_64",
+        "device-mapper 1.02.212-2.fc44.x86_64",
+        "device-mapper-libs 1.02.212-2.fc44.x86_64",
+        "diffutils 3.12-5.fc44.x86_64",
+        "dnf5 5.4.3.0-2.fc44.x86_64",
+        "dnf5-plugins 5.4.3.0-2.fc44.x86_64",
+        "dns-root-data 2026260100-2.fc44.noarch",
+        "docbook-dtds 1.0-91.fc44.noarch",
+        "docbook-style-xsl 1.79.2-27.fc44.noarch",
+        "double-conversion 3.4.0-3.fc44.x86_64",
+        "duktape 2.7.0-11.fc44.x86_64",
+        "dunst 1.13.2-1.fc44.x86_64",
+        "e2fsprogs-libs 1.47.3-4.fc44.x86_64",
+        "editorconfig-libs 0.12.11-1.fc44.x86_64",
+        "egl-utils 9.0.0-11.fc44.x86_64",
+        "elfutils-debuginfod-client 0.196-1.fc44.x86_64",
+        "elfutils-default-yama-scope 0.196-1.fc44.noarch",
+        "elfutils-libelf 0.196-1.fc44.x86_64",
+        "elfutils-libs 0.196-1.fc44.x86_64",
+        "emacs-filesystem 30.2-2.fc44.x86_64",
+        "enchant2 2.8.19-2.fc44.x86_64",
+        "exempi 2.6.4-9.fc44.x86_64",
+        "exiv2-libs 0.28.9-1.fc44.x86_64",
+        "exo 4.20.0-4.fc44.x86_64",
+        "expat 2.8.3-1.fc44.x86_64",
+        "f44-backgrounds-base 44.0.0-1.fc44.noarch",
+        "f44-backgrounds-gnome 44.0.0-1.fc44.noarch",
+        "f44-backgrounds-kde 44.0.0-1.fc44.noarch",
+        "fdk-aac-free 2.0.3-2.fc44.x86_64",
+        "fedora-gpg-keys 44-2.noarch",
+        "fedora-logos 42.0.1-3.fc44.noarch",
+        "fedora-release-common 44-18.noarch",
+        "fedora-release-container 44-18.noarch",
+        "fedora-release-identity-container 44-18.noarch",
+        "fedora-repos 44-2.noarch",
+        "fftw-libs-double 3.3.10-17.fc44.x86_64",
+        "fftw-libs-single 3.3.10-17.fc44.x86_64",
+        "file-libs 5.46-10.fc44.x86_64",
+        "filesystem 3.18-52.fc44.x86_64",
+        "findutils 4.10.0-7.fc44.x86_64",
+        "flac-libs 1.5.0-8.fc44.x86_64",
+        "flite 2.2-13.fc44.x86_64",
+        "fmt 11.2.0-4.fc44.x86_64",
+        "fontconfig 2.17.0-4.fc44.x86_64",
+        "fontconfig-devel 2.17.0-4.fc44.x86_64",
+        "fonts-filesystem 5.0.0-2.fc44.noarch",
+        "fpaste 0.5.0.0-4.fc44.noarch",
+        "freetype 2.14.3-1.fc44.x86_64",
+        "freetype-devel 2.14.3-1.fc44.x86_64",
+        "fribidi 1.0.16-4.fc44.x86_64",
+        "fribidi-devel 1.0.16-4.fc44.x86_64",
+        "fuse-common 3.18.2-1.fc44.x86_64",
+        "fuse3 3.18.2-1.fc44.x86_64",
+        "fuse3-libs 3.18.2-1.fc44.x86_64",
+        "game-music-emu 0.6.4-3.fc44.x86_64",
+        "gammastep 2.0.11-6.fc44.x86_64",
+        "garcon 4.20.0-4.fc44.x86_64",
+        "gawk 5.3.2-3.fc44.x86_64",
+        "gcc 16.2.1-2.fc44.x86_64",
+        "gcr-libs 4.4.0.1-7.fc44.x86_64",
+        "gcr3 3.41.1-12.fc44.x86_64",
+        "gcr3-base 3.41.1-12.fc44.x86_64",
+        "gdbm 1.23-11.fc44.x86_64",
+        "gdbm-libs 1.23-11.fc44.x86_64",
+        "gdk-pixbuf2 2.44.6^really2.44.4-3.fc44.x86_64",
+        "gdk-pixbuf2-devel 2.44.6^really2.44.4-3.fc44.x86_64",
+        "gdk-pixbuf2-modules-extra 2.44.0-2.fc44.x86_64",
+        "geoclue2 2.8.2-1.fc44.x86_64",
+        "geoclue2-libs 2.8.2-1.fc44.x86_64",
+        "geocode-glib 3.26.4-15.fc44.x86_64",
+        "gettext 0.26-5.fc44.x86_64",
+        "gettext-envsubst 0.26-5.fc44.x86_64",
+        "gettext-libs 0.26-5.fc44.x86_64",
+        "gettext-runtime 0.26-5.fc44.x86_64",
+        "giflib 6.1.3-2.fc44.x86_64",
+        "git-core 2.55.0-1.fc44.x86_64",
+        "gjs 1.88.1-2.fc44.x86_64",
+        "glade-devel 3.40.0-14.fc44.x86_64",
+        "glade-libs 3.40.0-14.fc44.x86_64",
+        "glfw 3.4-6.fc44.x86_64",
+        "glib-networking 2.80.1-4.fc44.x86_64",
+        "glib2 2.88.3-1.fc44.x86_64",
+        "glib2-devel 2.88.3-1.fc44.x86_64",
+        "glibc 2.43-8.fc44.x86_64",
+        "glibc-common 2.43-8.fc44.x86_64",
+        "glibc-devel 2.43-8.fc44.x86_64",
+        "glibc-gconv-extra 2.43-8.fc44.x86_64",
+        "glibc-minimal-langpack 2.43-8.fc44.x86_64",
+        "glibmm2.4 2.66.10-1.fc44.x86_64",
+        "glx-utils 9.0.0-11.fc44.x86_64",
+        "glycin-devel 2.1.5-1.fc44.x86_64",
+        "glycin-libs 2.1.5-1.fc44.x86_64",
+        "glycin-loaders 2.1.5-1.fc44.x86_64",
+        "gmp 6.3.0-5.fc44.x86_64",
+        "gnome-backgrounds 50.0-1.fc44.noarch",
+        "gnome-desktop3 44.5-1.fc44.x86_64",
+        "gnome-desktop4 44.5-1.fc44.x86_64",
+        "gnome-icon-theme 3.12.0-27.fc44.noarch",
+        "gnome-keyring 50.0-1.fc44.x86_64",
+        "gnome-keyring-pam 50.0-1.fc44.x86_64",
+        "gnome-menus 3.38.1-2.fc44.x86_64",
+        "gnome-online-accounts-libs 3.58.1-1.fc44.x86_64",
+        "gnome-settings-daemon 50.1-1.fc44.x86_64",
+        "gnulib-l10n 20241231-2.fc44.noarch",
+        "gnupg2 2.4.9-16.fc44.x86_64",
+        "gnupg2-dirmngr 2.4.9-16.fc44.x86_64",
+        "gnupg2-gpg-agent 2.4.9-16.fc44.x86_64",
+        "gnupg2-gpgconf 2.4.9-16.fc44.x86_64",
+        "gnupg2-keyboxd 2.4.9-16.fc44.x86_64",
+        "gnupg2-verify 2.4.9-16.fc44.x86_64",
+        "gnutls 3.8.13-1.fc44.x86_64",
+        "gnutls-dane 3.8.13-1.fc44.x86_64",
+        "gobject-introspection 1.86.0-3.fc44.x86_64",
+        "google-droid-sans-fonts 20200215-24.fc44.noarch",
+        "google-noto-color-emoji-fonts 20250623-4.fc44.noarch",
+        "google-noto-fonts-common 20251201-2.fc44.noarch",
+        "google-noto-sans-fonts 20251201-2.fc44.noarch",
+        "google-noto-sans-mono-fonts 20251201-2.fc44.noarch",
+        "google-noto-sans-vf-fonts 20251201-2.fc44.noarch",
+        "gpg-pubkey 36f612dcf27f7d1a48a835e4dbfcf71c6d9f90a6-6786af3b.(none)",
+        "gpgme 2.0.1-5.fc44.x86_64",
+        "gpgmepp 2.0.1-5.fc44.x86_64",
+        "gpsd-libs 3.27.5-5.fc44.x86_64",
+        "graphene 1.10.8-4.fc44.x86_64",
+        "graphite2 1.3.14-20.fc44.x86_64",
+        "graphite2-devel 1.3.14-20.fc44.x86_64",
+        "graphviz-libs 14.1.4-2.fc44.x86_64",
+        "grep 3.12-3.fc44.x86_64",
+        "grim 1.5.0-3.fc44.x86_64",
+        "groff-base 1.23.0-12.fc44.x86_64",
+        "gsettings-desktop-schemas 50.1-1.fc44.x86_64",
+        "gsm 1.0.24-2.fc44.x86_64",
+        "gsound 1.0.3-12.fc44.x86_64",
+        "gssdp 1.6.6-1.fc44.x86_64",
+        "gstreamer1 1.28.6-1.fc44.x86_64",
+        "gstreamer1-plugins-bad-free-libs 1.28.6-1.fc44.x86_64",
+        "gstreamer1-plugins-base 1.28.6-1.fc44.x86_64",
+        "gtk-immodules-imsettings 2.24.33-25.fc44.noarch",
+        "gtk-layer-shell 0.10.0-1.fc44.x86_64",
+        "gtk-update-icon-cache 3.24.52-2.fc44.x86_64",
+        "gtk2 2.24.33-25.fc44.x86_64",
+        "gtk2-devel 2.24.33-25.fc44.x86_64",
+        "gtk3 3.24.52-2.fc44.x86_64",
+        "gtk3-devel 3.24.52-2.fc44.x86_64",
+        "gtk3-immodules 3.24.52-2.fc44.x86_64",
+        "gtk4 4.22.4-2.fc44.x86_64",
+        "gtkmm3.0 3.24.11-1.fc44.x86_64",
+        "gucharmap 17.0.2-1.fc44.x86_64",
+        "gucharmap-libs 17.0.2-1.fc44.x86_64",
+        "gupnp 1.6.10-1.fc44.x86_64",
+        "gupnp-igd 1.6.0-8.fc44.x86_64",
+        "gvfs 1.60.2-1.fc44.x86_64",
+        "gvfs-archive 1.60.2-1.fc44.x86_64",
+        "gvfs-client 1.60.2-1.fc44.x86_64",
+        "gvfs-fuse 1.60.2-1.fc44.x86_64",
+        "gvfs-goa 1.60.2-1.fc44.x86_64",
+        "gweather-locations 2026.2-1.fc44.x86_64",
+        "gweather-locations-common 2026.2-1.fc44.noarch",
+        "gzip 1.14-2.fc44.x86_64",
+        "harfbuzz 14.1.0-2.fc44.x86_64",
+        "harfbuzz-cairo 14.1.0-2.fc44.x86_64",
+        "harfbuzz-devel 14.1.0-2.fc44.x86_64",
+        "harfbuzz-gpu 14.1.0-2.fc44.x86_64",
+        "harfbuzz-icu 14.1.0-2.fc44.x86_64",
+        "harfbuzz-raster 14.1.0-2.fc44.x86_64",
+        "harfbuzz-vector 14.1.0-2.fc44.x86_64",
+        "hicolor-icon-theme 0.18-3.fc44.noarch",
+        "hidapi 0.15.0-3.fc44.x86_64",
+        "highway 1.3.0-2.fc44.x86_64",
+        "hiredis 1.2.0-8.fc44.x86_64",
+        "hunspell 1.7.3-1.fc44.x86_64",
+        "hunspell-en-US 0.20260225-2.fc44.noarch",
+        "hunspell-filesystem 1.7.3-1.fc44.x86_64",
+        "hwdata 0.410-1.fc44.noarch",
+        "hyphen 2.8.8-28.fc44.x86_64",
+        "i2c-tools 4.4-4.fc44.x86_64",
+        "i3 4.25.1-1.fc44.x86_64",
+        "i3-config 4.25.1-1.fc44.noarch",
+        "ibus-gtk3 1.5.34-4.fc44.x86_64",
+        "ibus-libs 1.5.34-4.fc44.x86_64",
+        "iceauth 1.0.10-4.fc44.x86_64",
+        "iio-sensor-proxy 3.8-2.fc44.x86_64",
+        "ilbc 3.0.4-19.fc44.x86_64",
+        "ima-evm-utils-libs 1.6.2-8.fc44.x86_64",
+        "imath 3.1.12-6.fc44.x86_64",
+        "imlib2 1.12.5-2.fc44.x86_64",
+        "inih 62-2.fc44.x86_64",
+        "inih-cpp 62-2.fc44.x86_64",
+        "iso-codes 4.20.1-3.fc44.noarch",
+        "jack-audio-connection-kit 1.9.22-11.fc44.x86_64",
+        "jansson 2.14-4.fc44.x86_64",
+        "javascriptcoregtk4.1 2.52.5-1.fc44.x86_64",
+        "jbig2dec-libs 0.20-8.fc44.x86_64",
+        "jbigkit-libs 2.1-33.fc44.x86_64",
+        "json-c 0.18-8.fc44.x86_64",
+        "json-glib 1.10.8-5.fc44.x86_64",
+        "json-glib-devel 1.10.8-5.fc44.x86_64",
+        "jsoncpp 1.9.6-3.fc44.x86_64",
+        "kaccounts-integration-qt6 26.08.0-1.fc44.x86_64",
+        "kactivitymanagerd 6.7.4-1.fc44.x86_64",
+        "kbd 2.9.0-4.fc44.x86_64",
+        "kbd-legacy 2.9.0-4.fc44.noarch",
+        "kbd-misc 2.9.0-4.fc44.noarch",
+        "kcm-plasma-keyboard 6.7.4-1.fc44.x86_64",
+        "kde-cli-tools 6.7.4-1.fc44.x86_64",
+        "kde-filesystem 5-7.fc44.x86_64",
+        "kde-settings 44.0-1.fc44.noarch",
+        "kde-settings-plasma 44.0-1.fc44.noarch",
+        "kdecoration 6.7.4-1.fc44.x86_64",
+        "kdegraphics-mobipocket 26.08.0-1.fc44.x86_64",
+        "kdesu 6.7.4-1.fc44.x86_64",
+        "kdsoap-ws-discovery-client 0.4.0-6.fc44.x86_64",
+        "kdsoap6 2.2.0-9.fc44.x86_64",
+        "kernel-headers 7.1.3-200.fc44.x86_64",
+        "keybinder3 0.3.2-22.fc44.x86_64",
+        "keyutils-libs 1.6.3-7.fc44.x86_64",
+        "kf6-attica 6.29.0-1.fc44.x86_64",
+        "kf6-baloo 6.29.0-1.fc44.x86_64",
+        "kf6-baloo-libs 6.29.0-1.fc44.x86_64",
+        "kf6-breeze-icons 6.29.0-1.fc44.x86_64",
+        "kf6-filesystem 6.29.0-1.fc44.x86_64",
+        "kf6-frameworkintegration 6.29.0-1.fc44.x86_64",
+        "kf6-frameworkintegration-libs 6.29.0-1.fc44.x86_64",
+        "kf6-karchive 6.29.0-1.fc44.x86_64",
+        "kf6-kauth 6.29.0-1.fc44.x86_64",
+        "kf6-kbookmarks 6.29.0-1.fc44.x86_64",
+        "kf6-kcmutils 6.29.0-1.fc44.x86_64",
+        "kf6-kcodecs 6.29.0-1.fc44.x86_64",
+        "kf6-kcolorscheme 6.29.0-1.fc44.x86_64",
+        "kf6-kcompletion 6.29.0-1.fc44.x86_64",
+        "kf6-kconfig 6.29.0-1.fc44.x86_64",
+        "kf6-kconfigwidgets 6.29.0-1.fc44.x86_64",
+        "kf6-kcoreaddons 6.29.0-1.fc44.x86_64",
+        "kf6-kcrash 6.29.0-1.fc44.x86_64",
+        "kf6-kdbusaddons 6.29.0-1.fc44.x86_64",
+        "kf6-kdeclarative 6.29.0-1.fc44.x86_64",
+        "kf6-kded 6.29.0-1.fc44.x86_64",
+        "kf6-kdesu 6.29.0-1.fc44.x86_64",
+        "kf6-kdnssd 6.29.0-1.fc44.x86_64",
+        "kf6-kdoctools 6.29.0-1.fc44.x86_64",
+        "kf6-kfilemetadata 6.29.0-1.fc44.x86_64",
+        "kf6-kglobalaccel 6.29.0-1.fc44.x86_64",
+        "kf6-kguiaddons 6.29.0-1.fc44.x86_64",
+        "kf6-kholidays 6.29.0-1.fc44.x86_64",
+        "kf6-ki18n 6.29.0-1.fc44.x86_64",
+        "kf6-kiconthemes 6.29.0-1.fc44.x86_64",
+        "kf6-kidletime 6.29.0-1.fc44.x86_64",
+        "kf6-kimageformats 6.29.0-1.fc44.x86_64",
+        "kf6-kio-core 6.29.0-1.fc44.x86_64",
+        "kf6-kio-core-libs 6.29.0-1.fc44.x86_64",
+        "kf6-kio-doc 6.29.0-1.fc44.noarch",
+        "kf6-kio-file-widgets 6.29.0-1.fc44.x86_64",
+        "kf6-kio-gui 6.29.0-1.fc44.x86_64",
+        "kf6-kio-widgets 6.29.0-1.fc44.x86_64",
+        "kf6-kio-widgets-libs 6.29.0-1.fc44.x86_64",
+        "kf6-kirigami 6.29.0-1.fc44.x86_64",
+        "kf6-kirigami-addons 1.13.1-1.fc44.x86_64",
+        "kf6-kitemmodels 6.29.0-1.fc44.x86_64",
+        "kf6-kitemviews 6.29.0-1.fc44.x86_64",
+        "kf6-kjobwidgets 6.29.0-1.fc44.x86_64",
+        "kf6-knewstuff 6.29.0-1.fc44.x86_64",
+        "kf6-knotifications 6.29.0-1.fc44.x86_64",
+        "kf6-knotifyconfig 6.29.0-1.fc44.x86_64",
+        "kf6-kpackage 6.29.0-1.fc44.x86_64",
+        "kf6-kparts 6.29.0-1.fc44.x86_64",
+        "kf6-kpty 6.29.0-1.fc44.x86_64",
+        "kf6-kquickcharts 6.29.0-1.fc44.x86_64",
+        "kf6-krunner 6.29.0-1.fc44.x86_64",
+        "kf6-kservice 6.29.0-1.fc44.x86_64",
+        "kf6-kstatusnotifieritem 6.29.0-1.fc44.x86_64",
+        "kf6-ksvg 6.29.0-1.fc44.x86_64",
+        "kf6-ktexteditor 6.29.0-1.fc44.x86_64",
+        "kf6-ktextwidgets 6.29.0-1.fc44.x86_64",
+        "kf6-kunitconversion 6.29.0-1.fc44.x86_64",
+        "kf6-kuserfeedback 6.29.0-1.fc44.x86_64",
+        "kf6-kwallet 6.29.0-1.fc44.x86_64",
+        "kf6-kwallet-libs 6.29.0-1.fc44.x86_64",
+        "kf6-kwidgetsaddons 6.29.0-1.fc44.x86_64",
+        "kf6-kwindowsystem 6.29.0-1.fc44.x86_64",
+        "kf6-kxmlgui 6.29.0-1.fc44.x86_64",
+        "kf6-networkmanager-qt 6.29.0-1.fc44.x86_64",
+        "kf6-qqc2-desktop-style 6.29.0-1.fc44.x86_64",
+        "kf6-solid 6.29.0-1.fc44.x86_64",
+        "kf6-sonnet 6.29.0-1.fc44.x86_64",
+        "kf6-syndication 6.29.0-1.fc44.x86_64",
+        "kf6-syntax-highlighting 6.29.0-1.fc44.x86_64",
+        "kglobalacceld 6.7.4-1.fc44.x86_64",
+        "kio-extras 26.08.0-1.fc44.x86_64",
+        "kio-fuse 5.1.1-3.fc44.x86_64",
+        "kmenuedit 6.7.4-1.fc44.x86_64",
+        "kmod 34.2-4.fc44.x86_64",
+        "kmod-libs 34.2-4.fc44.x86_64",
+        "knighttime 6.7.4-1.fc44.x86_64",
+        "kpipewire 6.7.4-1.fc44.x86_64",
+        "krb5-libs 1.22.2-4.fc44.x86_64",
+        "kscreenlocker 6.7.4-1.fc44.x86_64",
+        "ksystemstats 6.7.4-1.fc44.x86_64",
+        "kwayland 6.7.4-1.fc44.x86_64",
+        "kwin 6.7.4-2.fc44.x86_64",
+        "kwin-common 6.7.4-2.fc44.x86_64",
+        "kwin-libs 6.7.4-2.fc44.x86_64",
+        "kwin-x11 6.7.4-1.fc44.x86_64",
+        "kwin-x11-libs 6.7.4-1.fc44.x86_64",
+        "kwrited 6.7.4-1.fc44.x86_64",
+        "labwc 0.9.6-1.fc44.x86_64",
+        "lame-libs 3.100-21.fc44.x86_64",
+        "layer-shell-qt 6.7.4-2.fc44.x86_64",
+        "lcms2 2.16-7.fc44.x86_64",
+        "lcms2-devel 2.16-7.fc44.x86_64",
+        "leptonica 1.87.0-4.fc44.x86_64",
+        "less 704-4.fc44.x86_64",
+        "libGLEW 2.2.0-12.fc44.x86_64",
+        "libICE 1.1.2-4.fc44.x86_64",
+        "libSM 1.2.5-4.fc44.x86_64",
+        "libX11 1.8.13-1.fc44.x86_64",
+        "libX11-common 1.8.13-1.fc44.noarch",
+        "libX11-devel 1.8.13-1.fc44.x86_64",
+        "libX11-xcb 1.8.13-1.fc44.x86_64",
+        "libXScrnSaver 1.2.4-7.fc44.x86_64",
+        "libXau 1.0.12-4.fc44.x86_64",
+        "libXau-devel 1.0.12-4.fc44.x86_64",
+        "libXaw 1.0.16-5.fc44.x86_64",
+        "libXcomposite 0.4.6-7.fc44.x86_64",
+        "libXcomposite-devel 0.4.6-7.fc44.x86_64",
+        "libXcursor 1.2.3-4.fc44.x86_64",
+        "libXcursor-devel 1.2.3-4.fc44.x86_64",
+        "libXdamage 1.1.6-7.fc44.x86_64",
+        "libXdamage-devel 1.1.6-7.fc44.x86_64",
+        "libXdmcp 1.1.5-5.fc44.x86_64",
+        "libXext 1.3.6-5.fc44.x86_64",
+        "libXext-devel 1.3.6-5.fc44.x86_64",
+        "libXfixes 6.0.1-7.fc44.x86_64",
+        "libXfixes-devel 6.0.1-7.fc44.x86_64",
+        "libXfont2 2.0.9-1.fc44.x86_64",
+        "libXft 2.3.8-10.fc44.x86_64",
+        "libXft-devel 2.3.8-10.fc44.x86_64",
+        "libXi 1.8.3-1.fc44.x86_64",
+        "libXi-devel 1.8.3-1.fc44.x86_64",
+        "libXinerama 1.1.5-10.fc44.x86_64",
+        "libXinerama-devel 1.1.5-10.fc44.x86_64",
+        "libXmu 1.2.1-5.fc44.x86_64",
+        "libXpm 3.5.17-7.fc44.x86_64",
+        "libXrandr 1.5.4-7.fc44.x86_64",
+        "libXrandr-devel 1.5.4-7.fc44.x86_64",
+        "libXrender 0.9.12-4.fc44.x86_64",
+        "libXrender-devel 0.9.12-4.fc44.x86_64",
+        "libXres 1.2.2-7.fc44.x86_64",
+        "libXt 1.3.1-4.fc44.x86_64",
+        "libXtst 1.2.5-4.fc44.x86_64",
+        "libXtst-devel 1.2.5-4.fc44.x86_64",
+        "libXv 1.0.13-4.fc44.x86_64",
+        "libXxf86vm 1.1.6-4.fc44.x86_64",
+        "libaccounts-glib 1.25-24.fc44.x86_64",
+        "libaccounts-qt6 1.17-4.fc44.x86_64",
+        "libacl 2.4.0-1.fc44.x86_64",
+        "libadwaita 1.9.3-1.fc44.x86_64",
+        "libaom 3.13.3-1.fc44.x86_64",
+        "libappindicator-gtk3 12.10.1-10.fc44.x86_64",
+        "libarchive 3.8.7-1.fc44.x86_64",
+        "libaribcaption 1.1.1-4.fc44.x86_64",
+        "libass 0.17.4-2.fc44.x86_64",
+        "libassuan 2.5.7-5.fc44.x86_64",
+        "libasyncns 0.8-34.fc44.x86_64",
+        "libatasmart 0.19-32.fc44.x86_64",
+        "libatomic 16.2.1-2.fc44.x86_64",
+        "libattr 2.6.0-1.fc44.x86_64",
+        "libavcodec-free 8.1.2-4.fc44.x86_64",
+        "libavfilter-free 8.1.2-4.fc44.x86_64",
+        "libavformat-free 8.1.2-4.fc44.x86_64",
+        "libavif 1.3.0-4.fc44.x86_64",
+        "libavutil-free 8.1.2-4.fc44.x86_64",
+        "libb2 0.98.1-15.fc44.x86_64",
+        "libblkid 2.41.5-1.fc44.x86_64",
+        "libblkid-devel 2.41.5-1.fc44.x86_64",
+        "libblockdev 3.5.0-1.fc44.x86_64",
+        "libblockdev-crypto 3.5.0-1.fc44.x86_64",
+        "libblockdev-fs 3.5.0-1.fc44.x86_64",
+        "libblockdev-loop 3.5.0-1.fc44.x86_64",
+        "libblockdev-mdraid 3.5.0-1.fc44.x86_64",
+        "libblockdev-nvme 3.5.0-1.fc44.x86_64",
+        "libblockdev-part 3.5.0-1.fc44.x86_64",
+        "libblockdev-smart 3.5.0-1.fc44.x86_64",
+        "libblockdev-swap 3.5.0-1.fc44.x86_64",
+        "libblockdev-utils 3.5.0-1.fc44.x86_64",
+        "libbluray 1.4.0-3.fc44.x86_64",
+        "libbrotli 1.2.0-3.fc44.x86_64",
+        "libbs2b 3.1.0-37.fc44.x86_64",
+        "libbytesize 2.12-2.fc44.x86_64",
+        "libcanberra 0.30-39.fc44.x86_64",
+        "libcanberra-gtk3 0.30-39.fc44.x86_64",
+        "libcap 2.78-1.fc44.x86_64",
+        "libcap-ng 0.9.5-1.fc44.x86_64",
+        "libcbor 0.13.0-2.fc44.x86_64",
+        "libcdio 2.3.0-1.fc44.x86_64",
+        "libcdio-paranoia 10.2+2.0.2-6.fc44.x86_64",
+        "libchromaprint 1.6.0-4.fc44.x86_64",
+        "libcloudproviders 0.4.1-1.fc44.x86_64",
+        "libcloudproviders-devel 0.4.1-1.fc44.x86_64",
+        "libcom_err 1.47.3-4.fc44.x86_64",
+        "libconfig 1.8.2-2.fc44.x86_64",
+        "libcurl 8.18.0-9.fc44.x86_64",
+        "libdaemon 0.14-33.fc44.x86_64",
+        "libdatrie 0.2.14-2.fc44.x86_64",
+        "libdatrie-devel 0.2.14-2.fc44.x86_64",
+        "libdav1d 1.5.3-1.fc44.x86_64",
+        "libdb 5.3.28-67.fc44.x86_64",
+        "libdbusmenu 16.04.0-31.fc44.x86_64",
+        "libdbusmenu-gtk3 16.04.0-31.fc44.x86_64",
+        "libdbusmenu-lxqt 0.4.0-1.fc44.x86_64",
+        "libddcutil 2.2.1-3.fc44.x86_64",
+        "libdecor 0.2.5-2.fc44.x86_64",
+        "libdeflate 1.26-1.fc44.x86_64",
+        "libdisplay-info 0.3.0-1.fc44.x86_64",
+        "libdnf5 5.4.3.0-2.fc44.x86_64",
+        "libdnf5-cli 5.4.3.0-2.fc44.x86_64",
+        "libdovi 3.3.2-3.fc44.x86_64",
+        "libdrm 2.4.134-1.fc44.x86_64",
+        "libdvdnav 7.0.0-1.fc44.x86_64",
+        "libdvdread 7.0.1-1.fc44.x86_64",
+        "libebur128 1.2.6-15.fc44.x86_64",
+        "libeconf 0.7.9-3.fc44.x86_64",
+        "libedit 3.1-59.20260512cvs.fc44.x86_64",
+        "libei 1.6.0-2.fc44.x86_64",
+        "libeis 1.6.0-2.fc44.x86_64",
+        "libepoxy 1.5.10-12.fc44.x86_64",
+        "libepoxy-devel 1.5.10-12.fc44.x86_64",
+        "libev 4.33-15.fc44.x86_64",
+        "libevdev 1.13.7-1.fc44.x86_64",
+        "libevent 2.1.12-17.fc44.x86_64",
+        "libexif 0.6.26-1.fc44.x86_64",
+        "libfdisk 2.41.5-1.fc44.x86_64",
+        "libffado 2.4.9-10.fc44.x86_64",
+        "libffi 3.5.2-2.fc44.x86_64",
+        "libffi-devel 3.5.2-2.fc44.x86_64",
+        "libfido2 1.16.0-5.fc44.x86_64",
+        "libfontenc 1.1.8-5.fc44.x86_64",
+        "libfsverity 1.6-4.fc44.x86_64",
+        "libfyaml 0.8-9.fc44.x86_64",
+        "libgcc 16.2.1-2.fc44.x86_64",
+        "libgcrypt 1.12.2-1.fc44.x86_64",
+        "libgee 0.20.8-3.fc44.x86_64",
+        "libglvnd 1.7.0-9.fc44.x86_64",
+        "libglvnd-core-devel 1.7.0-9.fc44.x86_64",
+        "libglvnd-devel 1.7.0-9.fc44.x86_64",
+        "libglvnd-egl 1.7.0-9.fc44.x86_64",
+        "libglvnd-gles 1.7.0-9.fc44.x86_64",
+        "libglvnd-glx 1.7.0-9.fc44.x86_64",
+        "libglvnd-opengl 1.7.0-9.fc44.x86_64",
+        "libgnomekbd 3.28.1-9.fc44.x86_64",
+        "libgomp 16.2.1-2.fc44.x86_64",
+        "libgpg-error 1.58-2.fc44.x86_64",
+        "libgs 10.06.0-2.fc44.x86_64",
+        "libgudev 238-9.fc44.x86_64",
+        "libgusb 0.4.9-5.fc44.x86_64",
+        "libgweather 4.6.0-1.fc44.x86_64",
+        "libheif 1.21.2-1.fc44.x86_64",
+        "libi2c 4.4-4.fc44.x86_64",
+        "libibverbs 61.0-2.fc44.x86_64",
+        "libicu 77.1-3.fc44.x86_64",
+        "libicu-devel 77.1-3.fc44.x86_64",
+        "libidn2 2.3.8-3.fc44.x86_64",
+        "libiec61883 1.2.0-39.fc44.x86_64",
+        "libijs 0.35-26.fc44.x86_64",
+        "libimagequant 4.1.0-2.fc44.x86_64",
+        "libimobiledevice 1.4.0-3.fc44.x86_64",
+        "libimobiledevice-glue 1.3.2-1.fc44.x86_64",
+        "libinput 1.31.3-1.fc44.x86_64",
+        "libjpeg-turbo 3.1.3-1.fc44.x86_64",
+        "libjxl 0.11.2-1.fc44.x86_64",
+        "libkexiv2-qt6 26.08.0-1.fc44.x86_64",
+        "libksba 1.6.7-5.fc44.x86_64",
+        "libkscreen 6.7.4-1.fc44.x86_64",
+        "libksysguard 6.7.4-1.fc44.x86_64",
+        "libksysguard-common 6.7.4-1.fc44.x86_64",
+        "libkworkspace6 6.7.4-2.fc44.x86_64",
+        "liblastlog2 2.41.5-1.fc44.x86_64",
+        "liblc3 1.1.3-7.fc44.x86_64",
+        "libldac 2.0.2.3-19.fc44.x86_64",
+        "libldb 4.24.6-1.fc44.x86_64",
+        "liblerc 4.0.0-10.fc44.x86_64",
+        "libliftoff 0.5.0-5.fc44.x86_64",
+        "liblqr-1 0.4.2-29.fc44.x86_64",
+        "liblxqt 2.4.0-2.fc44.x86_64",
+        "libmanette 0.2.13-2.fc44.x86_64",
+        "libmateweather 1.28.0-10.fc44.x86_64",
+        "libmateweather-data 1.28.0-10.fc44.noarch",
+        "libmodplug 0.8.9.0-29.fc44.x86_64",
+        "libmodulemd 2.15.3-1.fc44.x86_64",
+        "libmount 2.41.5-1.fc44.x86_64",
+        "libmount-devel 2.41.5-1.fc44.x86_64",
+        "libmpc 1.4.1-1.fc44.x86_64",
+        "libmpdclient 2.26-1.fc44.x86_64",
+        "libmtp 1.1.22-3.fc44.x86_64",
+        "libmysofa 1.3.3-4.fc44.x86_64",
+        "libndp 1.9-5.fc44.x86_64",
+        "libnghttp2 1.68.0-5.fc44.x86_64",
+        "libnghttp3 1.18.0-1.fc44.x86_64",
+        "libnice 0.1.23-2.fc44.x86_64",
+        "libnl3 3.12.0-3.fc44.x86_64",
+        "libnma 1.10.6-11.fc44.x86_64",
+        "libnma-common 1.10.6-11.fc44.noarch",
+        "libnotify 0.8.8-1.fc44.x86_64",
+        "libnsl2 2.0.1-5.fc44.x86_64",
+        "libnvme 1.16.2-1.fc44.x86_64",
+        "liboeffis 1.6.0-2.fc44.x86_64",
+        "libogg 1.3.6-2.fc44.x86_64",
+        "libopenjph 0.25.3-3.fc44.x86_64",
+        "libopenmpt 0.8.9-1.fc44.x86_64",
+        "libpaper 2.1.1-10.fc44.x86_64",
+        "libpcap 1.10.6-2.fc44.x86_64",
+        "libpciaccess 0.16-17.fc44.x86_64",
+        "libpeas 2.2.1-3.fc44.x86_64",
+        "libpkgconf 2.5.1-1.fc44.x86_64",
+        "libplacebo 7.360.1-3.fc44.x86_64",
+        "libplasma 6.7.4-1.fc44.x86_64",
+        "libplist 2.7.0-1.fc44.x86_64",
+        "libpng 1.6.58-1.fc44.x86_64",
+        "libpng-devel 1.6.58-1.fc44.x86_64",
+        "libproxy 0.5.12-2.fc44.x86_64",
+        "libpsl 0.21.5-7.fc44.x86_64",
+        "libpwquality 1.4.5-15.fc44.x86_64",
+        "libqalculate 5.9.0-1.fc44.x86_64",
+        "libqtxdg 4.4.0-5.fc44.x86_64",
+        "librabbitmq 0.17.0-1.fc44.x86_64",
+        "libraqm 0.10.1-4.fc44.x86_64",
+        "libraw1394 2.1.2-25.fc44.x86_64",
+        "librepo 1.21.0-1.fc44.x86_64",
+        "libreport-filesystem 2.17.15-10.fc44.noarch",
+        "librist 0.2.11-1.fc44.x86_64",
+        "librsvg2 2.62.3-1.fc44.x86_64",
+        "libsamplerate 0.2.2-12.fc44.x86_64",
+        "libsbc 2.1-2.fc44.x86_64",
+        "libseat 0.9.3-1.fc44.x86_64",
+        "libseccomp 2.6.1-2.fc44.x86_64",
+        "libseccomp-devel 2.6.1-2.fc44.x86_64",
+        "libsecret 0.21.7-10.fc44.x86_64",
+        "libselinux 3.11-1.fc44.x86_64",
+        "libselinux-devel 3.11-1.fc44.x86_64",
+        "libsemanage 3.11-1.fc44.x86_64",
+        "libsepol 3.11-1.fc44.x86_64",
+        "libsepol-devel 3.11-1.fc44.x86_64",
+        "libsfdo 0.1.3-5.fc44.x86_64",
+        "libshaderc 2026.1-1.fc44.x86_64",
+        "libsigc++20 2.12.2-1.fc44.x86_64",
+        "libsmartcols 2.41.5-1.fc44.x86_64",
+        "libsmbclient 4.24.6-1.fc44.x86_64",
+        "libsndfile 1.2.2-11.fc44.x86_64",
+        "libsodium 1.0.22-1.fc44.x86_64",
+        "libsolv 0.7.39-1.fc44.x86_64",
+        "libsoup 2.74.3-10.fc44.x86_64",
+        "libsoup3 3.6.6-9.fc44.x86_64",
+        "libspectre 0.2.12-11.fc44.x86_64",
+        "libssh 0.12.2-1.fc44.x86_64",
+        "libssh-config 0.12.2-1.fc44.noarch",
+        "libstatgrab 0.92.1-15.fc44.x86_64",
+        "libstdc++ 16.2.1-2.fc44.x86_64",
+        "libstemmer 3.0.1-11.fc44.x86_64",
+        "libswresample-free 8.1.2-4.fc44.x86_64",
+        "libswscale-free 8.1.2-4.fc44.x86_64",
+        "libsysstat 1.1.0-4.fc44.x86_64",
+        "libtalloc 2.4.4-1.fc44.x86_64",
+        "libtasn1 4.21.0-1.fc44.x86_64",
+        "libtdb 1.4.15-1.fc44.x86_64",
+        "libtevent 0.17.1-4.fc44.x86_64",
+        "libtextstyle 0.26-5.fc44.x86_64",
+        "libthai 0.1.30-2.fc44.x86_64",
+        "libthai-devel 0.1.30-2.fc44.x86_64",
+        "libtheora 1.1.1-41.fc44.x86_64",
+        "libtiff 4.7.2-1.fc44.x86_64",
+        "libtimezonemap 0.4.5.4-2.fc44.x86_64",
+        "libtinysparql 3.11.1-1.fc44.x86_64",
+        "libtirpc 1.3.7-2.fc44.x86_64",
+        "libtool-ltdl 2.5.4-10.fc44.x86_64",
+        "libudfread 1.2.0-3.fc44.x86_64",
+        "libudisks2 2.11.2-1.fc44.x86_64",
+        "libultrahdr 1.4.0^20251202git8cbc983-1.fc44.x86_64",
+        "libunibreak 6.1-5.fc44.x86_64",
+        "libunistring 1.1-11.fc44.x86_64",
+        "libunity-gtk3-parser 0.0.0+17.04.20170403-24.fc44.x86_64",
+        "libunwind 1.8.3-1.fc44.x86_64",
+        "libusb1 1.0.30-1.fc44.x86_64",
+        "libusbmuxd 2.1.1-1.fc44.x86_64",
+        "libutempter 1.2.1-20.fc44.x86_64",
+        "libuuid 2.41.5-1.fc44.x86_64",
+        "libuv 1.52.1-2.fc44.x86_64",
+        "libva 2.23.0-3.fc44.x86_64",
+        "libvdpau 1.5-11.fc44.x86_64",
+        "libverto 0.3.2-12.fc44.x86_64",
+        "libvisual 0.4.2-4.fc44.x86_64",
+        "libvmaf 3.0.0-5.fc44.x86_64",
+        "libvorbis 1.3.7-14.fc44.x86_64",
+        "libvpl 2.17.0-1.fc44.x86_64",
+        "libvpx 1.15.0-5.fc44.x86_64",
+        "libwacom 2.19.0-1.fc44.x86_64",
+        "libwacom-data 2.19.0-1.fc44.noarch",
+        "libwayland-client 1.25.0-1.fc44.x86_64",
+        "libwayland-cursor 1.25.0-1.fc44.x86_64",
+        "libwayland-egl 1.25.0-1.fc44.x86_64",
+        "libwayland-server 1.25.0-1.fc44.x86_64",
+        "libwbclient 4.24.6-1.fc44.x86_64",
+        "libwebp 1.6.0-3.fc44.x86_64",
+        "libwmf-lite 0.2.13-9.fc44.x86_64",
+        "libwnck3 43.3-2.fc44.x86_64",
+        "libxcb 1.17.0-7.fc44.x86_64",
+        "libxcb-devel 1.17.0-7.fc44.x86_64",
+        "libxcrypt 4.5.2-3.fc44.x86_64",
+        "libxcrypt-devel 4.5.2-3.fc44.x86_64",
+        "libxcvt 0.1.2-11.fc44.x86_64",
+        "libxdo 3.20211022.1-10.fc44.x86_64",
+        "libxfce4ui 4.20.2-2.fc44.x86_64",
+        "libxfce4ui-devel 4.20.2-2.fc44.x86_64",
+        "libxfce4util 4.20.1-3.fc44.x86_64",
+        "libxfce4util-devel 4.20.1-3.fc44.x86_64",
+        "libxfce4windowing 4.20.4-3.fc44.x86_64",
+        "libxkbcommon 1.13.1-2.fc44.x86_64",
+        "libxkbcommon-devel 1.13.1-2.fc44.x86_64",
+        "libxkbcommon-x11 1.13.1-2.fc44.x86_64",
+        "libxkbfile 1.1.3-5.fc44.x86_64",
+        "libxklavier 5.4-30.fc44.x86_64",
+        "libxml++ 2.42.3-8.fc44.x86_64",
+        "libxml2 2.12.10-6.fc44.x86_64",
+        "libxml2-devel 2.12.10-6.fc44.x86_64",
+        "libxmlb 0.3.29-1.fc44.x86_64",
+        "libxshmfence 1.3.2-8.fc44.x86_64",
+        "libxslt 1.1.43-6.fc44.x86_64",
+        "libyaml 0.2.5-18.fc44.x86_64",
+        "libyuv 0-0.61.20260213git6067afd.fc44.x86_64",
+        "libzip 1.11.4-3.fc44.x86_64",
+        "libzstd 1.5.7-5.fc44.x86_64",
+        "lilv-libs 0.26.4-1.fc44.x86_64",
+        "llvm-filesystem 22.1.8-4.fc44.x86_64",
+        "llvm-libs 22.1.8-4.fc44.x86_64",
+        "lm_sensors-libs 3.6.0-24.fc44.x86_64",
+        "lmdb-libs 0.9.34-2.fc44.x86_64",
+        "log4cplus 2.1.2-5.fc44.x86_64",
+        "lpcnetfreedv 0.5-10.fc44.x86_64",
+        "lua-libs 5.4.8-5.fc44.x86_64",
+        "lxqt-globalkeys 2.4.0-1.fc44.x86_64",
+        "lxqt-menu-data 2.4.0-1.fc44.noarch",
+        "lxqt-panel 2.4.1-1.fc44.x86_64",
+        "lz4-libs 1.10.0-4.fc44.x86_64",
+        "lzo 2.10-16.fc44.x86_64",
+        "lzo-devel 2.10-16.fc44.x86_64",
+        "lzo-minilzo 2.10-16.fc44.x86_64",
+        "make 4.4.1-12.fc44.x86_64",
+        "mate-desktop-libs 1.28.2-8.fc44.x86_64",
+        "mate-menus 1.28.1-1.fc44.x86_64",
+        "mate-menus-libs 1.28.1-1.fc44.x86_64",
+        "mate-panel 1.28.4-3.fc44.x86_64",
+        "mate-panel-libs 1.28.4-3.fc44.x86_64",
+        "mdadm 4.3-11.fc44.x86_64",
+        "mesa-dri-drivers 26.1.8-1.fc44.x86_64",
+        "mesa-filesystem 26.1.8-1.fc44.x86_64",
+        "mesa-libEGL 26.1.8-1.fc44.x86_64",
+        "mesa-libGL 26.1.8-1.fc44.x86_64",
+        "mesa-libgbm 26.1.8-1.fc44.x86_64",
+        "mint-themes-gtk3 2.3.8-1.fc44.noarch",
+        "mint-themes-gtk4 2.3.8-1.fc44.noarch",
+        "mintlocale 1.4.7-22.fc44.noarch",
+        "mintlocale-set-default-locale 1.4.7-22.fc44.noarch",
+        "mkfontscale 1.2.3-4.fc44.x86_64",
+        "mobile-broadband-provider-info 20240407-5.fc44.noarch",
+        "mozjs128 128.14.0-1.fc44.x86_64",
+        "mozjs140 140.13.0-3.fc44.x86_64",
+        "mpdecimal 4.0.1-3.fc44.x86_64",
+        "mpfr 4.2.2-3.fc44.x86_64",
+        "mpg123-libs 1.32.10-3.fc44.x86_64",
+        "msgraph 0.3.4-5.fc44.x86_64",
+        "mtdev 1.1.6-12.fc44.x86_64",
+        "muffin 6.6.3-1.fc44.x86_64",
+        "mutter-common 50.4-1.fc44.noarch",
+        "ncurses 6.6-1.fc44.x86_64",
+        "ncurses-base 6.6-1.fc44.noarch",
+        "ncurses-libs 6.6-1.fc44.x86_64",
+        "nemo 6.6.3-3.fc44.x86_64",
+        "nemo-extensions 6.6.3-3.fc44.x86_64",
+        "nettle 3.10.1-3.fc44.x86_64",
+        "network-manager-applet 1.36.0-7.fc44.x86_64",
+        "ngtcp2 1.22.1-1.fc44.x86_64",
+        "ngtcp2-crypto-gnutls 1.22.1-1.fc44.x86_64",
+        "ngtcp2-crypto-ossl 1.22.1-1.fc44.x86_64",
+        "nm-connection-editor 1.36.0-7.fc44.x86_64",
+        "npth 1.8-4.fc44.x86_64",
+        "nspr 4.39.0-4.fc44.x86_64",
+        "nss 3.127.0-1.fc44.x86_64",
+        "nss-mdns 0.15.1-28.fc44.x86_64",
+        "nss-softokn 3.127.0-1.fc44.x86_64",
+        "nss-softokn-freebl 3.127.0-1.fc44.x86_64",
+        "nss-sysinit 3.127.0-1.fc44.x86_64",
+        "nss-util 3.127.0-1.fc44.x86_64",
+        "ocean-sound-theme 6.7.4-1.fc44.noarch",
+        "openapv-libs 0.2.1.2-1.fc44.x86_64",
+        "openbox 3.6.1-30.fc44.x86_64",
+        "openbox-libs 3.6.1-30.fc44.x86_64",
+        "opencore-amr 0.1.6-10.fc44.x86_64",
+        "openexr-libs 3.2.4-7.fc44.x86_64",
+        "openh264 2.6.0-3.fc44.x86_64",
+        "openjpeg 2.5.4-3.fc44.x86_64",
+        "openldap 2.6.14-1.fc44.x86_64",
+        "openpgm 5.3.128-6.fc44.x86_64",
+        "openssh 10.2p1-14.fc44.x86_64",
+        "openssh-clients 10.2p1-14.fc44.x86_64",
+        "openssl-libs 3.5.8-1.fc44.x86_64",
+        "openxr-libs 1.1.63-1.fc44.x86_64",
+        "opus 1.6-2.fc44.x86_64",
+        "orc 0.4.41-3.fc44.x86_64",
+        "p11-kit 0.26.5-1.fc44.x86_64",
+        "p11-kit-trust 0.26.5-1.fc44.x86_64",
+        "pam 1.7.2-2.fc44.x86_64",
+        "pam-libs 1.7.2-2.fc44.x86_64",
+        "pango 1.57.1-1.fc44.x86_64",
+        "pango-devel 1.57.1-1.fc44.x86_64",
+        "pangomm 2.46.4-5.fc44.x86_64",
+        "pcre2 10.47-1.fc44.1.x86_64",
+        "pcre2-devel 10.47-1.fc44.1.x86_64",
+        "pcre2-syntax 10.47-1.fc44.1.noarch",
+        "pcre2-utf16 10.47-1.fc44.1.x86_64",
+        "pcre2-utf32 10.47-1.fc44.1.x86_64",
+        "perl-AnyEvent 7.17-23.fc44.x86_64",
+        "perl-AnyEvent-I3 0.19-5.fc44.noarch",
+        "perl-AutoLoader 5.74-525.fc44.noarch",
+        "perl-B 1.89-525.fc44.x86_64",
+        "perl-Carp 1.54-521.fc44.noarch",
+        "perl-Class-Struct 0.68-525.fc44.noarch",
+        "perl-Data-Dumper 2.192-523.fc44.x86_64",
+        "perl-Digest 1.20-521.fc44.noarch",
+        "perl-Digest-MD5 2.59-521.fc44.x86_64",
+        "perl-DynaLoader 1.57-525.fc44.x86_64",
+        "perl-Encode 3.21-521.fc44.x86_64",
+        "perl-Errno 1.38-525.fc44.x86_64",
+        "perl-Exporter 5.79-521.fc44.noarch",
+        "perl-Fcntl 1.20-525.fc44.x86_64",
+        "perl-File-Basename 2.86-525.fc44.noarch",
+        "perl-File-Find 1.44-525.fc44.noarch",
+        "perl-File-Path 2.18-522.fc44.noarch",
+        "perl-File-Temp 0.231.200-2.fc44.noarch",
+        "perl-File-stat 1.14-525.fc44.noarch",
+        "perl-FileHandle 2.05-525.fc44.noarch",
+        "perl-Filter 1.65-2.fc44.x86_64",
+        "perl-Getopt-Long 2.58-521.fc44.noarch",
+        "perl-Getopt-Std 1.14-525.fc44.noarch",
+        "perl-HTTP-Tiny 0.096-1.fc44.noarch",
+        "perl-IO 1.55-525.fc44.x86_64",
+        "perl-IO-Socket-IP 0.43-522.fc44.noarch",
+        "perl-IO-Socket-SSL 2.098-2.fc44.noarch",
+        "perl-IPC-Open3 1.24-525.fc44.noarch",
+        "perl-JSON-XS 4.04-2.fc44.x86_64",
+        "perl-MIME-Base32 1.303-25.fc44.noarch",
+        "perl-MIME-Base64 3.16-521.fc44.x86_64",
+        "perl-Net-SSLeay 1.94-12.fc44.x86_64",
+        "perl-POSIX 2.23-525.fc44.x86_64",
+        "perl-PathTools 3.94-521.fc44.x86_64",
+        "perl-Pod-Escapes 1.07-521.fc44.noarch",
+        "perl-Pod-Perldoc 3.28.01-522.fc44.noarch",
+        "perl-Pod-Simple 3.47-4.fc44.noarch",
+        "perl-Pod-Usage 2.05-521.fc44.noarch",
+        "perl-Scalar-List-Utils 1.70-2.fc44.x86_64",
+        "perl-SelectSaver 1.02-525.fc44.noarch",
+        "perl-Socket 2.043-1.fc44.x86_64",
+        "perl-Storable 3.37-522.fc44.x86_64",
+        "perl-Symbol 1.09-525.fc44.noarch",
+        "perl-Term-ANSIColor 5.01-522.fc44.noarch",
+        "perl-Term-Cap 1.18-521.fc44.noarch",
+        "perl-Text-ParseWords 3.31-521.fc44.noarch",
+        "perl-Text-Tabs+Wrap 2024.001-521.fc44.noarch",
+        "perl-Time-HiRes 1.9778-521.fc44.x86_64",
+        "perl-Time-Local 1.350-521.fc44.noarch",
+        "perl-Types-Serialiser 1.01-15.fc44.noarch",
+        "perl-URI 5.36-1.fc44.noarch",
+        "perl-Unicode-Normalize 1.32-521.fc44.x86_64",
+        "perl-base 2.27-525.fc44.noarch",
+        "perl-common-sense 3.7.5-21.fc44.x86_64",
+        "perl-constant 1.33-522.fc44.noarch",
+        "perl-encoding 3.00-521.fc44.x86_64",
+        "perl-if 0.61.000-525.fc44.noarch",
+        "perl-interpreter 5.42.3-525.fc44.x86_64",
+        "perl-libnet 3.15-522.fc44.noarch",
+        "perl-libs 5.42.3-525.fc44.x86_64",
+        "perl-locale 1.13-525.fc44.noarch",
+        "perl-mro 1.29-525.fc44.x86_64",
+        "perl-open 1.13-525.fc44.noarch",
+        "perl-overload 1.40-525.fc44.noarch",
+        "perl-overloading 0.02-525.fc44.noarch",
+        "perl-parent 0.244-521.fc44.noarch",
+        "perl-podlators 6.0.2-521.fc44.noarch",
+        "perl-vars 1.05-525.fc44.noarch",
+        "pinentry 1.3.2-3.fc44.x86_64",
+        "pinentry-gnome3 1.3.2-3.fc44.x86_64",
+        "pipewire-libs 1.6.8-1.fc44.x86_64",
+        "pixman 0.46.2-3.fc44.x86_64",
+        "pixman-devel 0.46.2-3.fc44.x86_64",
+        "pkgconf 2.5.1-1.fc44.x86_64",
+        "pkgconf-m4 2.5.1-1.fc44.noarch",
+        "pkgconf-pkg-config 2.5.1-1.fc44.x86_64",
+        "plasma-activities 6.7.4-1.fc44.x86_64",
+        "plasma-activities-stats 6.7.4-1.fc44.x86_64",
+        "plasma-breeze 6.7.4-2.fc44.x86_64",
+        "plasma-breeze-common 6.7.4-2.fc44.noarch",
+        "plasma-breeze-qt6 6.7.4-2.fc44.x86_64",
+        "plasma-desktop 6.7.4-1.fc44.x86_64",
+        "plasma-integration 6.7.4-1.fc44.x86_64",
+        "plasma-keyboard 6.7.4-1.fc44.x86_64",
+        "plasma-lookandfeel-fedora 6.7.4-2.fc44.noarch",
+        "plasma-systemsettings 6.7.4-1.fc44.x86_64",
+        "plasma-workspace 6.7.4-2.fc44.x86_64",
+        "plasma-workspace-common 6.7.4-2.fc44.x86_64",
+        "plasma-workspace-libs 6.7.4-2.fc44.x86_64",
+        "plasma5support 6.7.4-1.fc44.x86_64",
+        "playerctl 2.4.1-12.fc44.x86_64",
+        "playerctl-libs 2.4.1-12.fc44.x86_64",
+        "polkit 127-2.fc44.2.x86_64",
+        "polkit-kde 6.7.4-1.fc44.x86_64",
+        "polkit-libs 127-2.fc44.2.x86_64",
+        "polkit-qt6-1 0.201.1-1.fc44.x86_64",
+        "poly2tri 0.0^20130501hg26242d0aa7b8-7.fc44.x86_64",
+        "polybar 3.7.2-8.fc44.x86_64",
+        "pop-icon-theme 3.5.0-5.fc44.noarch",
+        "poppler 26.01.0-3.fc44.x86_64",
+        "poppler-data 0.4.11-11.fc44.noarch",
+        "poppler-qt6 26.01.0-3.fc44.x86_64",
+        "popt 1.19-10.fc44.x86_64",
+        "powerdevil 6.7.4-2.fc44.x86_64",
+        "procps-ng 4.0.6-1.fc44.x86_64",
+        "protobuf-c 1.5.2-2.fc44.x86_64",
+        "publicsuffix-list-dafsa 20260116-1.fc44.noarch",
+        "pugixml 1.16-1.fc44.x86_64",
+        "pulseaudio-libs 17.0-9.fc44.x86_64",
+        "pulseaudio-libs-glib2 17.0-9.fc44.x86_64",
+        "python-pip-wheel 26.0.1-3.fc44.noarch",
+        "python3 3.14.7-1.fc44.x86_64",
+        "python3-babel 2.18.0-1.fc44.noarch",
+        "python3-cairo 1.28.0-5.fc44.x86_64",
+        "python3-charset-normalizer 3.4.4-2.fc44.noarch",
+        "python3-dbus 1.4.0-9.fc44.x86_64",
+        "python3-distro 1.9.0-11.fc44.noarch",
+        "python3-gobject 3.56.3-1.fc44.x86_64",
+        "python3-gobject-base 3.56.3-1.fc44.x86_64",
+        "python3-idna 3.18-1.fc44.noarch",
+        "python3-inotify 0.9.6-43.fc44.noarch",
+        "python3-libs 3.14.7-1.fc44.x86_64",
+        "python3-lxml 6.1.1-1.fc44.x86_64",
+        "python3-olefile 0.47-13.fc44.noarch",
+        "python3-packaging 25.0-8.fc44.noarch",
+        "python3-pam 2.0.2-18.fc44.noarch",
+        "python3-pexpect 4.9.0-15.fc44.noarch",
+        "python3-pillow 12.3.0-1.fc44.x86_64",
+        "python3-psutil 7.2.2-1.fc44.x86_64",
+        "python3-ptyprocess 0.7.0-15.fc44.noarch",
+        "python3-pytz 2026.3-1.fc44.noarch",
+        "python3-pyxdg 0.28-1.fc44.noarch",
+        "python3-requests 2.33.1-1.fc44.noarch",
+        "python3-setproctitle 1.3.7-4.fc44.x86_64",
+        "python3-tinycss2 1.5.1-2.fc44.noarch",
+        "python3-urllib3 2.7.0-1.fc44.noarch",
+        "python3-webencodings 0.5.1-33.fc44.noarch",
+        "python3-xapp 3.0.2-2.fc44.noarch",
+        "python3-xapps-overrides 3.2.2-3.fc44.x86_64",
+        "qaccessibilityclient-qt6 0.6.0-5.fc44.x86_64",
+        "qca-qt6 2.3.10-4.fc44.x86_64",
+        "qca-qt6-ossl 2.3.10-4.fc44.x86_64",
+        "qcoro-qt6 0.12.0-6.fc44.x86_64",
+        "qqc2-breeze-style 6.7.4-1.fc44.x86_64",
+        "qrencode-libs 4.1.1-12.fc44.x86_64",
+        "qt6-filesystem 6.11.2-1.fc44.x86_64",
+        "qt6-qt5compat 6.11.2-1.fc44.x86_64",
+        "qt6-qtbase 6.11.2-2.fc44.x86_64",
+        "qt6-qtbase-common 6.11.2-2.fc44.noarch",
+        "qt6-qtbase-gui 6.11.2-2.fc44.x86_64",
+        "qt6-qtdeclarative 6.11.2-1.fc44.x86_64",
+        "qt6-qtlocation 6.11.2-1.fc44.x86_64",
+        "qt6-qtmultimedia 6.11.2-1.fc44.x86_64",
+        "qt6-qtpositioning 6.11.2-1.fc44.x86_64",
+        "qt6-qtquick3d 6.11.2-1.fc44.x86_64",
+        "qt6-qtquicktimeline 6.11.2-1.fc44.x86_64",
+        "qt6-qtsensors 6.11.2-1.fc44.x86_64",
+        "qt6-qtserialport 6.11.2-1.fc44.x86_64",
+        "qt6-qtshadertools 6.11.2-1.fc44.x86_64",
+        "qt6-qtspeech 6.11.2-1.fc44.x86_64",
+        "qt6-qtsvg 6.11.2-1.fc44.x86_64",
+        "qt6-qttools 6.11.2-1.fc44.x86_64",
+        "qt6-qttools-common 6.11.2-1.fc44.noarch",
+        "qt6-qtvirtualkeyboard 6.11.2-1.fc44.x86_64",
+        "qt6-qtwayland 6.11.2-1.fc44.x86_64",
+        "qt6-qtwebsockets 6.11.2-1.fc44.x86_64",
+        "rav1e-libs 0.8.1-3.fc44.x86_64",
+        "rdma-core-common 61.0-2.fc44.noarch",
+        "readline 8.3-4.fc44.x86_64",
+        "redhat-menus 12.0.2-39.fc44.noarch",
+        "rest 0.10.2-5.fc44.x86_64",
+        "rootfiles 9.0-6.fc44.noarch",
+        "rpm 6.0.2-1.fc44.x86_64",
+        "rpm-build-libs 6.0.2-1.fc44.x86_64",
+        "rpm-libs 6.0.2-1.fc44.x86_64",
+        "rpm-sequoia 1.10.2-4.fc44.x86_64",
+        "rpm-sign-libs 6.0.2-1.fc44.x86_64",
+        "rsync 3.5.0-1.fc44.x86_64",
+        "rubberband-libs 4.0.0-5.fc44.x86_64",
+        "samba-client-libs 4.24.6-1.fc44.x86_64",
+        "samba-common 4.24.6-1.fc44.noarch",
+        "samba-core-libs 4.24.6-1.fc44.x86_64",
+        "samba-ndr-libs 4.24.6-1.fc44.x86_64",
+        "sdbus-cpp 2.2.1-2.fc44.x86_64",
+        "sdl2-compat 2.32.72-1.fc44.x86_64",
+        "sed 4.9-7.fc44.x86_64",
+        "serd 0.32.8-1.fc44.x86_64",
+        "setup 2.15.0-28.fc44.noarch",
+        "setxkbmap 1.3.4-7.fc44.x86_64",
+        "sgml-common 0.6.3-68.fc44.noarch",
+        "shadow-utils 4.19.0-7.fc44.x86_64",
+        "shared-mime-info 2.4-3.fc44.x86_64",
+        "signon 8.60^20240205.c8ad982-5.fc44.x86_64",
+        "signon-plugin-oauth2 0.25^20231216.fab6988-7.fc44.x86_64",
+        "signon-qt6 8.60^20240205.c8ad982-5.fc44.x86_64",
+        "slurp 1.5.0-6.fc44.x86_64",
+        "snappy 1.2.2-4.fc44.x86_64",
+        "socat 1.8.1.1-1.fc44.x86_64",
+        "sord 0.16.22-1.fc44.x86_64",
+        "sound-theme-freedesktop 0.8-31.fc44.noarch",
+        "source-foundry-hack-fonts 3.003-7.fc44.noarch",
+        "soxr 0.1.3-21.fc44.x86_64",
+        "spandsp 0.0.6-22.fc44.x86_64",
+        "spdlog 1.15.3-4.fc44.x86_64",
+        "speex 1.2.0-21.fc44.x86_64",
+        "spirv-tools-libs 2026.1-1.fc44.x86_64",
+        "sqlite-libs 3.51.2-2.fc44.x86_64",
+        "sratom 0.6.22-1.fc44.x86_64",
+        "srt-libs 1.5.7-1.fc44.x86_64",
+        "startup-notification 0.12-33.fc44.x86_64",
+        "sudo 1.9.17-8.p2.fc44.x86_64",
+        "svt-av1-libs 3.1.2-2.fc44.x86_64",
+        "sway 1.11-3.fc44.x86_64",
+        "sway-config-upstream 1.11-3.fc44.noarch",
+        "sway-wallpapers 1.11-3.fc44.noarch",
+        "swaybg 1.2.2-1.fc44.x86_64",
+        "swayidle 1.9.0-2.fc44.x86_64",
+        "switcheroo-control 3.0-5.fc44.x86_64",
+        "sysprof-capture-devel 50.0-1.fc44.x86_64",
+        "systemd 259.8-1.fc44.x86_64",
+        "systemd-devel 259.8-1.fc44.x86_64",
+        "systemd-libs 259.8-1.fc44.x86_64",
+        "systemd-shared 259.8-1.fc44.x86_64",
+        "systemd-standalone-sysusers 259.8-1.fc44.x86_64",
+        "systemd-udev 259.8-1.fc44.x86_64",
+        "taglib 2.3-2.fc44.x86_64",
+        "tar 1.35-8.fc44.x86_64",
+        "tesseract-common 5.5.3-1.fc44.noarch",
+        "tesseract-langpack-eng 4.1.0-12.fc44.noarch",
+        "tesseract-libs 5.5.3-1.fc44.x86_64",
+        "tesseract-tessdata-doc 4.1.0-12.fc44.noarch",
+        "tpm2-tss 4.1.3-9.fc44.x86_64",
+        "tslib 1.24-2.fc44.x86_64",
+        "twolame-libs 0.4.0-9.fc44.x86_64",
+        "tzdata 2026c-1.fc44.noarch",
+        "udisks2 2.11.2-1.fc44.x86_64",
+        "unbound-libs 1.26.0-1.fc44.x86_64",
+        "unity-gtk-module-common 0.0.0+17.04.20170403-24.fc44.noarch",
+        "unity-gtk3-module 0.0.0+17.04.20170403-24.fc44.x86_64",
+        "unzip 6.0-69.fc44.x86_64",
+        "upower 1.91.3-1.fc44.x86_64",
+        "upower-libs 1.91.3-1.fc44.x86_64",
+        "urw-base35-bookman-fonts 20200910-27.fc44.noarch",
+        "urw-base35-c059-fonts 20200910-27.fc44.noarch",
+        "urw-base35-d050000l-fonts 20200910-27.fc44.noarch",
+        "urw-base35-fonts 20200910-27.fc44.noarch",
+        "urw-base35-fonts-common 20200910-27.fc44.noarch",
+        "urw-base35-gothic-fonts 20200910-27.fc44.noarch",
+        "urw-base35-nimbus-mono-ps-fonts 20200910-27.fc44.noarch",
+        "urw-base35-nimbus-roman-fonts 20200910-27.fc44.noarch",
+        "urw-base35-nimbus-sans-fonts 20200910-27.fc44.noarch",
+        "urw-base35-p052-fonts 20200910-27.fc44.noarch",
+        "urw-base35-standard-symbols-ps-fonts 20200910-27.fc44.noarch",
+        "urw-base35-z003-fonts 20200910-27.fc44.noarch",
+        "util-linux 2.41.5-1.fc44.x86_64",
+        "util-linux-core 2.41.5-1.fc44.x86_64",
+        "vid.stab 1.1.1-8.fc44.x86_64",
+        "vim-data 9.2.967-1.fc44.noarch",
+        "vim-minimal 9.2.967-1.fc44.x86_64",
+        "vo-amrwbenc 0.1.3-24.fc44.x86_64",
+        "volume_key-libs 0.3.12-29.fc44.x86_64",
+        "vulkan-loader 1.4.341.0-1.fc44.x86_64",
+        "waybar 0.15.0-2.fc44.x86_64",
+        "wayland-devel 1.25.0-1.fc44.x86_64",
+        "webkit2gtk4.1 2.52.5-1.fc44.x86_64",
+        "webrtc-audio-processing 2.1-5.fc44.x86_64",
+        "wget2 2.2.1-2.fc44.x86_64",
+        "wget2-libs 2.2.1-2.fc44.x86_64",
+        "wget2-wget 2.2.1-2.fc44.x86_64",
+        "which 2.25-1.fc44.x86_64",
+        "wireplumber-libs 0.5.14-1.fc44.x86_64",
+        "wlopm 1.0.0-4.fc44.x86_64",
+        "wlrctl 0.2.2-6.fc44.x86_64",
+        "wlroots0.19 0.19.3-1.fc44.x86_64",
+        "wsdd 0.8-6.fc44.noarch",
+        "xapp-symbolic-icons 1.1.0-1.fc44.noarch",
+        "xapps 3.2.2-3.fc44.x86_64",
+        "xcb-util 0.4.1-9.fc44.x86_64",
+        "xcb-util-cursor 0.1.6-2.fc44.x86_64",
+        "xcb-util-errors 1.0.1-7.fc44.x86_64",
+        "xcb-util-image 0.4.1-9.fc44.x86_64",
+        "xcb-util-keysyms 0.4.1-9.fc44.x86_64",
+        "xcb-util-renderutil 0.3.10-9.fc44.x86_64",
+        "xcb-util-wm 0.4.2-9.fc44.x86_64",
+        "xcb-util-xrm 1.3-17.fc44.x86_64",
+        "xdg-dbus-proxy 0.1.8-1.fc44.x86_64",
+        "xdg-desktop-portal 1.22.1-1.fc44.x86_64",
+        "xdg-desktop-portal-gtk 1.15.3-3.fc44.x86_64",
+        "xdg-desktop-portal-kde 6.7.4-1.fc44.x86_64",
+        "xdg-desktop-portal-wlr 0.8.4-1.fc44.x86_64",
+        "xdg-user-dirs 0.18-11.fc43.x86_64",
+        "xdg-utils 1.2.1-5.fc44.noarch",
+        "xdotool 3.20211022.1-10.fc44.x86_64",
+        "xevd-libs 0.5.0-6.fc44.x86_64",
+        "xeve-libs 0.5.1-6.fc44.x86_64",
+        "xfce-polkit 0.3-17.fc44.x86_64",
+        "xfce4-genmon-plugin 4.3.0-3.fc44.x86_64",
+        "xfce4-panel 4.20.7-2.fc44.x86_64",
+        "xfce4-panel-devel 4.20.7-2.fc44.x86_64",
+        "xfce4-session 4.20.3-2.fc44.x86_64",
+        "xfconf 4.20.0-4.fc44.x86_64",
+        "xfconf-devel 4.20.0-4.fc44.x86_64",
+        "xhost 1.0.9-11.fc44.x86_64",
+        "xkbcomp 1.5.0-2.fc44.x86_64",
+        "xkeyboard-config 2.47-1.fc44.noarch",
+        "xmessage 1.0.7-8.fc44.x86_64",
+        "xml-common 0.6.3-68.fc44.noarch",
+        "xmodmap 1.0.11-10.fc44.x86_64",
+        "xorg-x11-drv-libinput 1.5.0-4.fc44.x86_64",
+        "xorg-x11-fonts-misc 7.5-42.fc44.noarch",
+        "xorg-x11-proto-devel 2025.1-2.fc44.noarch",
+        "xorg-x11-server-Xorg 21.1.24-1.fc44.x86_64",
+        "xorg-x11-server-Xvfb 21.1.24-1.fc44.x86_64",
+        "xorg-x11-server-Xwayland 24.1.13-1.fc44.x86_64",
+        "xorg-x11-server-common 21.1.24-1.fc44.x86_64",
+        "xorg-x11-xauth 1.1.5-1.fc44.x86_64",
+        "xorg-x11-xinit 1.4.3-4.fc44.x86_64",
+        "xprop 1.2.8-5.fc44.x86_64",
+        "xrdb 1.2.2-7.fc44.x86_64",
+        "xset 1.2.5-9.fc44.x86_64",
+        "xvidcore 1.3.7-19.fc44.x86_64",
+        "xxhash-libs 0.8.3-4.fc44.x86_64",
+        "xz 5.8.2-2.fc44.x86_64",
+        "xz-devel 5.8.2-2.fc44.x86_64",
+        "xz-libs 5.8.2-2.fc44.x86_64",
+        "yajl 2.1.0-40.fc44.x86_64",
+        "zchunk-libs 1.5.4-1.fc44.x86_64",
+        "zenity 4.2.2-1.fc44.x86_64",
+        "zeromq 4.3.5-22.fc43.x86_64",
+        "zimg 3.0.6-3.fc44.x86_64",
+        "zip 3.0-45.fc44.x86_64",
+        "zix 0.8.0-2.fc44.x86_64",
+        "zlib-ng-compat 2.3.3-3.fc44.x86_64",
+        "zlib-ng-compat-devel 2.3.3-3.fc44.x86_64",
+        "zstd 1.5.7-5.fc44.x86_64",
+        "zvbi 0.2.44-3.fc44.x86_64"
+      ],
+      "manifestSha256": "65e637dd29c4e5dc694b96fa0a01031058a396c0e816bf1d57c0470040799b5e"
+    },
+    "9b3b9c0d24debdac4dcd922ed4e54088906e3277841586892ab2eb088990877d": {
+      "packages": [
+        "abseil-cpp 20260817.0-2",
+        "acl 2.4.0-1",
+        "adwaita-cursors 50.0-1",
+        "adwaita-fonts 51.0-2",
+        "adwaita-icon-theme 50.0-1",
+        "adwaita-icon-theme-legacy 46.2-3",
+        "alsa-lib 1.2.16.1-1",
+        "alsa-topology-conf 1.2.5.1-4",
+        "alsa-ucm-conf 1.2.16.1-1",
+        "appstream 1.2.0-1",
+        "aquamarine 0.15.0-2",
+        "archlinux-keyring 20260902-1",
+        "at-spi2-core 2.60.6-1",
+        "atkmm 2.28.5-2",
+        "attr 2.6.0-1",
+        "audit 4.2.1-1",
+        "avahi 1:0.9rc5-1",
+        "base 3-3",
+        "bash 5.3.15-1",
+        "binutils 2.47-4",
+        "bluez-libs 5.87-2",
+        "brotli 1.2.0-1",
+        "bubblewrap 0.12.0-1",
+        "bzip2 1.0.8-6",
+        "ca-certificates 20240618-1",
+        "ca-certificates-mozilla 3.128-1",
+        "ca-certificates-utils 20240618-1",
+        "cairo 1.18.4-1",
+        "cairomm 1.14.6-1",
+        "cfitsio 1:4.7.0-1",
+        "coreutils 9.11-2",
+        "cryptsetup 2.8.7-1",
+        "curl 8.22.0-1",
+        "dav1d 1.5.4-1",
+        "db5.3 5.3.28-7",
+        "dbus 1.16.2-1",
+        "dbus-broker 37-3",
+        "dbus-broker-units 37-3",
+        "dbus-units 37-3",
+        "dconf 0.49.0-1",
+        "default-cursors 3-1",
+        "desktop-file-utils 0.28-1",
+        "device-mapper 2.03.42-1",
+        "diffutils 3.12-2",
+        "duktape 2.7.0-7",
+        "e2fsprogs 1.47.4-1",
+        "expat 2.8.4-1",
+        "fftw 3.3.11-1",
+        "file 5.48-1",
+        "filesystem 2025.10.12-1",
+        "findutils 4.11.0-1",
+        "flac 1.5.0-1",
+        "fmt 12.2.0-1",
+        "fontconfig 2:2.18.3-2",
+        "freetype2 2.14.3-1",
+        "fribidi 1.0.16-2",
+        "fuse-common 3.18.2-1",
+        "fuse3 3.18.2-1",
+        "gawk 5.4.1-1",
+        "gcc 16.2.1+r23+gd564253eb6c8-1",
+        "gcc-libs 16.2.1+r23+gd564253eb6c8-1",
+        "gdbm 1.26-2",
+        "gdk-pixbuf2 2.44.7-1",
+        "gettext 1.0-2",
+        "giflib 6.1.3-2",
+        "gjs 2:1.88.1-1",
+        "glib-networking 1:2.80.1-1",
+        "glib2 2.88.3-1",
+        "glibc 2.44+r24+g16be1518495f-1",
+        "glibmm 2.66.10-1",
+        "glslang 1:1.4.357.0-1",
+        "glycin 2.1.5-2",
+        "gmp 6.3.0-3",
+        "gnulib-l10n 20241231-1",
+        "gnupg 2.4.9-3",
+        "gnutls 3.8.13-2",
+        "gobject-introspection-runtime 1.86.0-2",
+        "gperftools 2.18.1-1",
+        "gpgme 2.2.0-1",
+        "gpsd 3.27.5-1",
+        "graphene 1.10.8-2",
+        "graphite 1:1.3.15-1",
+        "grep 3.12-2",
+        "grim 1.5.0-2",
+        "gsettings-desktop-schemas 50.1-1",
+        "gsettings-system-schemas 50.1-1",
+        "gssdp 1.6.6-1",
+        "gst-plugins-bad-libs 1.28.6-3",
+        "gst-plugins-base-libs 1.28.6-3",
+        "gstreamer 1.28.6-3",
+        "gtest 1.18.0-1",
+        "gtk-layer-shell 0.10.1-1",
+        "gtk-update-icon-cache 1:4.22.4-1",
+        "gtk3 1:3.24.52-1",
+        "gtk4 1:4.22.4-1",
+        "gtkmm3 3.24.11-1",
+        "gupnp 1:1.6.10-1",
+        "gupnp-igd 1.6.0-2",
+        "gzip 1.14-2",
+        "harfbuzz 14.4.0-1",
+        "hdf5 2.2.0-1",
+        "hicolor-icon-theme 0.18-1",
+        "highway 1.4.0-1",
+        "hwdata 0.410-1",
+        "hwloc 2.14.0-1",
+        "hyprcursor 0.1.13-7",
+        "hyprgraphics 0.5.1-4",
+        "hyprland 0.56.2-2",
+        "hyprland-guiutils 0.2.2-3",
+        "hyprlang 0.6.8-5",
+        "hyprtoolkit 0.5.4-5",
+        "hyprutils 0.14.1-1",
+        "hyprwayland-scanner 0.4.6-1",
+        "hyprwire 0.3.1-3",
+        "iana-etc 20260617-1",
+        "icu 78.3-1",
+        "imagemagick 7.1.2.31-1",
+        "imath 3.2.3-1",
+        "imlib2 1.12.7-3",
+        "iniparser 4.2.6-2",
+        "iproute2 7.2.0-1",
+        "iptables 1:1.8.13-1",
+        "iputils 20250605-1",
+        "iso-codes 4.20.1-1",
+        "jack2 1.9.22-2",
+        "jansson 2.15.1-1",
+        "jbigkit 2.1-8",
+        "js140 140.15.0-1",
+        "json-c 0.19-1",
+        "json-glib 1.10.8-1",
+        "jsoncpp 1.9.8-1",
+        "kbd 2.10.0-1",
+        "keyutils 1.6.3-4",
+        "kmod 34.2-1",
+        "krb5 1.22.2-1",
+        "labwc 0.20.2-1",
+        "lame 4.0-1",
+        "lcms2 2.19.1-1",
+        "leancrypto 1.8.0-1",
+        "libadwaita 1:1.9.3-1",
+        "libaec 1.1.7-1",
+        "libarchive 3.8.9-1",
+        "libasan 16.2.1+r23+gd564253eb6c8-1",
+        "libassuan 3.0.0-1",
+        "libasyncns 1:0.8+r3+g68cd5af-3",
+        "libatomic 16.2.1+r23+gd564253eb6c8-1",
+        "libblake3 1.8.7-1",
+        "libbpf 1.7.0-1",
+        "libbsd 0.12.2-2",
+        "libcap 2.78-1",
+        "libcap-ng 0.9.5-1",
+        "libcgif 0.5.4-1",
+        "libcloudproviders 0.4.1-1",
+        "libcolord 1.4.8-1",
+        "libcups 2:2.4.19-1",
+        "libdaemon 0.14-6",
+        "libdatrie 0.2.14-1",
+        "libdbusmenu-glib 18.10.20180917-2",
+        "libdbusmenu-gtk3 18.10.20180917-2",
+        "libdecor 0.2.5-1",
+        "libdeflate 1.26-1",
+        "libdisplay-info 0.3.0-1",
+        "libdrm 2.4.134-1",
+        "libedit 20260512_3.1-1",
+        "libei 1.6.0-1",
+        "libelf 0.196-1",
+        "libepoxy 1.5.10-3",
+        "libevdev 1.13.7-1",
+        "libevent 2.1.13-2",
+        "libexif 0.6.26-1",
+        "libffi 3.8.0-1",
+        "libfontenc 1.1.9-1",
+        "libfyaml 0.9.6-3",
+        "libgcc 16.2.1+r23+gd564253eb6c8-1",
+        "libgcrypt 1.12.3-1",
+        "libgfortran 16.2.1+r23+gd564253eb6c8-1",
+        "libgirepository 1.86.0-2",
+        "libglvnd 1.7.0-3",
+        "libgomp 16.2.1+r23+gd564253eb6c8-1",
+        "libgpg-error 1.61-1",
+        "libgudev 238-3",
+        "libhwasan 16.2.1+r23+gd564253eb6c8-1",
+        "libice 1.1.2-1",
+        "libidn2 2.3.8-1",
+        "libimagequant 4.4.1-2",
+        "libimobiledevice 1.4.0-2",
+        "libimobiledevice-glue 1.3.2-1",
+        "libinput 1.31.3-1",
+        "libisl 0.28-1",
+        "libjpeg-turbo 3.2.0-2",
+        "libjxl 0.12.0-1",
+        "libksba 1.8.1-1",
+        "libldap 2.6.13-1",
+        "libliftoff 0.5.0-1",
+        "liblqr 0.4.3-1",
+        "liblsan 16.2.1+r23+gd564253eb6c8-1",
+        "libmakepkg-dropins 20-2",
+        "libmatio 1.5.30-1",
+        "libmd 1.2.0-1",
+        "libmnl 1.0.5-2",
+        "libmpc 1.4.1-1",
+        "libmpdclient 2.27-1",
+        "libnetfilter_conntrack 1.1.1-1",
+        "libnfnetlink 1.0.2-2",
+        "libnftnl 1.3.2-1",
+        "libnghttp2 1.70.0-1",
+        "libnghttp3 1.18.0-1",
+        "libngtcp2 1.25.0-1",
+        "libnice 0.1.24-1",
+        "libnl 3.12.0-1",
+        "libnsl 2.0.1-2",
+        "libobjc 16.2.1+r23+gd564253eb6c8-1",
+        "libogg 1.3.6-1",
+        "libp11-kit 0.26.5-1",
+        "libpcap 1.10.6-1",
+        "libpciaccess 0.19-1",
+        "libpipewire 1:1.6.8-1",
+        "libplist 2.7.0-3",
+        "libpng 1.6.58-2",
+        "libproxy 0.5.12-1",
+        "libpsl 0.21.5-2",
+        "libpulse 17.0+r98+gb096704c0-1",
+        "libquadmath 16.2.1+r23+gd564253eb6c8-1",
+        "libraqm 0.11.0-1",
+        "libraw 0.22.2-1",
+        "librsvg 2:2.62.3-1",
+        "libsamplerate 0.2.2-3",
+        "libsasl 2.1.28-5",
+        "libseccomp 2.6.0-1",
+        "libsecret 0.21.7-1",
+        "libsfdo 0.1.4-1",
+        "libsigc++ 2.12.2-1",
+        "libsm 1.2.6-1",
+        "libsndfile 1.2.2-4",
+        "libsoup3 3.6.6-2",
+        "libssh2 1.11.1-7",
+        "libstdc++ 16.2.1+r23+gd564253eb6c8-1",
+        "libstemmer 3.1.1-1",
+        "libsysprof-capture 50.0-6",
+        "libtasn1 4.21.0-1",
+        "libtatsu 1.0.5-1",
+        "libthai 0.1.30-1",
+        "libtiff 4.7.2-1",
+        "libtirpc 1.3.7-1",
+        "libtool 2.6.2-5",
+        "libtsan 16.2.1+r23+gd564253eb6c8-1",
+        "libubsan 16.2.1+r23+gd564253eb6c8-1",
+        "libunistring 1.4.2-1",
+        "libunwind 1.8.3-1",
+        "libusb 1.0.30-1",
+        "libusbmuxd 2.1.1-2",
+        "libva 2.24.1-1",
+        "libverto 0.3.2-6",
+        "libvips 8.18.6-1",
+        "libvorbis 1.3.7-4",
+        "libwacom 2.19.1-1",
+        "libwebp 1.6.0-2",
+        "libwireplumber 0.5.17-1",
+        "libx11 1.8.13-1",
+        "libxau 1.0.12-1",
+        "libxcb 1.17.0-1",
+        "libxcomposite 0.4.7-1",
+        "libxcrypt 4.5.2-1",
+        "libxcursor 1.2.3-1",
+        "libxcvt 0.1.3-1",
+        "libxdamage 1.1.7-1",
+        "libxdmcp 1.1.5-2",
+        "libxext 1.3.7-1",
+        "libxfixes 6.0.2-1",
+        "libxfont2 2.0.9-1",
+        "libxft 2.3.9-1",
+        "libxi 1.8.3-1",
+        "libxinerama 1.1.6-1",
+        "libxkbcommon 1.13.2-1",
+        "libxkbcommon-x11 1.13.2-1",
+        "libxkbfile 1.2.0-1",
+        "libxml2 2.15.4-1",
+        "libxmlb 0.3.29-1",
+        "libxmu 1.3.1-1",
+        "libxrandr 1.5.5-1",
+        "libxrender 0.9.12-1",
+        "libxshmfence 1.3.3-1",
+        "libxt 1.3.1-1",
+        "libxtst 1.2.5-1",
+        "libxv 1.0.13-1",
+        "libxxf86vm 1.1.7-1",
+        "libzip 1.11.4-1",
+        "licenses 20240728-1",
+        "linux-api-headers 7.2-1",
+        "llvm-libs 22.1.8-2",
+        "lm_sensors 1:3.6.2-1",
+        "lmdb 0.9.35-1",
+        "lua 5.5.1-1",
+        "lua54 5.4.9-1",
+        "lz4 1:1.10.0-2",
+        "lzo 2.10-5",
+        "mesa 1:26.2.2-1",
+        "mpdecimal 4.0.1-3",
+        "mpfr 4.2.2-1",
+        "mpg123 1.33.7-1",
+        "mtdev 1.1.7-1",
+        "muparser 2.3.5-2",
+        "ncurses 6.6-2",
+        "nettle 4.0-1",
+        "nftables 1:1.1.7-3",
+        "npth 1.8-1",
+        "onetbb 2023.1.0-1",
+        "openbox 3.6.1-14",
+        "openexr 3.4.15-1",
+        "openjpeg2 2.5.4-1",
+        "openjph 0.31.0-1",
+        "openssl 3.6.4-1",
+        "opus 1.6.1-1",
+        "orc 0.4.43-1",
+        "p11-kit 0.26.5-1",
+        "pacman 7.1.0.r9.g54d9411-2",
+        "pacman-mirrorlist 20260610-1",
+        "pam 1.7.2-2",
+        "pambase 20260616-1",
+        "pango 1:1.58.2-1",
+        "pangomm 2.46.5-1",
+        "pciutils 3.15.0-1",
+        "pcre2 10.48-1",
+        "perl 5.42.2-2",
+        "pinentry 1.3.3-1",
+        "pipewire 1:1.6.8-1",
+        "pixman 0.46.4-1",
+        "pkgconf 3.0.7-1",
+        "playerctl 2.4.1-5",
+        "polkit 127-3",
+        "popt 1.19-2",
+        "pps-tools 1.0.3-2",
+        "procps-ng 4.0.7-1",
+        "psmisc 23.7-2",
+        "pugixml 1.16-1",
+        "python 3.14.7-1",
+        "python-gobject 3.56.3-1",
+        "re2 2:2025.11.05-6",
+        "readline 8.3.003-1",
+        "rsync 3.5.0-1",
+        "seatd 0.9.3-1",
+        "sed 4.10-2",
+        "shadow 4.20.0.arch1-1",
+        "shared-mime-info 2.5.1-2",
+        "sndio 1.10.0-1",
+        "spdlog 1.17.0-2",
+        "spirv-tools 1:1.4.357.0-1",
+        "sqlite 3.53.4-1",
+        "startup-notification 0.12-9",
+        "systemd 261.2-1",
+        "systemd-libs 261.2-1",
+        "systemd-sysvcompat 261.2-1",
+        "tar 1.35-5",
+        "tinysparql 3.11.1-1",
+        "tomlplusplus 3.4.0-2",
+        "tpm2-tss 4.2.0-2",
+        "ttf-dejavu 2.37+18+g9b5d1b2f-8",
+        "tzdata 2026c-1",
+        "unzip 6.0-23",
+        "upower 1.91.3-1",
+        "util-linux 2.42.3-1",
+        "util-linux-libs 2.42.3-1",
+        "vmaf 3.2.0-1",
+        "vulkan-icd-loader 1.4.357.0-1",
+        "waybar 0.15.0-3",
+        "wayland 1.26.0-1",
+        "wayland-protocols 1.49-1",
+        "which 2.25-1",
+        "wlroots0.20 0.20.2-1",
+        "xcb-proto 1.17.0-4",
+        "xcb-util 0.4.1-2",
+        "xcb-util-errors 1.0.1-2",
+        "xcb-util-image 0.4.1-3",
+        "xcb-util-keysyms 0.4.1-5",
+        "xcb-util-renderutil 0.3.10-2",
+        "xcb-util-wm 0.4.2-2",
+        "xdg-desktop-portal 1.22.1-2",
+        "xdg-desktop-portal-gtk 1.15.3-1",
+        "xdotool 4.20260303.1-1",
+        "xkeyboard-config 2.48-1",
+        "xorg-fonts-encodings 1.1.0-2",
+        "xorg-server-common 21.1.24-1",
+        "xorg-server-xvfb 21.1.24-1",
+        "xorg-setxkbmap 1.3.5-1",
+        "xorg-xauth 1.1.5-1",
+        "xorg-xkbcomp 1.5.0-1",
+        "xorg-xprop 1.2.8-1",
+        "xorg-xwayland 24.1.13-1",
+        "xorgproto 2025.1-1",
+        "xxhash 0.8.3-1",
+        "xz 5.8.3-1",
+        "zip 3.0-14",
+        "zlib 1:1.3.2-3",
+        "zstd 1.5.7-3"
+      ],
+      "manifestSha256": "67b5faf53aefe264651636dcd264d970a07c90df8e0be970d96efd7ad842ea57"
+    }
+  },
+  "vms": [
+    {
+      "name": "ubuntu-verified",
+      "label": "Ubuntu 24.04.4 / Xfce 4.18.4",
+      "architecture": "x86_64",
+      "session": "LightDM / Xorg / Xfce / tray",
+      "image": "https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img",
+      "imageSha256": "d0fe84bb5f80853425fa6be28e2c106f30104c3cfe8611933f2e65c9b63f0e30",
+      "source": {
+        "sha256": "41cd221964f99b76cea96c85c727c75fc628a6fe2a905146b79effac3200938c",
+        "commit": "ca215bfbf75c9343de89376ec36f6528f337c976",
+        "dirty": false
+      },
+      "selectedPackages": [
+        "adwaita-icon-theme\t46.0-1",
+        "gjs\t1.80.2-1build2",
+        "libadwaita-1-0:amd64\t1.5.0-1ubuntu2",
+        "libglib2.0-0t64:amd64\t2.80.0-6ubuntu3.8",
+        "libgtk-4-1:amd64\t4.14.5+ds-0ubuntu0.10",
+        "lightdm\t1.30.0-0ubuntu14",
+        "xfce4-panel\t4.18.4-1ubuntu0.1",
+        "xserver-xorg-core\t2:21.1.12-1ubuntu1.6"
+      ],
+      "evidence": "artifacts/vm/ubuntu-verified/evidence",
+      "results": {
+        "install.json": {
+          "phase": "install",
+          "os": "PRETTY_NAME=\"Ubuntu 24.04.4 LTS\"\nNAME=\"Ubuntu\"\nVERSION_ID=\"24.04\"\nVERSION=\"24.04.4 LTS (Noble Numbat)\"\nVERSION_CODENAME=noble\nID=ubuntu\nID_LIKE=debian\nHOME_URL=\"https://www.ubuntu.com/\"\nSUPPORT_URL=\"https://help.ubuntu.com/\"\nBUG_REPORT_URL=\"https://bugs.launchpad.net/ubuntu/\"\nPRIVACY_POLICY_URL=\"https://www.ubuntu.com/legal/terms-and-policies/privacy-policy\"\nUBUNTU_CODENAME=noble\nLOGO=ubuntu-logo\n",
+          "checks": [
+            {
+              "name": "clean user installation",
+              "passed": true
+            },
+            {
+              "name": "real login starts the tray without a CLI activation or duplicate service",
+              "passed": true
+            },
+            {
+              "name": "desktop panel has no plugin loading failure dialog",
+              "passed": true
+            },
+            {
+              "name": "installed details window opens",
+              "passed": true
+            },
+            {
+              "name": "provider preferences entry point opens",
+              "passed": true
+            },
+            {
+              "name": "live upgrade cancels pending work, preserves config and restarts the tray",
+              "passed": true
+            },
+            {
+              "name": "tray host restart restores exactly the original item count",
+              "passed": true
+            },
+            {
+              "name": "explicit switching works while scroll switching is disabled",
+              "passed": true
+            },
+            {
+              "name": "keyboard Escape closes the installed details window",
+              "passed": true
+            }
+          ],
+          "passed": true
+        },
+        "ui.json": {
+          "phase": "ui",
+          "os": "PRETTY_NAME=\"Ubuntu 24.04.4 LTS\"\nNAME=\"Ubuntu\"\nVERSION_ID=\"24.04\"\nVERSION=\"24.04.4 LTS (Noble Numbat)\"\nVERSION_CODENAME=noble\nID=ubuntu\nID_LIKE=debian\nHOME_URL=\"https://www.ubuntu.com/\"\nSUPPORT_URL=\"https://help.ubuntu.com/\"\nBUG_REPORT_URL=\"https://bugs.launchpad.net/ubuntu/\"\nPRIVACY_POLICY_URL=\"https://www.ubuntu.com/legal/terms-and-policies/privacy-policy\"\nUBUNTU_CODENAME=noble\nLOGO=ubuntu-logo\n",
+          "checks": [
+            {
+              "name": "preferences flows at 1x in light and dark themes",
+              "passed": true
+            },
+            {
+              "name": "preferences flows at 2x in light and dark themes",
+              "passed": true
+            }
+          ],
+          "passed": true
+        },
+        "after-reboot.json": {
+          "phase": "after-reboot",
+          "os": "PRETTY_NAME=\"Ubuntu 24.04.4 LTS\"\nNAME=\"Ubuntu\"\nVERSION_ID=\"24.04\"\nVERSION=\"24.04.4 LTS (Noble Numbat)\"\nVERSION_CODENAME=noble\nID=ubuntu\nID_LIKE=debian\nHOME_URL=\"https://www.ubuntu.com/\"\nSUPPORT_URL=\"https://help.ubuntu.com/\"\nBUG_REPORT_URL=\"https://bugs.launchpad.net/ubuntu/\"\nPRIVACY_POLICY_URL=\"https://www.ubuntu.com/legal/terms-and-policies/privacy-policy\"\nUBUNTU_CODENAME=noble\nLOGO=ubuntu-logo\n",
+          "checks": [
+            {
+              "name": "full guest reboot restores one service through desktop autostart",
+              "passed": true
+            },
+            {
+              "name": "uninstall stops the running service",
+              "passed": true
+            },
+            {
+              "name": "subsequent login leaves no app while preserving provider config",
+              "passed": true
+            }
+          ],
+          "passed": true
+        },
+        "ui-1x/preferences.json": {
+          "checks": [
+            {
+              "name": "preferences icons resolve and remain symbolic for both themes",
+              "passed": true
+            },
+            {
+              "name": "all four preferences pages and provider navigation survive manifest loading",
+              "passed": true
+            },
+            {
+              "name": "display mode and multi-window appearance controls persist",
+              "passed": true
+            },
+            {
+              "name": "create, rename and reorder an additional provider through widgets",
+              "passed": true
+            },
+            {
+              "name": "create and remove a grouped API source, including a private credential field",
+              "passed": true
+            },
+            {
+              "name": "custom command and icon flow persists and removes the source",
+              "passed": true
+            },
+            {
+              "name": "hide and restore a provider without losing its identity",
+              "passed": true
+            },
+            {
+              "name": "Tools opens the real desktop URL handler and runs the backend in XTerm",
+              "passed": true
+            },
+            {
+              "name": "every page renders under light and dark application themes",
+              "passed": true
+            },
+            {
+              "name": "closing preferences disconnects persistent settings and theme listeners",
+              "passed": true
+            },
+            {
+              "name": "closing during source validation terminates its running backend processes",
+              "passed": true
+            }
+          ],
+          "passed": true
+        },
+        "ui-2x/preferences.json": {
+          "checks": [
+            {
+              "name": "preferences icons resolve and remain symbolic for both themes",
+              "passed": true
+            },
+            {
+              "name": "all four preferences pages and provider navigation survive manifest loading",
+              "passed": true
+            },
+            {
+              "name": "display mode and multi-window appearance controls persist",
+              "passed": true
+            },
+            {
+              "name": "create, rename and reorder an additional provider through widgets",
+              "passed": true
+            },
+            {
+              "name": "create and remove a grouped API source, including a private credential field",
+              "passed": true
+            },
+            {
+              "name": "custom command and icon flow persists and removes the source",
+              "passed": true
+            },
+            {
+              "name": "hide and restore a provider without losing its identity",
+              "passed": true
+            },
+            {
+              "name": "Tools opens the real desktop URL handler and runs the backend in XTerm",
+              "passed": true
+            },
+            {
+              "name": "every page renders under light and dark application themes",
+              "passed": true
+            },
+            {
+              "name": "closing preferences disconnects persistent settings and theme listeners",
+              "passed": true
+            },
+            {
+              "name": "closing during source validation terminates its running backend processes",
+              "passed": true
+            }
+          ],
+          "passed": true
+        }
+      }
+    },
+    {
+      "name": "fedora-verified",
+      "label": "Fedora 44 / Xfce 4.20.7",
+      "architecture": "x86_64",
+      "session": "LightDM / Xorg / Xfce / tray",
+      "image": "https://dl.fedoraproject.org/pub/fedora/linux/releases/44/Cloud/x86_64/images/Fedora-Cloud-Base-Generic-44-1.7.x86_64.qcow2",
+      "imageSha256": "28680fe5b371a5a82ebf43a31926e086a168e59949d03969c5093e7071f90b7f",
+      "source": {
+        "sha256": "fa42b290009322d2c1b1ffeaa798d68aa82789f4b89a469ccba168fafd7f390f",
+        "commit": "ca215bfbf75c9343de89376ec36f6528f337c976",
+        "dirty": false
+      },
+      "selectedPackages": [
+        "gjs-1.88.1-2.fc44.x86_64",
+        "glib2-2.88.3-1.fc44.x86_64",
+        "gtk4-4.22.4-2.fc44.x86_64",
+        "libadwaita-1.9.3-1.fc44.x86_64",
+        "xfce4-panel-4.20.7-2.fc44.x86_64",
+        "lightdm-1.33.1-2.fc44.x86_64",
+        "xorg-x11-server-Xorg-21.1.24-1.fc44.x86_64",
+        "adwaita-icon-theme-50.0-1.fc44.noarch"
+      ],
+      "evidence": "artifacts/vm/fedora-verified/evidence",
+      "results": {
+        "install.json": {
+          "phase": "install",
+          "os": "NAME=\"Fedora Linux\"\nVERSION=\"44 (Cloud Edition)\"\nRELEASE_TYPE=stable\nID=fedora\nVERSION_ID=44\nVERSION_CODENAME=\"\"\nPRETTY_NAME=\"Fedora Linux 44 (Cloud Edition)\"\nANSI_COLOR=\"0;38;2;60;110;180\"\nLOGO=fedora-logo-icon\nCPE_NAME=\"cpe:/o:fedoraproject:fedora:44\"\nHOME_URL=\"https://fedoraproject.org/\"\nDOCUMENTATION_URL=\"https://docs.fedoraproject.org/en-US/fedora/f44/\"\nSUPPORT_URL=\"https://ask.fedoraproject.org/\"\nBUG_REPORT_URL=\"https://bugzilla.redhat.com/\"\nREDHAT_BUGZILLA_PRODUCT=\"Fedora\"\nREDHAT_BUGZILLA_PRODUCT_VERSION=44\nREDHAT_SUPPORT_PRODUCT=\"Fedora\"\nREDHAT_SUPPORT_PRODUCT_VERSION=44\nSUPPORT_END=2027-05-19\nVARIANT=\"Cloud Edition\"\nVARIANT_ID=cloud\n",
+          "checks": [
+            {
+              "name": "clean user installation",
+              "passed": true
+            },
+            {
+              "name": "real login starts the tray without a CLI activation or duplicate service",
+              "passed": true
+            },
+            {
+              "name": "desktop panel has no plugin loading failure dialog",
+              "passed": true
+            },
+            {
+              "name": "installed details window opens",
+              "passed": true
+            },
+            {
+              "name": "provider preferences entry point opens",
+              "passed": true
+            },
+            {
+              "name": "live upgrade cancels pending work, preserves config and restarts the tray",
+              "passed": true
+            },
+            {
+              "name": "tray host restart restores exactly the original item count",
+              "passed": true
+            },
+            {
+              "name": "explicit switching works while scroll switching is disabled",
+              "passed": true
+            },
+            {
+              "name": "keyboard Escape closes the installed details window",
+              "passed": true
+            }
+          ],
+          "passed": true
+        },
+        "ui.json": {
+          "phase": "ui",
+          "os": "NAME=\"Fedora Linux\"\nVERSION=\"44 (Cloud Edition)\"\nRELEASE_TYPE=stable\nID=fedora\nVERSION_ID=44\nVERSION_CODENAME=\"\"\nPRETTY_NAME=\"Fedora Linux 44 (Cloud Edition)\"\nANSI_COLOR=\"0;38;2;60;110;180\"\nLOGO=fedora-logo-icon\nCPE_NAME=\"cpe:/o:fedoraproject:fedora:44\"\nHOME_URL=\"https://fedoraproject.org/\"\nDOCUMENTATION_URL=\"https://docs.fedoraproject.org/en-US/fedora/f44/\"\nSUPPORT_URL=\"https://ask.fedoraproject.org/\"\nBUG_REPORT_URL=\"https://bugzilla.redhat.com/\"\nREDHAT_BUGZILLA_PRODUCT=\"Fedora\"\nREDHAT_BUGZILLA_PRODUCT_VERSION=44\nREDHAT_SUPPORT_PRODUCT=\"Fedora\"\nREDHAT_SUPPORT_PRODUCT_VERSION=44\nSUPPORT_END=2027-05-19\nVARIANT=\"Cloud Edition\"\nVARIANT_ID=cloud\n",
+          "checks": [
+            {
+              "name": "preferences flows at 1x in light and dark themes",
+              "passed": true
+            },
+            {
+              "name": "preferences flows at 2x in light and dark themes",
+              "passed": true
+            }
+          ],
+          "passed": true
+        },
+        "after-reboot.json": {
+          "phase": "after-reboot",
+          "os": "NAME=\"Fedora Linux\"\nVERSION=\"44 (Cloud Edition)\"\nRELEASE_TYPE=stable\nID=fedora\nVERSION_ID=44\nVERSION_CODENAME=\"\"\nPRETTY_NAME=\"Fedora Linux 44 (Cloud Edition)\"\nANSI_COLOR=\"0;38;2;60;110;180\"\nLOGO=fedora-logo-icon\nCPE_NAME=\"cpe:/o:fedoraproject:fedora:44\"\nHOME_URL=\"https://fedoraproject.org/\"\nDOCUMENTATION_URL=\"https://docs.fedoraproject.org/en-US/fedora/f44/\"\nSUPPORT_URL=\"https://ask.fedoraproject.org/\"\nBUG_REPORT_URL=\"https://bugzilla.redhat.com/\"\nREDHAT_BUGZILLA_PRODUCT=\"Fedora\"\nREDHAT_BUGZILLA_PRODUCT_VERSION=44\nREDHAT_SUPPORT_PRODUCT=\"Fedora\"\nREDHAT_SUPPORT_PRODUCT_VERSION=44\nSUPPORT_END=2027-05-19\nVARIANT=\"Cloud Edition\"\nVARIANT_ID=cloud\n",
+          "checks": [
+            {
+              "name": "full guest reboot restores one service through desktop autostart",
+              "passed": true
+            },
+            {
+              "name": "uninstall stops the running service",
+              "passed": true
+            },
+            {
+              "name": "subsequent login leaves no app while preserving provider config",
+              "passed": true
+            }
+          ],
+          "passed": true
+        },
+        "ui-1x/preferences.json": {
+          "checks": [
+            {
+              "name": "preferences icons resolve and remain symbolic for both themes",
+              "passed": true
+            },
+            {
+              "name": "all four preferences pages and provider navigation survive manifest loading",
+              "passed": true
+            },
+            {
+              "name": "display mode and multi-window appearance controls persist",
+              "passed": true
+            },
+            {
+              "name": "create, rename and reorder an additional provider through widgets",
+              "passed": true
+            },
+            {
+              "name": "create and remove a grouped API source, including a private credential field",
+              "passed": true
+            },
+            {
+              "name": "custom command and icon flow persists and removes the source",
+              "passed": true
+            },
+            {
+              "name": "hide and restore a provider without losing its identity",
+              "passed": true
+            },
+            {
+              "name": "Tools opens the real desktop URL handler and runs the backend in XTerm",
+              "passed": true
+            },
+            {
+              "name": "every page renders under light and dark application themes",
+              "passed": true
+            },
+            {
+              "name": "closing preferences disconnects persistent settings and theme listeners",
+              "passed": true
+            },
+            {
+              "name": "closing during source validation terminates its running backend processes",
+              "passed": true
+            }
+          ],
+          "passed": true
+        },
+        "ui-2x/preferences.json": {
+          "checks": [
+            {
+              "name": "preferences icons resolve and remain symbolic for both themes",
+              "passed": true
+            },
+            {
+              "name": "all four preferences pages and provider navigation survive manifest loading",
+              "passed": true
+            },
+            {
+              "name": "display mode and multi-window appearance controls persist",
+              "passed": true
+            },
+            {
+              "name": "create, rename and reorder an additional provider through widgets",
+              "passed": true
+            },
+            {
+              "name": "create and remove a grouped API source, including a private credential field",
+              "passed": true
+            },
+            {
+              "name": "custom command and icon flow persists and removes the source",
+              "passed": true
+            },
+            {
+              "name": "hide and restore a provider without losing its identity",
+              "passed": true
+            },
+            {
+              "name": "Tools opens the real desktop URL handler and runs the backend in XTerm",
+              "passed": true
+            },
+            {
+              "name": "every page renders under light and dark application themes",
+              "passed": true
+            },
+            {
+              "name": "closing preferences disconnects persistent settings and theme listeners",
+              "passed": true
+            },
+            {
+              "name": "closing during source validation terminates its running backend processes",
+              "passed": true
+            }
+          ],
+          "passed": true
+        }
+      }
+    }
+  ],
+  "gnome": {
+    "evidence": "artifacts/gnome.pDa9xX",
+    "environment": {
+      "sourceCommit": "9113641d2bbb8759ec923239e1457a90a7797274",
+      "trackedChanges": false,
+      "kernel": "7.1.10-200.fc44.x86_64",
+      "architecture": "x86_64",
+      "shell": "GNOME Shell 50.4",
+      "gjs": "gjs 1.88.1",
+      "osRelease": "NAME=\"Fedora Linux\"\nVERSION=\"44 (Workstation Edition)\"\nRELEASE_TYPE=stable\nID=fedora\nVERSION_ID=44\nVERSION_CODENAME=\"\"\nPRETTY_NAME=\"Fedora Linux 44 (Workstation Edition)\"\nANSI_COLOR=\"0;38;2;60;110;180\"\nLOGO=fedora-logo-icon\nCPE_NAME=\"cpe:/o:fedoraproject:fedora:44\"\nDEFAULT_HOSTNAME=\"fedora\"\nHOME_URL=\"https://fedoraproject.org/\"\nDOCUMENTATION_URL=\"https://docs.fedoraproject.org/en-US/fedora/f44/\"\nSUPPORT_URL=\"https://ask.fedoraproject.org/\"\nBUG_REPORT_URL=\"https://bugzilla.redhat.com/\"\nREDHAT_BUGZILLA_PRODUCT=\"Fedora\"\nREDHAT_BUGZILLA_PRODUCT_VERSION=44\nREDHAT_SUPPORT_PRODUCT=\"Fedora\"\nREDHAT_SUPPORT_PRODUCT_VERSION=44\nSUPPORT_END=2027-05-19\nVARIANT=\"Workstation Edition\"\nVARIANT_ID=workstation\n",
+      "mode": "--check",
+      "command": "./test-nested.sh"
+    },
+    "result": {
+      "status": "passed",
+      "referenceCommit": "9436c3834522745076c60937dc7c4c4a1649e6e8",
+      "shellVersion": "50.4",
+      "session": "isolated GNOME Wayland",
+      "backend": "credential-free fixture v1",
+      "results": [
+        {
+          "name": "native panel indicator and grouped fixture providers",
+          "status": "passed"
+        },
+        {
+          "name": "auto usage averages visible standard windows",
+          "status": "passed"
+        },
+        {
+          "name": "used/remaining modes affect meter meaning and text",
+          "status": "passed"
+        },
+        {
+          "name": "panel window selection and hidden-window fallback",
+          "status": "passed"
+        },
+        {
+          "name": "threshold boundaries and ascending-only notifications",
+          "status": "passed"
+        },
+        {
+          "name": "zero and full bar fills use the entire range",
+          "status": "passed"
+        },
+        {
+          "name": "logo clips preserve presentation attributes and actual fill geometry",
+          "status": "passed"
+        },
+        {
+          "name": "detail popup renders usage, accounts and costs",
+          "status": "passed"
+        },
+        {
+          "name": "multiple panel providers and logo-fill modes render",
+          "status": "passed"
+        },
+        {
+          "name": "backend failure is visible and a later refresh recovers",
+          "status": "passed"
+        },
+        {
+          "name": "preferences window opens on the isolated desktop",
+          "status": "passed"
+        },
+        {
+          "name": "disable/re-enable preserves settings and restores the indicator",
+          "status": "passed"
+        }
+      ]
+    }
+  },
+  "contracts": {
+    "cliConfig": {
+      "passed": 36,
+      "log": "artifacts/linux-acceptance-backend.tap"
+    },
+    "linuxModelRenderer": {
+      "passed": 26,
+      "log": "artifacts/linux-acceptance-contracts.tap"
+    }
+  },
+  "packages": {
+    "gnome": {
+      "passed": true,
+      "log": "artifacts/gnome-acceptance-package.log"
+    },
+    "linux": {
+      "passed": true,
+      "log": "artifacts/linux-acceptance-package.log"
+    }
+  },
+  "live": {
+    "backendVersion": "usagestat 1.0.3",
+    "checks": [
+      {
+        "provider": "codex",
+        "backendResponded": true,
+        "quotaAvailable": true,
+        "detailsRealized": true,
+        "passed": true
+      },
+      {
+        "provider": "claude",
+        "backendResponded": true,
+        "quotaAvailable": true,
+        "detailsRealized": true,
+        "passed": true
+      }
+    ],
+    "passed": true
+  },
+  "archive": {
+    "path": "artifacts/usagestat-bar-linux.tar.gz",
+    "sha256": "de62a531a9749c06d393c09803ccafe1cf85b6934d7fc5de578d6a894534d0b9"
+  },
+  "baseline": [
+    {
+      "id": "CLI-1",
+      "status": "passed",
+      "evidence": "Shared discovery/config/plugin/source argument contracts; installed desktop launchers work outside a terminal PATH."
+    },
+    {
+      "id": "CLI-2",
+      "status": "passed",
+      "evidence": "Manifest, metric and legacy normalization, including retained paid/supplemental metadata."
+    },
+    {
+      "id": "CLI-3",
+      "status": "passed",
+      "evidence": "Error/recovery fixtures, timeout/cancellation contracts, actual in-flight upgrade and preferences-close cancellation. Arbitrary custom shell process trees remain untested."
+    },
+    {
+      "id": "CFG-1",
+      "status": "passed",
+      "evidence": "Identity/order/grouping contracts, all desktop profiles, real add/rename/reorder/hide UI flows."
+    },
+    {
+      "id": "CFG-2",
+      "status": "passed",
+      "evidence": "Private synthetic credential/config writes and stable/dev separation; config survives upgrade, reboot and uninstall."
+    },
+    {
+      "id": "CFG-3",
+      "status": "passed",
+      "evidence": "Actual widget flows add/remove/reorder providers and grouped API/custom-command sources, set an icon and restore hidden providers. Real external authentication/setup remains provider-specific."
+    },
+    {
+      "id": "DATA-1",
+      "status": "passed",
+      "evidence": "Standard/extra quota windows, currency, quantities, resets and clamped boundaries in contracts and native views."
+    },
+    {
+      "id": "DATA-2",
+      "status": "passed",
+      "evidence": "Selected quota and hidden-selection fallback in contracts and native sessions."
+    },
+    {
+      "id": "DATA-3",
+      "status": "passed",
+      "evidence": "Visible-standard mean and exhausted-primary paid fallback, including hidden paid quota."
+    },
+    {
+      "id": "DATA-4",
+      "status": "passed",
+      "evidence": "Used/remaining percentages/fills and used-based thresholds; native screenshots and rendering contracts."
+    },
+    {
+      "id": "DATA-5",
+      "status": "passed",
+      "evidence": "Costs, credits, code review, pace/ETA, paid currency and service status reach representative native details; optional cost failure leaves quota visible."
+    },
+    {
+      "id": "VIEW-1",
+      "status": "passed",
+      "evidence": "Visible indicators, grouped details, switches, refresh/errors/timestamps and native Plasma overview; GUI background and icon defects fixed during review."
+    },
+    {
+      "id": "VIEW-2",
+      "status": "platform limitation",
+      "evidence": "Six rich graphical profiles cover ordered/pinned providers, components, three windows and vertical layouts. Square trays abbreviate names and control item order; Polybar remains text-only. Not every setting combination was exercised. #5\u2013#13."
+    },
+    {
+      "id": "VIEW-3",
+      "status": "platform limitation",
+      "evidence": "Custom threshold colors and SVG/raster rendering/fill contracts pass; light/dark preferences and representative panel themes reviewed. Tray size and Polybar's lack of image logos constrain parity. Arbitrary malformed custom icons and every theme/fill combination remain untested. #5\u2013#13."
+    },
+    {
+      "id": "VIEW-4",
+      "status": "untested",
+      "evidence": "Six vertical layouts, Sway mixed-scale virtual outputs, two VM DPI settings, native clicks and basic keyboard actions pass. Fractional scaling, physical hotplug, screen readers and all focus/placement combinations remain. #16."
+    },
+    {
+      "id": "ALERT-1",
+      "status": "passed",
+      "evidence": "Threshold contracts plus real Dunst notification delivery and suppression in LXQt; other notification daemons remain untested."
+    },
+    {
+      "id": "PREF-1",
+      "status": "passed",
+      "evidence": "Four pages and representative provider, appearance and tool workflows pass on both library generations at both scales and themes."
+    },
+    {
+      "id": "ACTION-1",
+      "status": "untested",
+      "evidence": "Real URL handler and XTerm/backend launch, refresh and metadata links pass. Actual provider authentication, backend/plugin installer execution and other terminals remain untested."
+    },
+    {
+      "id": "LIFE-1",
+      "status": "passed",
+      "evidence": "Service/panel restart, exact item recovery, in-flight upgrade, preferences-close cancellation and full reboot on the two Xfce VM profiles. Other desktop host/lifecycle combinations remain."
+    },
+    {
+      "id": "LIFE-2",
+      "status": "passed",
+      "evidence": "Clean install/upgrade/login/reboot/uninstall on Ubuntu 24.04 and Fedora 44 Xfce x86_64; native bundle installation in all desktop labs. Other distro/session/architecture combinations remain in #16."
+    }
+  ],
+  "selectedScreenshots": [
+    {
+      "source": "artifacts/linux-plasma.JukRaz/09-appearance.png",
+      "retained": "docs/reports/linux-acceptance/plasma-appearance.png",
+      "sha256": "e820797a617698bd369b56d668595d22c8ec7a805f831eb58951c473659041d4"
+    },
+    {
+      "source": "artifacts/linux-sway.cMAk5O/11-two-outputs.png",
+      "retained": "docs/reports/linux-acceptance/sway-mixed-scale.png",
+      "sha256": "0fc352c9d05a02486a7881f30f7fbd1abe6c68e7e5a7f2c44a59d9868bbc9275"
+    },
+    {
+      "source": "artifacts/vm/ubuntu-verified/evidence/ui-2x/prefs-appearance-dark.png",
+      "retained": "docs/reports/linux-acceptance/ubuntu-dark-2x.png",
+      "sha256": "01ef4a2da06b967454973dc1cb1e48732ca3447bafe56c4539445c36dfa02639"
+    },
+    {
+      "source": "artifacts/vm/fedora-verified/evidence/ui-1x/prefs-providers-light.png",
+      "retained": "docs/reports/linux-acceptance/fedora-providers.png",
+      "sha256": "10a227b8f6b038afb23f896faa9a3daabbc327947ab867aeb7515c8ed5526070"
+    }
+  ],
+  "limitations": [
+    "Square tray slots constrain text and component placement; host controls item order.",
+    "Polybar has text meters and initials, without image logos or native graphical multi-row layouts.",
+    "Full VM login lifecycle covers only Xfce on Ubuntu 24.04 and Fedora 44 x86_64.",
+    "Other distro/session/version/architecture combinations, full accessibility and physical-monitor acceptance remain open.",
+    "External provider authentication and installer flows are not exercised by fixtures."
+  ]
+}

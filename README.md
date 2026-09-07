@@ -2,7 +2,7 @@
 
 AI provider usage in your Linux panel, using the `usagestat` CLI. The existing GNOME extension now has ports for Plasma, Cinnamon, MATE, Xfce, tray desktops, Waybar and Polybar.
 
-For other Linux desktops, see [installation and desktop checks](docs/LINUX.md) and the [current parity report](docs/reports/linux-ports.md). Windows and macOS are tracked in the [platform roadmap](https://github.com/Hashim-K/usagestat-bar/issues/2).
+For other Linux desktops, see [installation and desktop checks](docs/LINUX.md) and the [current parity report](docs/reports/linux-acceptance.md). Windows and macOS are tracked in the [platform roadmap](https://github.com/Hashim-K/usagestat-bar/issues/2).
 
 ## Install
 

@@ -155,3 +155,21 @@ desktop/session configuration, and reset procedure. A container-only build
 cannot verify native panel behavior. The coordinated runner matrix and
 release automation are tracked separately in
 [Phase 2](https://github.com/Hashim-K/usagestat-bar/issues/17).
+
+## Linux VM and live checks
+
+The [Linux acceptance report](reports/linux-acceptance.md) records the desktop
+matrix, Ubuntu/Fedora login lifecycle, four-page preferences at 1×/2× in both
+themes, and the separate live-backend smoke check. Reproduction and dependency
+commands are in [LINUX.md](LINUX.md#full-login-reboot-and-uninstall-checks).
+
+Use a new `vm.py create` directory for a fresh upstream guest. `vm.py check`
+also reruns an existing disposable guest; it reinstalls the fixture application
+and preserves earlier local evidence files. Read the current phase JSON and
+source fingerprint rather than treating every old screenshot as a final result.
+A failed phase exits nonzero. Review the current screenshots too: process,
+D-Bus and widget assertions alone do not prove correct visual rendering.
+
+Live checks require the explicit opt-in in `tests/linux/live.sh`; pass the
+intended CLI/config environment. They retain version/provider/outcome fields,
+not raw usage or account secrets. All ordinary desktop/VM fixtures stay synthetic.

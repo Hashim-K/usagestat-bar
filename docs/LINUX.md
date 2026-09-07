@@ -4,7 +4,7 @@ The first ports are available in this repository. They use the existing
 `usagestat` CLI, provider configuration, icons and preferences. They are
 **ports checked in desktop labs and disposable VMs**, with remaining appearance limits
 tracked in [the roadmap](https://github.com/Hashim-K/usagestat-bar/issues/2).
-See the [parity report](reports/linux-ports.md) before treating a combination
+See the [parity report](reports/linux-acceptance.md) before treating a combination
 as fully supported. Windows and macOS remain separate, later tasks.
 
 ## Choose the integration
@@ -234,9 +234,10 @@ python3 tests/linux/package.py
 ```
 
 The Linux package test also checks desktop-launcher quoting and uses GJS.
-Complete VM login/upgrade/uninstall, live providers, alternate versions,
-accessibility, keyboard, scaling, themes and multi-monitor acceptance still
-need the follow-ups in [#16](https://github.com/Hashim-K/usagestat-bar/issues/16).
+The [acceptance report](reports/linux-acceptance.md) records current VM
+login/upgrade/uninstall, live-provider, theme and display coverage. Additional
+versions, distro/session combinations, accessibility, input and physical-display
+cases remain in [#16](https://github.com/Hashim-K/usagestat-bar/issues/16).
 A nested panel session does not certify a whole distro or a full login session.
 Coordinated CI, interactive previews, native distro packages and simultaneous
 release publishing remain in [Phase 2](https://github.com/Hashim-K/usagestat-bar/issues/17).

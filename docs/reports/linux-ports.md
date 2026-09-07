@@ -1,5 +1,8 @@
 # Initial Linux ports — 2026-09-06
 
+Historical report. See the [2026-09-07 acceptance report](linux-acceptance.md)
+for the current implementation, VM checks and remaining gaps.
+
 Status: **working initial ports with passing fixture checks; full baseline
 acceptance remains open**. These results do not certify every Linux distro,
 desktop version, session type or architecture.
