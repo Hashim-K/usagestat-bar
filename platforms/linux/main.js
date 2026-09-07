@@ -38,6 +38,7 @@ function enableTray() {
 
 app.connect('startup', () => {
     app.hold();
+    Gtk.Settings.get_default().gtk_icon_theme_name = 'Adwaita';
     model = new Model(settings(), next => {
         state = renderFiles({...next, trayEnabled: Boolean(tray)});
         exported?.emit_signal('Changed', new GLib.Variant('(s)', [JSON.stringify(state)]));
