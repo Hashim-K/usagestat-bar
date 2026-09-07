@@ -27,8 +27,8 @@ export class DetailsWindow {
     constructor(app, model, preferences) {
         this.model = model;
         this.preferences = preferences;
-        this.window = new Adw.ApplicationWindow({application: app, title: 'UsageStat Bar', default_width: 510, default_height: 720,
-            css_classes: ['usagestat-details']});
+        this.window = new Adw.ApplicationWindow({application: app, title: 'UsageStat Bar', default_width: 510, default_height: 720});
+        this.window.add_css_class('usagestat-details');
         this.css = new Gtk.CssProvider();
         const display = this.window.get_display();
         Gtk.StyleContext.add_provider_for_display(display, this.css, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION);
@@ -111,7 +111,7 @@ export class DetailsWindow {
         const title = label(provider.name, provider.parent ? 'title-3' : 'title-1');
         title.hexpand = true;
         heading.append(title);
-        heading.append(button(`Edit ${provider.name}`, () => this.preferences(provider.key), 'document-edit-symbolic'));
+        heading.append(button(`Edit ${provider.name}`, () => this.preferences(provider.key), 'emblem-system-symbolic'));
         inner.append(heading);
         inner.append(label([provider.plan, provider.source].filter(Boolean).join(' · '), 'dim-label'));
         if (provider.serviceStatus?.description && !['none', 'unknown'].includes(provider.serviceStatus.indicator))

@@ -34,6 +34,28 @@ function closePage(page) {
     page._processes?.clear();
 }
 
+function addIconFallback(window) {
+    // Some desktop themes do not inherit Adwaita. Its unthemed search paths
+    // supply missing symbolic icons while leaving the chosen theme first.
+    const theme = Gtk.IconTheme.get_for_display(window.get_display());
+    const paths = new Set(theme.get_search_path());
+    for (const data of GLib.get_system_data_dirs()) {
+        for (const variant of ['symbolic', 'scalable']) {
+            const root = Gio.File.new_for_path(`${data}/icons/Adwaita/${variant}`);
+            if (!root.query_exists(null)) continue;
+            const entries = root.enumerate_children('standard::name,standard::type', Gio.FileQueryInfoFlags.NONE, null);
+            try {
+                let entry;
+                while ((entry = entries.next_file(null))) {
+                    if (entry.get_file_type() !== Gio.FileType.DIRECTORY) continue;
+                    const path = root.get_child(entry.get_name()).get_path();
+                    if (!paths.has(path)) { theme.add_search_path(path); paths.add(path); }
+                }
+            } finally { entries.close(null); }
+        }
+    }
+}
+
 const SOURCE_OPTIONS = ['auto', 'web', 'cli', 'oauth', 'api', 'local'];
 const BUILTIN_PROVIDER_IDS = new Set(PROVIDERS.map(([id]) => id));
 const CUSTOM_PROVIDER_VALUE = '__custom_provider__';
@@ -3284,6 +3306,7 @@ class MaintenancePage extends Adw.PreferencesPage {
 
 export function fillPreferencesWindow(window, settings, {gettext = text => text, desktopPlacement = false} = {}) {
     _ = gettext;
+    addIconFallback(window);
     const targetProviderId = settings.get_string('preferences-provider');
     const providersPage = new ProvidersPage(settings);
     window.set_default_size(760, 760);

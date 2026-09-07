@@ -27,6 +27,7 @@ class Indicator:
         applet.set_flags(MatePanelApplet.AppletFlags.EXPAND_MINOR)
         applet.connect('destroy', self.close)
         applet.connect('change-size', lambda *_: self.request())
+        applet.connect('change-orient', lambda *_: self.request())
         self.signal = self.bus.signal_subscribe(BUS, IFACE, 'Changed', PATH, None, Gio.DBusSignalFlags.NONE,
             lambda _bus, _sender, _path, _iface, _signal, args: self.render(json.loads(args.unpack()[0])))
         self.watch = Gio.bus_watch_name(Gio.BusType.SESSION, BUS, Gio.BusNameWatcherFlags.AUTO_START,

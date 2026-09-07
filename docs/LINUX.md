@@ -37,7 +37,9 @@ in the report and are not claimed as full graphical parity.
 ## Build and install
 
 Runtime dependencies: Bash, GJS, GTK 4, libadwaita, GObject introspection,
-GdkPixbuf with SVG support, a session D-Bus and dconf, plus the `usagestat` CLI.
+GdkPixbuf with SVG support, the Adwaita icon theme, a session D-Bus and dconf,
+plus the `usagestat` CLI. Install `adwaita-icon-theme` for symbolic icon fallbacks
+when the desktop's own theme omits them.
 The UI uses GTK 4.12 / libadwaita 1.4 APIs; older library combinations have not
 been verified. Python 3 and `glib-compile-schemas` are needed to build/install.
 MATE additionally needs Python GObject bindings, GTK 3 and the MatePanelApplet

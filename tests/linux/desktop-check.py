@@ -211,6 +211,12 @@ try:
             with (OUT / 'panel-vertical.log').open('w') as log:
                 subprocess.Popen(['waybar','-c','/tmp/waybar.json','-s','/src/platforms/waybar/style.css'],stdout=log,stderr=log)
         time.sleep(2)
+        if TARGET == 'mate':
+            window = subprocess.check_output(['xdotool','search','--onlyvisible','--name','^UsageStat Bar$'],text=True).splitlines()[0]
+            subprocess.run(['xdotool','windowactivate','--sync',window,'key','Escape'],check=True)
+            wait_for(lambda: not mapped('UsageStat Bar'))
+            subprocess.run(['xdotool','mousemove','16','110','click','1'],check=True)
+            check('rotated MATE indicator remains clickable beyond its old horizontal height', lambda: wait_for(lambda: mapped('UsageStat Bar')))
         screenshot('10-vertical.png')
         checks.append({'name':'native vertical panel configured; screenshot requires visual review','passed':True})
     if TARGET == 'sway':

@@ -66,6 +66,14 @@ app.connect('activate', () => {
         const behaviour = pages.find(p => p.title === 'Behaviour');
         const tools = pages.find(p => p.title === 'Tools');
         await wait(() => providers._manifests.size === 2);
+        await check('preferences icons resolve in the desktop icon theme or Adwaita fallback', () => {
+            const theme = Gtk.IconTheme.get_for_display(window.get_display());
+            const names = new Set(all(window).filter(widget => widget instanceof Gtk.Image || widget instanceof Adw.PreferencesPage)
+                .map(widget => widget.icon_name).filter(Boolean));
+            assert(names.size > 10, 'Preferences icon inventory was empty');
+            const missing = [...names].filter(name => !theme.has_icon(name));
+            equal(missing, [], `Missing UI icons: ${missing.join(', ')}`);
+        });
         await check('all four preferences pages and provider navigation survive manifest loading', () => {
             equal(pages.map(p => p.title).sort(), ['Appearance', 'Behaviour', 'Providers', 'Tools']);
             assert(window.get_visible_page() === providers);

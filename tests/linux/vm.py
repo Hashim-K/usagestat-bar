@@ -99,12 +99,14 @@ def provision(directory):
         packages = '''sudo apt-get update
 sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
     gjs gir1.2-adw-1 gir1.2-gtk-4.0 python3-gi dbus-x11 dconf-cli xfce4 xfce4-goodies \
-    lightdm xserver-xorg xserver-xorg-video-all xdotool imagemagick xterm librsvg2-common
+    lightdm xserver-xorg xserver-xorg-video-all xdotool imagemagick xterm librsvg2-common \
+    adwaita-icon-theme desktop-file-utils xfonts-base
 '''
     else:
         packages = '''sudo dnf install -y --setopt=install_weak_deps=False \
     gjs libadwaita gtk4 python3-gobject dbus-x11 dconf xfce4-panel xfce4-session xfce4-settings \
-    xfdesktop xfwm4 thunar lightdm lightdm-gtk xorg-x11-server-Xorg xrandr xdotool ImageMagick xterm librsvg2
+    xfdesktop xfwm4 thunar lightdm lightdm-gtk xorg-x11-server-Xorg xrandr xdotool ImageMagick xterm librsvg2 \
+    adwaita-icon-theme desktop-file-utils xorg-x11-fonts-misc
 '''
     script = 'set -eu\nsudo cloud-init status --wait\n' + packages + '''
 sudo mkdir -p /etc/lightdm/lightdm.conf.d

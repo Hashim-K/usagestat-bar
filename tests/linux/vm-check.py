@@ -115,9 +115,12 @@ try:
         setting('panel-bar-count', '2')
         setting('display-mode', 'used')
         # Add the real desktop's tray to the disposable panel when its defaults omit it.
-        run('xfconf-query', '-c', 'xfce4-panel', '-p', '/plugins/plugin-99', '-n', '-t', 'string', '-s', 'systray')
         ids = subprocess.check_output(['xfconf-query', '-c', 'xfce4-panel', '-p', '/panels/panel-1/plugin-ids'], text=True)
-        numbers = [line for line in ids.splitlines() if line.strip().isdigit() and line.strip() != '99'] + ['99']
+        numbers = [line.strip() for line in ids.splitlines() if line.strip().isdigit() and line.strip() != '99']
+        plugins = [subprocess.check_output(['xfconf-query', '-c', 'xfce4-panel', '-p', f'/plugins/plugin-{number}'], text=True).strip() for number in numbers]
+        if 'systray' not in plugins:
+            run('xfconf-query', '-c', 'xfce4-panel', '-p', '/plugins/plugin-99', '-n', '-t', 'string', '-s', 'systray')
+            numbers.append('99')
         arguments = ['xfconf-query', '-c', 'xfce4-panel', '-p', '/panels/panel-1/plugin-ids', '-a']
         for number in numbers: arguments += ['-t', 'int', '-s', number.strip()]
         run(*arguments)
@@ -127,6 +130,10 @@ try:
             assert ready()['mode'] == 'used'
             wait(lambda: len(registered()) >= 2)
         check('real login starts the tray without a CLI activation or duplicate service', autostart)
+        def no_panel_error():
+            assert subprocess.run(['xdotool', 'search', '--onlyvisible', '--name', '^Plugin loading failure$'],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode != 0, 'Desktop panel plugin failed to load'
+        check('desktop panel has no plugin loading failure dialog', no_panel_error)
         screenshot('01-login.png')
         call('Details', '(s)', ('codex',))
         check('installed details window opens', lambda: wait(lambda: subprocess.run(
