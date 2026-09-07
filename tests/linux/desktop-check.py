@@ -91,7 +91,7 @@ try:
         assert len(initial['providers'][0]['cost']['lines']) == 3
     check('fixture accounts, grouping, automatic mean and costs', initial_check)
 
-    if TARGET in ['lxqt', 'xfce', 'budgie', 'cosmic']:
+    if TARGET in ['lxqt', 'budgie', 'cosmic']:
         def tray_check():
             call('EnableTray')
             wait_for(lambda: len(registered()) == 2)
@@ -112,7 +112,7 @@ try:
     else:
         time.sleep(4)
         log = (OUT / 'panel.log').read_text()
-        required = {'plasma':'plasmashell', 'cinnamon':'cinnamon', 'mate':'mate-panel', 'i3':'polybar','bspwm':'polybar','sway':'waybar','hyprland':'waybar'}[TARGET]
+        required = {'xfce':'xfce4-panel', 'plasma':'plasmashell', 'cinnamon':'cinnamon', 'mate':'mate-panel', 'i3':'polybar','bspwm':'polybar','sway':'waybar','hyprland':'waybar'}[TARGET]
         subprocess.run(['pgrep','-x',required], check=True, stdout=subprocess.DEVNULL)
         assert not any(error in log for error in ['GLib-GIO-ERROR', 'JS ERROR', 'Error loading applet', 'TypeError:', 'ReferenceError:']), log[-3000:]
         assert 'io.github.HashimK.usagestat' not in log or 'Error loading' not in log
@@ -123,9 +123,9 @@ try:
         screenshot('07-native-popup.png')
         assert not any(error in (OUT / 'panel.log').read_text() for error in ['TypeError:', 'ReferenceError:'])
         subprocess.run(['xdotool','key','Escape'],check=True)
-    if TARGET in ['lxqt', 'xfce', 'budgie', 'cosmic']:
+    if TARGET in ['lxqt', 'budgie', 'cosmic']:
         item_call(registered()[0], 'org.kde.StatusNotifierItem', 'Activate', '(ii)', (0,0))
-    elif TARGET in ['cinnamon','mate','i3','bspwm']:
+    elif TARGET in ['xfce','cinnamon','mate','i3','bspwm']:
         x, y = (100, 984) if TARGET == 'cinnamon' else (100, 16)
         subprocess.run(['xdotool','mousemove',str(x),str(y),'click','1'],check=True)
     else:
@@ -169,6 +169,60 @@ try:
             assert (OUT / 'notifications.log').read_text().count('AI usage threshold crossed') == before
             setting('usage-thresholds', '[{"id":"warning","label":"Warning","percent":75,"color":"#f6d32d","notify":false}]')
         check('real notification daemon receives upward crossings only', notifications)
+    def supplementary():
+        setting('show-pace', 'true')
+        value = scenario('enriched')['providers'][0]
+        assert value['credits'] == 17 and value['codeReview'] == 63
+        assert value['windows'][-1]['format']['currency'] == 'EUR'
+        assert value['serviceStatus']['description'] == 'Fixture service degradation'
+        assert value['pace']['etaSeconds'] == 7200
+    check('paid quota currency, credits, code review, pace and service status reach the view', supplementary)
+    call('Details', '(s)', ('codex',))
+    screenshot('08-supplementary.png')
+    def appearance():
+        setting('panel-pinned-providers', '["claude","codex"]')
+        setting('panel-components', 'text,logo,bar,percent')
+        setting('panel-usage-bar-count', '3')
+        setting('provider-logo-fill-mode', 'pie')
+        setting('usage-thresholds', '[{"id":"custom","label":"Custom","percent":20,"color":"#b35cff","notify":false}]')
+        wait_for(lambda: state()['panel'] == ['claude', 'codex'] and state()['appearance']['bars'] == 3)
+        assert state()['providers'][0]['color'] == '#b35cff'
+    check('pin order, component order, multiple windows and custom threshold color', appearance)
+    screenshot('09-appearance.png')
+    if TARGET in ['plasma','cinnamon','mate','xfce','sway','hyprland']:
+        if TARGET == 'plasma':
+            subprocess.run(['gdbus','call','--session','--dest','org.kde.plasmashell','--object-path','/PlasmaShell',
+                '--method','org.kde.PlasmaShell.evaluateScript',
+                'var ps = panels(); for (var i=0;i<ps.length;i++) { var ws=ps[i].widgets(); for(var j=0;j<ws.length;j++) { if(ws[j].type === "io.github.HashimK.usagestat") ps[i].location="left"; } }'],check=True,stdout=subprocess.DEVNULL)
+        elif TARGET == 'cinnamon':
+            subprocess.run(['gsettings','set','org.cinnamon','panels-enabled',"['1:0:left']"],check=True)
+        elif TARGET == 'mate':
+            subprocess.run(['gsettings','set','org.mate.panel.toplevel:/org/mate/panel/toplevels/top/','orientation','left'],check=True)
+        elif TARGET == 'xfce':
+            subprocess.run(['xfconf-query','-c','xfce4-panel','-p','/panels/panel-1/mode','-n','-t','uint','-s','1'],check=True)
+        else:
+            config = json.loads(Path('/tmp/waybar.json').read_text())
+            config.pop('height', None)
+            config.update({'position':'left','width':40})
+            config['cffi/usagestat']['vertical'] = True
+            Path('/tmp/waybar.json').write_text(json.dumps(config))
+            subprocess.run(['pkill','-x','waybar'],check=True)
+            time.sleep(.5)
+            with (OUT / 'panel-vertical.log').open('w') as log:
+                subprocess.Popen(['waybar','-c','/tmp/waybar.json','-s','/src/platforms/waybar/style.css'],stdout=log,stderr=log)
+        time.sleep(2)
+        screenshot('10-vertical.png')
+        checks.append({'name':'native vertical panel configured; screenshot requires visual review','passed':True})
+    if TARGET == 'sway':
+        subprocess.run(['swaymsg','create_output'],check=True,stdout=subprocess.DEVNULL)
+        outputs = json.loads(subprocess.check_output(['swaymsg','-t','get_outputs','-r'],text=True))
+        assert len(outputs) == 2
+        second = outputs[-1]['name']
+        subprocess.run(['swaymsg',f'output {second} mode 1920x1080 scale 2'],check=True,stdout=subprocess.DEVNULL)
+        subprocess.run(['swaymsg',f'[app_id="io.github.HashimK.UsageStatBar"] move container to output {second}'],check=True,stdout=subprocess.DEVNULL)
+        (OUT / 'scaled-outputs.json').write_text(subprocess.check_output(['swaymsg','-t','get_outputs','-r'],text=True))
+        screenshot('11-two-outputs.png')
+        checks.append({'name':'two real compositor outputs with mixed 1x/2x scale and moved details window','passed':True})
     call('Preferences', '(s)', ('',))
     check('mapped existing preferences outside GNOME', lambda: wait_for(lambda: mapped('UsageStat Preferences')))
     screenshot('05-preferences.png')

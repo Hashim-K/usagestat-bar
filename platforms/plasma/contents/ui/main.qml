@@ -10,6 +10,7 @@ PlasmoidItem {
     id: root
     property var snapshot: ({providers: [], panel: [], active: "", loading: true})
     property string failure: "Starting UsageStat…"
+    property string launcher: "usagestat-bar" // Set to the absolute installed launcher by install.py.
     readonly property bool vertical: Plasmoid.formFactor === PlasmaCore.Types.Vertical
     Plasmoid.backgroundHints: PlasmaCore.Types.DefaultBackground
     preferredRepresentation: compactRepresentation
@@ -17,12 +18,12 @@ PlasmoidItem {
     toolTipSubText: snapshot.providers.filter(p => !p.parent).map(p => p.name + ": " + (p.error || p.text)).join("\n") || failure
 
     function quote(value) { return "'" + String(value).replace(/'/g, "'\\''") + "'" }
-    function action(command) { actions.connectSource("usagestat-bar " + command) }
+    function action(command) { actions.connectSource(quote(launcher) + " " + command) }
 
     Plasma5Support.DataSource {
         id: poll
         engine: "executable"
-        connectedSources: ["usagestat-bar snapshot"]
+        connectedSources: [root.quote(root.launcher) + " snapshot"]
         interval: 2000
         onNewData: (source, data) => {
             if (data["exit code"] !== 0) {
@@ -53,7 +54,7 @@ PlasmoidItem {
             else if (mouse.button === Qt.MiddleButton) root.action("refresh")
             else root.expanded = !root.expanded
         }
-        onWheel: wheel => root.action(wheel.angleDelta.y > 0 ? "previous" : "next")
+        onWheel: wheel => root.action(wheel.angleDelta.y > 0 ? "scroll-previous" : "scroll-next")
         Keys.onReturnPressed: root.expanded = !root.expanded
         Keys.onSpacePressed: root.expanded = !root.expanded
         Image {

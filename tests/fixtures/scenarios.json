@@ -7,6 +7,7 @@
   ],
   "scenarios": {
     "normal": {"used": 25, "weeklyUsed": 80},
+    "enriched": {"used": 25, "weeklyUsed": 80, "enriched": true},
     "zero": {"used": 0, "weeklyUsed": 0},
     "warning": {"used": 75, "weeklyUsed": 75},
     "danger": {"used": 90, "weeklyUsed": 90},

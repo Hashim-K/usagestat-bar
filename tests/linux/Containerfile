@@ -7,3 +7,4 @@ RUN dnf install -y --setopt=install_weak_deps=False \
     budgie-desktop cosmic-panel cosmic-comp cosmic-applets sway waybar polybar i3 bspwm \
     labwc grim wlrctl dunst procps-ng which zip unzip rsync findutils diffutils \
     && dnf clean all
+RUN dnf install -y --setopt=install_weak_deps=False gcc pkgconf-pkg-config gtk3-devel json-glib-devel xfce4-panel-devel && dnf clean all

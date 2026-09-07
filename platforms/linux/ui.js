@@ -2,6 +2,7 @@ import Gtk from 'gi://Gtk?version=4.0';
 import Gdk from 'gi://Gdk?version=4.0';
 import Adw from 'gi://Adw?version=1';
 import Gio from 'gi://Gio';
+import GLib from 'gi://GLib';
 import {fillPreferencesWindow} from '../../preferences.js';
 import {safeColor} from './model.js';
 
@@ -26,7 +27,12 @@ export class DetailsWindow {
     constructor(app, model, preferences) {
         this.model = model;
         this.preferences = preferences;
-        this.window = new Adw.ApplicationWindow({application: app, title: 'UsageStat Bar', default_width: 510, default_height: 720});
+        this.window = new Adw.ApplicationWindow({application: app, title: 'UsageStat Bar', default_width: 510, default_height: 720,
+            css_classes: ['usagestat-details']});
+        this.css = new Gtk.CssProvider();
+        const display = this.window.get_display();
+        Gtk.StyleContext.add_provider_for_display(display, this.css, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION);
+        this.window.connect('destroy', () => Gtk.StyleContext.remove_provider_for_display(display, this.css));
         const toolbar = new Adw.ToolbarView();
         const header = new Adw.HeaderBar();
         header.pack_start(button('Previous provider', () => model.cycle(-1, false), 'go-previous-symbolic'));
@@ -37,8 +43,8 @@ export class DetailsWindow {
         toolbar.add_top_bar(header);
         this.content = new Gtk.Box({orientation: Gtk.Orientation.VERTICAL, spacing: 18,
             margin_start: 22, margin_end: 22, margin_top: 14, margin_bottom: 22});
-        const scroll = new Gtk.ScrolledWindow({hscrollbar_policy: Gtk.PolicyType.NEVER, child: this.content});
-        toolbar.set_content(scroll);
+        this.scroll = new Gtk.ScrolledWindow({hscrollbar_policy: Gtk.PolicyType.NEVER, child: this.content});
+        toolbar.set_content(this.scroll);
         this.window.set_content(toolbar);
         this.window.connect('close-request', () => { this.window.hide(); return true; });
         const keys = new Gtk.EventControllerKey();
@@ -54,10 +60,17 @@ export class DetailsWindow {
             model.cycle(dy > 0 ? 1 : -1, false);
             return true;
         });
-        this.content.add_controller(providerScroll);
+        // Long quota/cost views must remain scrollable. The header provides the
+        // popup's provider-switch gesture without consuming body scrolling.
+        header.add_controller(providerScroll);
     }
 
     update(state) {
+        const colors = new Set(state.providers.flatMap(provider => provider.windows.map(window => safeColor(window.color))));
+        this.css.load_from_string([...colors].map(color => `.usagestat-details progressbar.usage-${color.slice(1)} progress {background-color: ${color}; background-image: none; min-height: 7px;}`)
+            .join('\n') + '\n.usagestat-details progressbar trough {min-height: 7px;}');
+        const position = this._active === state.active ? this.scroll.vadjustment.value : 0;
+        this._active = state.active;
         for (let child = this.content.get_first_child(); child; child = this.content.get_first_child()) this.content.remove(child);
         this.refreshButton.sensitive = !state.loading;
         if (this.hostMissing)
@@ -79,6 +92,12 @@ export class DetailsWindow {
             for (const child of state.providers.filter(p => p.parent === provider.key)) this.provider(child);
         }
         this.content.append(label(state.loading ? 'Refreshing…' : state.updatedAt ? `Last refresh: ${new Date(state.updatedAt).toLocaleTimeString()}` : 'Waiting for usage…', 'dim-label'));
+        if (this._scrollRestore) GLib.source_remove(this._scrollRestore);
+        this._scrollRestore = GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+            this._scrollRestore = 0;
+            this.scroll.vadjustment.value = Math.min(position, Math.max(0, this.scroll.vadjustment.upper - this.scroll.vadjustment.page_size));
+            return GLib.SOURCE_REMOVE;
+        });
     }
 
     provider(provider) {
@@ -108,10 +127,7 @@ export class DetailsWindow {
                 const text = new Gtk.Box({spacing: 10});
                 const name = label(window.label); name.hexpand = true;
                 text.append(name); text.append(label(window.text)); row.append(text);
-                const progress = new Gtk.ProgressBar({fraction: window.percent / 100});
-                const css = new Gtk.CssProvider();
-                css.load_from_string(`progressbar progress {background-color: ${safeColor(window.color)}; min-height: 7px;} progressbar trough {min-height: 7px;}`);
-                progress.get_style_context().add_provider(css, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION);
+                const progress = new Gtk.ProgressBar({fraction: window.percent / 100, css_classes: [`usage-${safeColor(window.color).slice(1)}`]});
                 row.append(progress);
                 const number = value => window.format?.kind === 'currency' ? money(value, window.format.currency)
                     : Number(value || 0).toLocaleString();

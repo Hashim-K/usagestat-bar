@@ -6,6 +6,8 @@ case "$target" in
     plasma|cinnamon|mate|xfce|lxqt|budgie|cosmic|sway|hyprland|i3|bspwm) ;;
     *) echo 'Target must be plasma, cinnamon, mate, xfce, lxqt, budgie, cosmic, sway, hyprland, i3 or bspwm.' >&2; exit 2 ;;
 esac
+podman_command=(podman)
+if [[ -n "${USAGESTAT_PODMAN_ROOT:-}" ]]; then podman_command+=(--root "$USAGESTAT_PODMAN_ROOT"); fi
 lab_image=localhost/usagestat-linux-lab:44
 user_options=()
 device_options=()
@@ -23,13 +25,13 @@ mkdir -p "$source_dir/artifacts"
 out="$(mktemp -d "$source_dir/artifacts/linux-${target}.XXXXXX")"
 echo "Linux $target check artifacts: $out"
 python3 - "$source_dir" "$out" "$target" "$lab_image" <<'PY'
-import json, platform, subprocess, sys
+import json, os, platform, subprocess, sys
 from pathlib import Path
 root, output, target, image = sys.argv[1:]
 run=lambda *args:subprocess.check_output(args,cwd=root,text=True).strip()
-Path(output,'environment.json').write_text(json.dumps({'target':target,'commit':run('git','rev-parse','HEAD'),'dirty':bool(run('git','status','--porcelain','--untracked-files=no')),'hostKernel':platform.release(),'architecture':platform.machine(),'image':run('podman','image','inspect',image,'--format','{{.Id}}')},indent=2))
+Path(output,'environment.json').write_text(json.dumps({'target':target,'commit':run('git','rev-parse','HEAD'),'dirty':bool(run('git','status','--porcelain','--untracked-files=no')),'hostKernel':platform.release(),'architecture':platform.machine(),'image':run('podman',*(['--root',os.environ['USAGESTAT_PODMAN_ROOT']] if os.environ.get('USAGESTAT_PODMAN_ROOT') else []),'image','inspect',image,'--format','{{.Id}}')},indent=2))
 PY
-timeout --kill-after=10s 180s podman run --rm --name "$(basename "$out")" --network none --security-opt label=disable \
+timeout --kill-after=10s 180s "${podman_command[@]}" run --rm --name "$(basename "$out")" --network none --security-opt label=disable \
     "${user_options[@]}" \
     "${device_options[@]}" \
     -e USAGESTAT_LAB_HOLD="${USAGESTAT_LAB_HOLD:-0}" \

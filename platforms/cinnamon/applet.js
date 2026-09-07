@@ -28,22 +28,17 @@ class UsageStatApplet extends Applet.Applet {
         this.actor.connect('scroll-event', (_actor, event) => {
             const direction = event.get_scroll_direction();
             if ([Clutter.ScrollDirection.UP, Clutter.ScrollDirection.DOWN].includes(direction)) {
-                this._call('Cycle', '(i)', direction === Clutter.ScrollDirection.UP ? -1 : 1);
+                this._call('Scroll', '(i)', direction === Clutter.ScrollDirection.UP ? -1 : 1);
                 return Clutter.EVENT_STOP;
             }
             return Clutter.EVENT_PROPAGATE;
         });
         this._subscription = Gio.DBus.session.signal_subscribe(BUS, IFACE, 'Changed', PATH, null, Gio.DBusSignalFlags.NONE,
             (_bus, _sender, _path, _iface, _signal, params) => this._render(JSON.parse(params.deep_unpack()[0])));
-        this._watch = Gio.bus_watch_name(Gio.BusType.SESSION, BUS, Gio.BusNameWatcherFlags.NONE,
+        this.actor.connect('style-changed', () => { if (this._state) this._render(this._state); });
+        this._watch = Gio.bus_watch_name(Gio.BusType.SESSION, BUS, Gio.BusNameWatcherFlags.AUTO_START,
             () => this._call('GetSnapshot', null, null, value => this._render(JSON.parse(value[0]))),
             () => { if (!this._closed) this.set_applet_tooltip('UsageStat is stopped. Click to start it.'); });
-        this._start();
-    }
-
-    _start() {
-        try { Gio.Subprocess.new(['usagestat-bar', 'service'], Gio.SubprocessFlags.NONE); }
-        catch (error) { this.set_applet_tooltip('Install UsageStat Bar and add usagestat-bar to PATH. ' + error.message); }
     }
     _call(method, signature = null, value = null, done = null) {
         Gio.DBus.session.call(BUS, PATH, IFACE, method, signature ? new GLib.Variant(signature, [value]) : null,
@@ -59,18 +54,18 @@ class UsageStatApplet extends Applet.Applet {
         try {
             const foreground = this.actor.get_theme_node().get_foreground_color();
             const path = foreground.red + foreground.green + foreground.blue < 382 ? state.panelImageLight : state.panelImage;
-            let pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale(path, state.panelWidth, 28, true);
+            const scale = St.ThemeContext.get_for_stage(global.stage).scale_factor;
+            let pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale(path, state.panelWidth * scale, 28 * scale, true);
             if ([St.Side.LEFT, St.Side.RIGHT].includes(this._orientation))
                 pixbuf = pixbuf.rotate_simple(GdkPixbuf.PixbufRotation.CLOCKWISE);
             const content = new Clutter.Image();
             content.set_data(pixbuf.get_pixels(), pixbuf.get_has_alpha() ? Cogl.PixelFormat.RGBA_8888 : Cogl.PixelFormat.RGB_888,
                 pixbuf.width, pixbuf.height, pixbuf.rowstride);
             this._image.set_content(content);
-            this._image.set_size(pixbuf.width, pixbuf.height);
+            this._image.set_size(pixbuf.width / scale, pixbuf.height / scale);
         } catch (error) { this.set_applet_tooltip('UsageStat: ' + error.message); }
     }
     on_applet_clicked() {
-        this._start();
         this._call('Details', '(s)', '');
     }
     on_orientation_changed(orientation) {

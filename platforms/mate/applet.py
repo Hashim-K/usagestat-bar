@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Native MATE panel host for the UsageStat service (GTK 3, out of process)."""
 import json
-import subprocess
 import gi
 gi.require_version('Gtk', '3.0')
 gi.require_version('MatePanelApplet', '4.0')
@@ -30,9 +29,8 @@ class Indicator:
         applet.connect('change-size', lambda *_: self.request())
         self.signal = self.bus.signal_subscribe(BUS, IFACE, 'Changed', PATH, None, Gio.DBusSignalFlags.NONE,
             lambda _bus, _sender, _path, _iface, _signal, args: self.render(json.loads(args.unpack()[0])))
-        self.watch = Gio.bus_watch_name(Gio.BusType.SESSION, BUS, Gio.BusNameWatcherFlags.NONE,
+        self.watch = Gio.bus_watch_name(Gio.BusType.SESSION, BUS, Gio.BusNameWatcherFlags.AUTO_START,
             lambda *_: self.request(), lambda *_: self.button.set_tooltip_text('UsageStat is stopped'))
-        subprocess.Popen(['usagestat-bar', 'service'])
         applet.show_all()
 
     def call(self, method, signature=None, args=None, done=None):
@@ -60,7 +58,7 @@ class Indicator:
 
     def scroll(self, _button, event):
         if event.direction in [Gdk.ScrollDirection.UP, Gdk.ScrollDirection.DOWN]:
-            self.call('Cycle', '(i)', (-1 if event.direction == Gdk.ScrollDirection.UP else 1,))
+            self.call('Scroll', '(i)', (-1 if event.direction == Gdk.ScrollDirection.UP else 1,))
             return True
         return False
 

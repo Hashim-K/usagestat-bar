@@ -7,8 +7,8 @@
     "on-click": "usagestat-bar details",
     "on-click-right": "usagestat-bar preferences",
     "on-click-middle": "usagestat-bar refresh",
-    "on-scroll-up": "usagestat-bar previous",
-    "on-scroll-down": "usagestat-bar next",
+    "on-scroll-up": "usagestat-bar scroll-previous",
+    "on-scroll-down": "usagestat-bar scroll-next",
     "escape": false
   }
 }

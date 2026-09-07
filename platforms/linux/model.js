@@ -221,6 +221,7 @@ export class Model {
             const manifest = this.manifests.get(config.id) || {};
             const view = {key, id: config.id, name: providerDisplayName(config), parent: config.tabParent || '',
                 used, percent: used === null ? null : shown(used, mode), text: error ? 'Error' : used === null ? '—' : percentText(used, mode),
+                threshold: used === null ? null : thresholdAt(used, list),
                 color: safeColor(thresholdAt(used, list)?.color || settings.get_string('accent-color')),
                 error, loading: this.loading && !snapshot && !error, source: snapshot?.source || config.source || 'auto',
                 plan: usage.plan || snapshot?.plan || '', updatedAt: usage.updatedAt || '', serviceStatus: snapshot?.status || null,

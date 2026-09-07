@@ -1,10 +1,12 @@
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import System from 'system';
+import GdkPixbuf from 'gi://GdkPixbuf';
+import {normalizeBackendSnapshot} from '../../cli.js';
 import {assert, equal} from '../assert.js';
 import {settings, ROOT} from '../../platforms/linux/settings.js';
 import {Model, selectedUsage, panelProviders, thresholds, thresholdAt, windows, resetText, safeUrl} from '../../platforms/linux/model.js';
-import {escapeXml, escapePolybar, panelSvg, waybarOutput, logoSvg} from '../../platforms/linux/render.js';
+import {escapeXml, escapePolybar, panelSvg, panelText, waybarOutput, logoSvg, traySvg} from '../../platforms/linux/render.js';
 
 const tests = [];
 const test = (name, fn) => tests.push([name, fn]);
@@ -47,13 +49,54 @@ test('SVG provider labels and color settings cannot introduce markup', () => {
     const svg=panelSvg(state); assert(svg.includes('&lt;script&gt;&amp;')); assert(!svg.includes('<script>'));
 });
 test('Waybar emits JSON with escaped text and used-quota threshold classes', () => {
-    const p={key:'a',name:'A & B',percent:5,used:95,text:'5% left',parent:'',error:''};
+    const p={key:'a',name:'A & B',percent:5,used:95,text:'5% left',parent:'',error:'',threshold:{id:'danger'}};
     const result=waybarOutput({providers:[p],panel:['a'],active:'a',appearance:{components:['text','percent']}});
-    equal(result.class,'danger'); assert(result.text.includes('A &amp; B'));
+    equal(result.class,['threshold','danger']); assert(result.text.includes('A &amp; B'));
 });
 test('logo SVG preserves root fill and has intrinsic pixel dimensions', () => {
     const svg=logoSvg({iconId:'codex',percent:25},{neutral:'#23262e',fill:'vertical'});
     assert(svg.includes('fill="#23262e"')); assert(svg.includes('quotaClip')); assert(svg.includes('<path'));
+});
+test('metric normalization preserves paid usage, credits, code review and service status', () => {
+    const raw = {metrics:[{type:'progress',used:50,limit:100}],providerCost:{used:10,limit:40,currencyCode:'EUR'},
+        credits:{remaining:17},openaiDashboard:{codeReviewRemainingPercent:63},status:{indicator:'minor'}};
+    const result = normalizeBackendSnapshot(raw,'codex');
+    equal(result.usage.providerCost,raw.providerCost); equal(result.credits,raw.credits);
+    equal(result.openaiDashboard,raw.openaiDashboard); equal(result.status,raw.status);
+});
+test('custom raster icons load and every fill mode rasterizes in the combined SVG', () => {
+    const path = `${GLib.get_tmp_dir()}/usagestat-icon-${GLib.uuid_string_random()}.png`;
+    const pixels = GdkPixbuf.Pixbuf.new(GdkPixbuf.Colorspace.RGB,true,8,20,10);
+    pixels.fill(0xff6600ff); pixels.savev(path,'png',[],[]);
+    try {
+        for (const fill of ['full','horizontal','vertical','pie']) {
+            const provider = {key:'a',iconPath:path,iconId:'codex',percent:25};
+            const appearance = {components:['logo'],neutral:'#23262e',fill,spacing:4};
+            assert(logoSvg(provider,appearance).includes('data:image/png;base64,'));
+            const loader = GdkPixbuf.PixbufLoader.new_with_type('svg');
+            loader.write(new TextEncoder().encode(panelSvg({providers:[provider],panel:['a'],appearance}))); loader.close();
+            const rendered = loader.get_pixbuf();
+            assert(rendered.get_width() > 20 && rendered.get_pixels().some(value => value > 0));
+        }
+    } finally { Gio.File.new_for_path(path).delete(null); }
+});
+test('text bars retain multiple windows and custom threshold colors without action injection', () => {
+    const p = {key:'a',name:'A %{A:bad:}',percent:95,used:5,text:'95% left',color:'#123456',threshold:{id:'custom',percent:4},
+        windows:[{percent:95,color:'#123456'},{percent:20,color:'#abcdef'}]};
+    const state = {providers:[p],panel:['a'],active:'a',appearance:{components:['bar','logo','text'],bars:2}};
+    const result = waybarOutput(state);
+    equal(result.class,['threshold','custom']); assert(result.text.includes('#abcdef'));
+    const polybar = panelText(state,true);
+    assert(polybar.includes('%{F#123456}') && polybar.includes('%{F#abcdef}'));
+    assert(!polybar.includes('%{A:bad:}'));
+    assert((polybar.match(/\[/g) || []).length >= 3);
+});
+test('tray appearance selects logos and multiple quota rings', () => {
+    const provider={name:'Codex',iconId:'codex',percent:30,color:'#123456',windows:[{percent:20,color:'#123456'},{percent:80,color:'#abcdef'}]};
+    const logo=traySvg(provider,{components:['logo'],neutral:'#ffffff',fill:'pie',bars:2});
+    assert(logo.includes('quotaClip') && !logo.includes('stroke-dasharray'));
+    const rings=traySvg(provider,{components:['bar','percent'],neutral:'#ffffff',fill:'full',bars:2});
+    assert(rings.includes('#abcdef') && (rings.match(/stroke-dasharray/g) || []).length===2);
 });
 
 const loop=new GLib.MainLoop(null,false);

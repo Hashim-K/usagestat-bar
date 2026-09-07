@@ -105,6 +105,11 @@ def main():
         for index in range(scenario.get("extraWindows", 0)):
             result["metrics"].append({"type": "progress", "label": f"Extra {index + 1}",
                                       "used": 10 * (index + 1), "limit": 100})
+    if command == "usage" and scenario.get("enriched"):
+        result.update(providerCost={"used": 12.5, "limit": 50, "currencyCode": "EUR", "period": "Monthly"},
+                      credits={"remaining": 17}, openaiDashboard={"codeReviewRemainingPercent": 63},
+                      status={"indicator": "minor", "description": "Fixture service degradation"},
+                      pace={"stage": "ahead", "deltaPercent": 8, "etaSeconds": 7200, "willLastToReset": False})
     if command == "usage" and scenario.get("array"):
         result = [result]
     print(json.dumps(result))

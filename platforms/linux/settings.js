@@ -12,7 +12,11 @@ export function settings() {
 }
 
 export function jsonSetting(settings, key, fallback = {}) {
-    try { return JSON.parse(settings.get_string(key)) ?? fallback; } catch { return fallback; }
+    try {
+        const value = JSON.parse(settings.get_string(key));
+        return Array.isArray(fallback) ? Array.isArray(value) ? value : fallback
+            : value && typeof value === 'object' && !Array.isArray(value) ? value : fallback;
+    } catch { return fallback; }
 }
 
 export function writePrivate(path, value) {

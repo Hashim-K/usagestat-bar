@@ -101,7 +101,7 @@ class Item {
     get ToolTip() { return ['', [], this.Title, this.provider?.error || this.provider?.text || 'Set up providers']; }
     update(provider) {
         this.provider = provider;
-        const svg = traySvg(provider);
+        const svg = traySvg(provider, this.tray.state.appearance);
         if (svg !== this.svg) {
             this.svg = svg;
             this.IconPixmap = [32, 64].map(size => pixmap(svg, size));

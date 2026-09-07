@@ -17,7 +17,10 @@ export USAGESTAT_CLI=/src/tests/fixtures/usagestat USAGESTAT_FIXTURE_STATE=/out/
 export USAGESTAT_FIXTURE_LOG=/out/backend-commands.jsonl
 printf '%s\n' '{"scenario":"normal"}' > "$USAGESTAT_FIXTURE_STATE"
 python3 /src/platforms/linux/package.py stage /tmp/usagestat-package
-python3 /tmp/usagestat-package/platforms/linux/install.py --prefix /tmp/usagestat-prefix > /out/install.log
+native_options=()
+if [[ "$target" == xfce ]]; then native_options=(--native xfce); fi
+if [[ "$target" == sway || "$target" == hyprland ]]; then native_options=(--native waybar); fi
+python3 /tmp/usagestat-package/platforms/linux/install.py --prefix /tmp/usagestat-prefix "${native_options[@]}" > /out/install.log
 export PATH="/tmp/usagestat-prefix/bin:$PATH"
 export GSETTINGS_SCHEMA_DIR=/tmp/usagestat-prefix/share/usagestat-bar/platforms/linux/schemas
 if command -v rpm >/dev/null; then

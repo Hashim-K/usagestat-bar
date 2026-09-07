@@ -21,7 +21,7 @@ def stage(target):
     for name in RUNTIME:
         shutil.copy2(ROOT / 'platforms/linux' / name, runtime / name)
     (runtime / 'usagestat-bar').chmod(0o755)
-    for desktop in ['plasma', 'cinnamon', 'mate', 'waybar', 'polybar']:
+    for desktop in ['plasma', 'cinnamon', 'mate', 'waybar', 'polybar', 'gtk-panel', 'xfce']:
         shutil.copytree(ROOT / 'platforms' / desktop, target / 'platforms' / desktop)
     schemas = runtime / 'schemas'
     schemas.mkdir()

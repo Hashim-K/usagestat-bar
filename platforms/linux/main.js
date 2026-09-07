@@ -33,13 +33,13 @@ function enableTray() {
         if (missing) showDetails();
         if (details) { details.hostMissing = missing; details.update(state); }
     });
-    tray.update(state);
+    model.emit();
 }
 
 app.connect('startup', () => {
     app.hold();
     model = new Model(settings(), next => {
-        state = renderFiles(next);
+        state = renderFiles({...next, trayEnabled: Boolean(tray)});
         exported?.emit_signal('Changed', new GLib.Variant('(s)', [JSON.stringify(state)]));
         tray?.update(state);
         if (details?.window.visible) details.update(state);
@@ -49,8 +49,8 @@ app.connect('startup', () => {
         app.send_notification(null, notification);
     });
     exported = Gio.DBusExportedObject.wrapJSObject(XML, {
-        GetSnapshot: () => JSON.stringify(state), Refresh: () => { model.refresh(); },
-        Select: key => model.select(key), Cycle: direction => model.cycle(direction),
+        GetSnapshot: () => JSON.stringify(state), RequestSnapshot: () => model.emit(), Refresh: () => { model.refresh(); },
+        Select: key => model.select(key), Cycle: direction => model.cycle(direction, false), Scroll: direction => model.cycle(direction),
         Details: showDetails, Preferences: showPreferences, EnableTray: enableTray, Quit: () => app.quit(),
     });
     exported.export(app.get_dbus_connection(), OBJECT);
@@ -61,6 +61,7 @@ app.connect('startup', () => {
 app.connect('activate', () => {});
 app.connect('shutdown', () => {
     if (quitSignal) GLib.source_remove(quitSignal);
+    prefs?.close();
     model?.close(); tray?.close(); exported?.unexport();
     Gio.Settings.sync();
 });

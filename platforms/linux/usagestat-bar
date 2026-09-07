@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# Small status windows also work in VMs and minimal sessions without a 3D stack.
+export GSK_RENDERER="${GSK_RENDERER:-cairo}"
 app_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 case "${1:-tray}" in
     service) exec gjs -m "$app_dir/main.js" ;;
     --help|-h)
-        printf '%s\n' 'Usage: usagestat-bar [tray|details|preferences|refresh|next|previous|select ID|snapshot|waybar|polybar|image|quit]' ;;
+        printf '%s\n' 'Usage: usagestat-bar [tray|details|preferences|refresh|next|previous|scroll-next|scroll-previous|select ID|snapshot|waybar|polybar|image|quit]' ;;
     *) exec gjs -m "$app_dir/client.js" "$@" ;;
 esac

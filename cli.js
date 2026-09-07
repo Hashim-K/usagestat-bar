@@ -245,11 +245,13 @@ export function normalizeBackendSnapshot(snapshot, fallbackProviderId) {
     }
 
     const usage = {
+        ...snapshot.usage,
         updatedAt: snapshot.fetchedAt || new Date().toISOString(),
         plan: snapshot.plan || null,
         extraTextLines,
         badges,
         extraRateWindows: [],
+        providerCost: snapshot.providerCost || snapshot.usage?.providerCost || null,
     };
 
     for (const [index, tier] of ['primary', 'secondary', 'tertiary', 'quaternary'].entries()) {
@@ -260,6 +262,7 @@ export function normalizeBackendSnapshot(snapshot, fallbackProviderId) {
         usage.extraRateWindows.push(item);
 
     return {
+        ...snapshot,
         provider: snapshot.providerId || fallbackProviderId,
         displayName: snapshot.displayName || null,
         source: snapshot.source || null,

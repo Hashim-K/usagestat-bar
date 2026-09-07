@@ -10,6 +10,30 @@ let _ = text => text;
 import {findAiUsage} from './cli.js';
 import {configPath, DEFAULT_HIDDEN_IDS, loadConfig, makeProviderInstanceId, providerBaseId, providerDisplayName, providerKey, PROVIDERS, saveConfig} from './config.js';
 
+// Settings and theme objects outlive a preferences window in the Linux service.
+function listen(owner, object, signal, callback) {
+    const id = object.connect(signal, callback);
+    (owner._externalSignals ||= []).push([object, id]);
+    return id;
+}
+
+function pageProcess(owner, argv, flags) {
+    if (owner._closed) throw new Error('Preferences are closed');
+    const process = Gio.Subprocess.new(argv, flags);
+    (owner._processes ||= new Set()).add(process);
+    return process;
+}
+
+function closePage(page) {
+    page._closed = true;
+    for (const [object, id] of page._externalSignals || []) object.disconnect(id);
+    page._externalSignals = [];
+    for (const id of page._validationDebounceIds?.values() || []) GLib.source_remove(id);
+    page._validationDebounceIds?.clear();
+    for (const process of page._processes || []) process.force_exit();
+    page._processes?.clear();
+}
+
 const SOURCE_OPTIONS = ['auto', 'web', 'cli', 'oauth', 'api', 'local'];
 const BUILTIN_PROVIDER_IDS = new Set(PROVIDERS.map(([id]) => id));
 const CUSTOM_PROVIDER_VALUE = '__custom_provider__';
@@ -302,8 +326,10 @@ class BehaviourPage extends Adw.PreferencesPage {
             statusIcon.set_visible(false); statusLabel.set_label('');
             spinner.set_visible(true); spinner.start();
             try {
-                const proc = Gio.Subprocess.new([_resolvedBinary, '--version'], Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE);
+                const proc = pageProcess(this, [_resolvedBinary, '--version'], Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE);
                 proc.communicate_utf8_async(null, null, (_p, res) => {
+                    this._processes.delete(_p);
+                    if (this._closed) return;
                     spinner.stop(); spinner.set_visible(false); statusIcon.set_visible(true);
                     try {
                         const [, stdout] = _p.communicate_utf8_finish(res);
@@ -322,7 +348,7 @@ class BehaviourPage extends Adw.PreferencesPage {
                 statusLabel.set_label(_('Failed to launch')); statusLabel.set_css_classes(['error']);
             }
         };
-        this._settings.connect('changed::usagestat-cli-path', check);
+        listen(this, this._settings, 'changed::usagestat-cli-path', check);
         check();
         return expander;
     }
@@ -418,8 +444,10 @@ class BehaviourPage extends Adw.PreferencesPage {
             if (pluginDir) argv.push('--plugin-dir', pluginDir);
             argv.push('list');
             try {
-                const proc = Gio.Subprocess.new(argv, Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE);
+                const proc = pageProcess(this, argv, Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE);
                 proc.communicate_utf8_async(null, null, (_p, res) => {
+                    this._processes.delete(_p);
+                    if (this._closed) return;
                     spinner.stop(); spinner.set_visible(false); statusIcon.set_visible(true);
                     refreshBtn.set_sensitive(true);
                     try {
@@ -457,8 +485,8 @@ class BehaviourPage extends Adw.PreferencesPage {
             }
         };
         refreshBtn.connect('clicked', () => check(true));
-        this._settings.connect('changed::usagestat-cli-path', check);
-        this._settings.connect('changed::usagestat-plugin-dir', check);
+        listen(this, this._settings, 'changed::usagestat-cli-path', check);
+        listen(this, this._settings, 'changed::usagestat-plugin-dir', check);
         check();
         return expander;
     }
@@ -573,7 +601,7 @@ class AppearancePage extends Adw.PreferencesPage {
         this._settings = settings;
         this._desktopPlacement = desktopPlacement;
         this._config = loadConfig(settingsBinary(this._settings));
-        this._settings.connect('changed::panel-bar-count', () => this._renderPinnedProviders());
+        listen(this, this._settings, 'changed::panel-bar-count', () => this._renderPinnedProviders());
         this.connect('map', () => this._renderPinnedProviders());
         this.add(this._buildPanelGroup());
         this.add(this._buildIconGroup());
@@ -619,7 +647,7 @@ class AppearancePage extends Adw.PreferencesPage {
             group.add(indexRow);
         if (this._desktopPlacement) {
             group.add(new Adw.ActionRow({title: _('Panel placement'), subtitle: _('Move and resize UsageStat using your desktop or bar settings.')}));
-            group.add(new Adw.ActionRow({title: _('Desktop appearance'), subtitle: _('Native widgets support bars, logos and names. Tray hosts use compact percentage icons; Waybar and Polybar use text meters.')}));
+            group.add(new Adw.ActionRow({title: _('Desktop appearance'), subtitle: _('Native widgets show all components. Tray icons use quota rings and abbreviated names; text modules use meters and initials.')}));
         }
 
         const barCountRow = new Adw.SpinRow({
@@ -1231,11 +1259,11 @@ class ProvidersPage extends Adw.PreferencesPage {
         this._validationDebounceIds = new Map();
         this._curlHelpPrompts = new Set();
         this._manifests = new Map();
-        this._settings.connect('changed::provider-icon-style', () => this._refreshProviderIcons());
-        this._settings.connect('changed::usagestat-cli-path', () => this._loadProviderManifests());
-        this._settings.connect('changed::usagestat-plugin-dir', () => this._loadProviderManifests());
+        listen(this, this._settings, 'changed::provider-icon-style', () => this._refreshProviderIcons());
+        listen(this, this._settings, 'changed::usagestat-cli-path', () => this._loadProviderManifests());
+        listen(this, this._settings, 'changed::usagestat-plugin-dir', () => this._loadProviderManifests());
         this._styleManager = Adw.StyleManager.get_default();
-        this._styleManager.connect('notify::dark', () => this._refreshProviderIcons());
+        listen(this, this._styleManager, 'notify::dark', () => this._refreshProviderIcons());
         this._save();
         this._loadProviderManifests();
 
@@ -1319,6 +1347,7 @@ class ProvidersPage extends Adw.PreferencesPage {
                 argv.push('--plugin-dir', pluginDir);
             argv.push('list');
             const result = await this._runValidationCommand(argv);
+            if (this._closed) return;
             const providers = JSON.parse(result.stdout.trim());
             if (!Array.isArray(providers))
                 return;
@@ -1339,7 +1368,7 @@ class ProvidersPage extends Adw.PreferencesPage {
             if (added)
                 this._save();
 
-            this._renderProviders(null);
+            this._renderProviders(this._expandedProviderId());
         } catch {
             // Non-critical; fall back to showing all source options.
         }
@@ -2226,7 +2255,7 @@ class ProvidersPage extends Adw.PreferencesPage {
     }
 
     _setStatusDot(label, state, tooltip) {
-        if (!label)
+        if (this._closed || !label)
             return;
         const color = {
             green: '#33d17a',
@@ -2352,7 +2381,7 @@ class ProvidersPage extends Adw.PreferencesPage {
                 return;
             }
 
-            const proc = Gio.Subprocess.new(
+            const proc = pageProcess(this,
                 argv,
                 Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE,
             );
@@ -2368,11 +2397,12 @@ class ProvidersPage extends Adw.PreferencesPage {
             });
 
             proc.communicate_utf8_async(null, null, (process, result) => {
+                this._processes.delete(process);
                 if (timeoutId)
                     GLib.source_remove(timeoutId);
                 try {
                     const [, stdout, stderr] = process.communicate_utf8_finish(result);
-                    const status = process.get_exit_status();
+                    const status = process.get_if_exited() ? process.get_exit_status() : 128 + process.get_term_sig();
                     if (status !== 0)
                         reject(new Error((stderr || stdout || `Exited with status ${status}`).trim().split('\n')[0]));
                     else
@@ -2778,6 +2808,7 @@ class ProvidersPage extends Adw.PreferencesPage {
     }
 
     _showCookieLoginDialog(message, provider, entry, validationLabel = null) {
+        if (this._closed) return;
         const loginUrl = this._providerLoginUrl(provider);
         const dialog = new Adw.MessageDialog({
             transient_for: this.get_root(),
@@ -2882,7 +2913,7 @@ class ProvidersPage extends Adw.PreferencesPage {
 
     _runCookieImportCommand(argv) {
         return new Promise((resolve, reject) => {
-            const proc = Gio.Subprocess.new(
+            const proc = pageProcess(this,
                 argv,
                 Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE,
             );
@@ -2898,6 +2929,7 @@ class ProvidersPage extends Adw.PreferencesPage {
             });
 
             proc.communicate_utf8_async(null, null, (process, result) => {
+                this._processes.delete(process);
                 if (timeoutId)
                     GLib.source_remove(timeoutId);
                 try {
@@ -2905,7 +2937,7 @@ class ProvidersPage extends Adw.PreferencesPage {
                     resolve({
                         stdout: stdout || '',
                         stderr: stderr || '',
-                        status: process.get_exit_status(),
+                        status: process.get_if_exited() ? process.get_exit_status() : 128 + process.get_term_sig(),
                     });
                 } catch (error) {
                     reject(error);
@@ -3014,6 +3046,7 @@ class ProvidersPage extends Adw.PreferencesPage {
     }
 
     _showError(heading, body) {
+        if (this._closed) return;
         const dialog = new Adw.MessageDialog({
             transient_for: this.get_root(),
             modal: true,
@@ -3237,6 +3270,7 @@ class MaintenancePage extends Adw.PreferencesPage {
     }
 
     _showError(heading, body) {
+        if (this._closed) return;
         const dialog = new Adw.MessageDialog({
             transient_for: this.get_root(),
             modal: true,
@@ -3253,10 +3287,13 @@ export function fillPreferencesWindow(window, settings, {gettext = text => text,
     const targetProviderId = settings.get_string('preferences-provider');
     const providersPage = new ProvidersPage(settings);
     window.set_default_size(760, 760);
-    window.add(new BehaviourPage(settings, () => providersPage.refreshPluginManifests()));
-    window.add(new AppearancePage(settings, desktopPlacement));
-    window.add(providersPage);
-    window.add(new MaintenancePage(settings));
+    const pages = [new BehaviourPage(settings, () => providersPage.refreshPluginManifests()),
+        new AppearancePage(settings, desktopPlacement), providersPage, new MaintenancePage(settings)];
+    for (const page of pages) window.add(page);
+    window.connect('close-request', () => {
+        for (const page of pages) closePage(page);
+        return false;
+    });
     if (targetProviderId)
         window.set_visible_page(providersPage);
 }

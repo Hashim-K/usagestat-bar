@@ -8,6 +8,7 @@ import {panelText, waybarOutput, escapeXml} from './render.js';
 const [command = 'tray', value = ''] = ARGV;
 const commands = {snapshot: ['GetSnapshot'], waybar: ['GetSnapshot'], polybar: ['GetSnapshot'], image: ['GetSnapshot'],
     refresh: ['Refresh'], select: ['Select', '(s)', value], next: ['Cycle', '(i)', 1], previous: ['Cycle', '(i)', -1],
+    'scroll-next': ['Scroll', '(i)', 1], 'scroll-previous': ['Scroll', '(i)', -1],
     details: ['Details', '(s)', value], preferences: ['Preferences', '(s)', value], tray: ['EnableTray'], quit: ['Quit']};
 if (!commands[command]) { printerr(`Unknown command: ${command}`); System.exit(2); }
 const loop = new GLib.MainLoop(null, false);

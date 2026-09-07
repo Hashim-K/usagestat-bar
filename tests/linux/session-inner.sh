@@ -100,6 +100,9 @@ CONFIG
             socket=("$XDG_RUNTIME_DIR"/wayland-*); if [[ -S "${socket[0]}" ]]; then export WAYLAND_DISPLAY="${socket[0]}"; break; fi
             sleep 0.2
         done
+        if [[ "$target" == sway ]]; then
+            export SWAYSOCK="$(find "$XDG_RUNTIME_DIR" -maxdepth 1 -name 'sway-ipc.*.sock' -print -quit)"
+        fi
         if [[ "$target" == cosmic ]]; then
             parent_display="$WAYLAND_DISPLAY"
             export XDG_CURRENT_DESKTOP=COSMIC
@@ -148,8 +151,8 @@ CONFIG
         python3 - <<'PY'
 import json
 from pathlib import Path
-p=json.loads(Path('/src/platforms/waybar/config.jsonc').read_text())
-p.update({'layer':'top', 'height':36, 'modules-left':['custom/usagestat']})
+p=json.loads(Path('/tmp/usagestat-prefix/share/usagestat-bar/platforms/waybar/native.jsonc').read_text())
+p.update({'layer':'top', 'height':36, 'modules-left':['cffi/usagestat']})
 Path('/tmp/waybar.json').write_text(json.dumps(p))
 PY
         waybar -c /tmp/waybar.json -s /src/platforms/waybar/style.css > /out/panel.log 2>&1 &
