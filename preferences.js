@@ -356,7 +356,7 @@ class BehaviourPage extends Adw.PreferencesPage {
                     try {
                         const [, stdout] = _p.communicate_utf8_finish(res);
                         const version = (stdout || '').trim().split('\n')[0] || _resolvedBinary;
-                        statusIcon.set_from_icon_name('emblem-ok-symbolic'); statusIcon.set_css_classes(['success']);
+                        statusIcon.set_from_icon_name('object-select-symbolic'); statusIcon.set_css_classes(['success']);
                         statusLabel.set_label(version); statusLabel.set_css_classes(['success']);
                         expander.set_subtitle(`${version} · ${_resolvedBinary}`);
                     } catch {
@@ -487,7 +487,7 @@ class BehaviourPage extends Adw.PreferencesPage {
                             statusLabel.set_label(_('No providers found')); statusLabel.set_css_classes(['dim-label']);
                             expander.set_subtitle(_('No providers found'));
                         } else {
-                            statusIcon.set_from_icon_name('emblem-ok-symbolic'); statusIcon.set_css_classes(['success']);
+                            statusIcon.set_from_icon_name('object-select-symbolic'); statusIcon.set_css_classes(['success']);
                             const summary = `${count} ${count === 1 ? _('provider') : _('providers')}`;
                             statusLabel.set_label(summary); statusLabel.set_css_classes(['success']);
                             expander.set_subtitle(`${summary} · ${resolved.path}${resolved.explicit ? ` ${_('(override)')}` : ''}`);

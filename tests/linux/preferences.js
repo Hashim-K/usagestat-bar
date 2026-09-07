@@ -70,6 +70,8 @@ app.connect('activate', () => {
             const theme = Gtk.IconTheme.get_for_display(window.get_display());
             const names = new Set(all(window).filter(widget => widget instanceof Gtk.Image || widget instanceof Adw.PreferencesPage)
                 .map(widget => widget.icon_name).filter(Boolean));
+            // Include asynchronous success/error states that may not be visible yet.
+            for (const match of read(`${ROOT}/preferences.js`).matchAll(/['"]([a-z0-9-]+-symbolic)['"]/g)) names.add(match[1]);
             assert(names.size > 10, 'Preferences icon inventory was empty');
             const missing = [...names].filter(name => !theme.has_icon(name));
             equal(missing, [], `Missing UI icons: ${missing.join(', ')}`);

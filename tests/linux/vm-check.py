@@ -117,8 +117,8 @@ try:
         # Add the real desktop's tray to the disposable panel when its defaults omit it.
         ids = subprocess.check_output(['xfconf-query', '-c', 'xfce4-panel', '-p', '/panels/panel-1/plugin-ids'], text=True)
         numbers = [line.strip() for line in ids.splitlines() if line.strip().isdigit() and line.strip() != '99']
-        plugins = [subprocess.check_output(['xfconf-query', '-c', 'xfce4-panel', '-p', f'/plugins/plugin-{number}'], text=True).strip() for number in numbers]
-        if 'systray' not in plugins:
+        properties = [line.split() for line in subprocess.check_output(['xfconf-query', '-c', 'xfce4-panel', '-l', '-v'], text=True).splitlines()]
+        if not any([f'/plugins/plugin-{number}', 'systray'] in properties for number in numbers):
             run('xfconf-query', '-c', 'xfce4-panel', '-p', '/plugins/plugin-99', '-n', '-t', 'string', '-s', 'systray')
             numbers.append('99')
         arguments = ['xfconf-query', '-c', 'xfce4-panel', '-p', '/panels/panel-1/plugin-ids', '-a']
