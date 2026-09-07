@@ -43,7 +43,9 @@ def check(name, function):
     print(f'Passed: {name}', flush=True)
 
 def screenshot(name):
-    time.sleep(.7)
+    # These clients poll every two seconds. Capture after their next update,
+    # otherwise a correct model can leave the screenshot on the previous state.
+    time.sleep(3 if TARGET in ['plasma', 'i3', 'bspwm'] else .7)
     if TARGET in ['sway','budgie','cosmic','hyprland']:
         subprocess.run(['grim', str(OUT / name)], check=True, timeout=10)
     else:
