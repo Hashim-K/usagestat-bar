@@ -75,7 +75,7 @@ app.connect('activate', () => {
             assert(names.size > 10, 'Preferences icon inventory was empty');
             const missing = [...names].filter(name => !theme.has_icon(name));
             equal(missing, [], `Missing UI icons: ${missing.join(', ')}`);
-            const uncolored = [...names].filter(name => !theme.lookup_icon(name, null, 16, 1, Gtk.TextDirection.LTR, Gtk.IconLookupFlags.FORCE_SYMBOLIC).is_symbolic());
+            const uncolored = [...names].filter(name => !theme.lookup_icon(name, null, 16, 1, Gtk.TextDirection.LTR, Gtk.IconLookupFlags.FORCE_SYMBOLIC).is_symbolic);
             equal(uncolored, [], `Icons cannot follow light/dark colors: ${uncolored.join(', ')}`);
         });
         await check('all four preferences pages and provider navigation survive manifest loading', () => {

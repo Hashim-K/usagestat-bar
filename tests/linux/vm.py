@@ -128,6 +128,7 @@ def wait_ssh(directory, previous_boot=None):
     raise RuntimeError('Guest SSH did not become ready')
 
 def check(directory):
+    wait_ssh(directory)
     sync(directory)
     try:
         ssh(directory, 'python3 /home/lab/source/tests/linux/vm-check.py install && python3 /home/lab/source/tests/linux/vm-check.py ui')
