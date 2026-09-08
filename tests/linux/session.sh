@@ -20,6 +20,9 @@ if [[ "${USAGESTAT_LAB_INTERACTIVE:-0}" == 1 ]]; then
     export USAGESTAT_BACKEND_SOCKET=/bridge/backend.sock
 else
     cp /src/tests/fixtures/config.toml "$XDG_CONFIG_HOME/usagestat/config.toml"
+    if [[ "${USAGESTAT_LAB_INTERACTIONS:-0}" == 1 ]]; then
+        cp /src/tests/linux/interactions.toml "$XDG_CONFIG_HOME/usagestat/config.toml"
+    fi
     export USAGESTAT_CLI=/src/tests/fixtures/usagestat USAGESTAT_FIXTURE_STATE=/out/fixture-state.json
     export USAGESTAT_FIXTURE_LOG=/out/backend-commands.jsonl
     printf '%s\n' '{"scenario":"normal"}' > "$USAGESTAT_FIXTURE_STATE"

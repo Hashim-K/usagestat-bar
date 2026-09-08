@@ -181,7 +181,7 @@ def main():
     saved_state = state_file.read_text() if state_file.exists() else None
     state = json.loads(saved_state) if saved_state is not None else {}
     first = targets[0][1]
-    current = {**placement(first), 'theme': state.get('theme', 'system')}
+    current = {**placement(first), 'theme': state.get('theme', 'system'), 'output': first.get('output')}
     if args.command == 'get': print(json.dumps(current)); return
     writes = {}
     originals = {}

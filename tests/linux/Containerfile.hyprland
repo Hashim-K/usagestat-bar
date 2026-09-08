@@ -5,3 +5,6 @@ RUN pacman -Syu --noconfirm --needed \
     hyprland waybar labwc grim mesa ttf-dejavu procps-ng which zip unzip rsync diffutils \
     && pacman -Scc --noconfirm
 RUN pacman -S --noconfirm --needed gcc pkgconf gtk3 json-glib wayvnc && pacman -Scc --noconfirm
+RUN pacman -S --noconfirm --needed foot wofi thunar swaybg dunst adwaita-icon-theme && pacman -Scc --noconfirm
+RUN useradd --uid 1000 --create-home reviewer
+RUN pacman -S --noconfirm --needed gtk4-layer-shell && pacman -Scc --noconfirm

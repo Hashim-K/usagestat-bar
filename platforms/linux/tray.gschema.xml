@@ -19,6 +19,10 @@
       <default>[]</default>
       <summary>Provider keys selected for the system tray</summary>
     </key>
+    <key name="pinned-providers" type="as">
+      <default>[]</default>
+      <summary>Fixed providers before the rotating tray slots, in pin order</summary>
+    </key>
     <key name="icon-style" type="s">
       <choices><choice value="logo-meter"/><choice value="logo-fill"/><choice value="logo"/><choice value="percentage"/></choices>
       <default>'logo-meter'</default>

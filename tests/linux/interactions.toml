@@ -1,0 +1,17 @@
+refreshSec = 60
+
+[[providers]]
+id = "codex"
+enabled = true
+
+[[providers]]
+id = "claude"
+enabled = true
+
+[[providers]]
+id = "copilot"
+enabled = true
+
+[[providers]]
+id = "antigravity"
+enabled = true

@@ -121,6 +121,26 @@
       <default>'center'</default>
       <summary>Horizontal alignment of popup menu below indicator</summary>
     </key>
+    <key name="usagestat-shortcut-toggle" type="as">
+      <default>[]</default>
+      <summary>Global shortcut to toggle the usage popup</summary>
+    </key>
+    <key name="usagestat-shortcut-previous" type="as">
+      <default>[]</default>
+      <summary>Global shortcut for the previous provider</summary>
+    </key>
+    <key name="usagestat-shortcut-next" type="as">
+      <default>[]</default>
+      <summary>Global shortcut for the next provider</summary>
+    </key>
+    <key name="usagestat-shortcut-refresh" type="as">
+      <default>[]</default>
+      <summary>Global shortcut to refresh usage</summary>
+    </key>
+    <key name="usagestat-shortcut-preferences" type="as">
+      <default>[]</default>
+      <summary>Global shortcut to open preferences</summary>
+    </key>
     <key name="scroll-to-switch-provider" type="b">
       <default>true</default>
       <summary>Scroll on panel indicator to switch active provider</summary>

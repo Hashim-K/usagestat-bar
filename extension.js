@@ -4,6 +4,8 @@ import GLib from 'gi://GLib';
 import Pango from 'gi://Pango';
 import St from 'gi://St';
 import Clutter from 'gi://Clutter';
+import Meta from 'gi://Meta';
+import Shell from 'gi://Shell';
 import {Extension, gettext as _} from 'resource:///org/gnome/shell/extensions/extension.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
@@ -80,6 +82,24 @@ export default class AIUsageBarExtension extends Extension {
             }
         })]);
         this._attachIndicator(true);
+        this._shortcutNames = [];
+        const cycle = direction => {
+            const providers = this._visibleProviders || [];
+            if (!providers.length) return;
+            const current = Math.max(0, providers.findIndex(provider => providerKey(provider) === this._activeId));
+            this._activeId = providerKey(providers[(current + direction + providers.length) % providers.length]);
+            this._render();
+        };
+        for (const [action, callback] of Object.entries({
+            toggle: () => this._indicator.menu.toggle(), previous: () => cycle(-1), next: () => cycle(1),
+            refresh: () => this._refresh(true), preferences: () => { this._indicator.menu.close(); this.openPreferences(); },
+        })) {
+            const name = `usagestat-shortcut-${action}`;
+            if (!this._settings.settings_schema.has_key(name)) continue;
+            Main.wm.addKeybinding(name, this._settings, Meta.KeyBindingFlags.NONE,
+                Shell.ActionMode.NORMAL | Shell.ActionMode.OVERVIEW | Shell.ActionMode.POPUP, callback);
+            this._shortcutNames.push(name);
+        }
 
         for (const key of [
             'refresh-interval',
@@ -121,6 +141,8 @@ export default class AIUsageBarExtension extends Extension {
     }
 
     disable() {
+        for (const name of this._shortcutNames || []) Main.wm.removeKeybinding(name);
+        this._shortcutNames = [];
         this._stopClockTick();
         if (this._timeoutId) {
             GLib.source_remove(this._timeoutId);

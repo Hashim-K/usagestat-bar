@@ -8,6 +8,7 @@ import {fillPreferencesWindow} from '../../preferences.js';
 import {safeColor} from './model.js';
 import {TrayPage} from './trayPreferences.js';
 import {desktopActions, trayDesktop} from './desktop.js';
+import {ShortcutsPage} from './shortcuts.js';
 
 String.prototype.format ??= imports.format.format;
 
@@ -24,6 +25,12 @@ function label(text, css = '') {
 }
 
 const DETAILS_CSS = `
+.usagestat-panel-popup, .usagestat-panel-popup > contents { background: transparent; box-shadow: none; }
+/* GTK skips the buffer for a completely empty scene, so Wayland never maps it
+   and cannot deliver outside clicks. One alpha level keeps the layer mapped. */
+.usagestat-popup-dismiss { background: rgba(0, 0, 0, 0.004); box-shadow: none; }
+.usagestat-popup-dismiss > contents { background: transparent; box-shadow: none; }
+.usagestat-panel-popup .usage-surface { background: @window_bg_color; border-radius: 12px; }
 .usagestat-details .provider-tabs,
 .usagestat-details .provider-tabs > flowboxchild { padding: 0; }
 .usagestat-details .provider-tabs > flowboxchild { border-radius: 10px; }
@@ -97,7 +104,7 @@ export class DetailsWindow {
             this.style.disconnect(styleChanged);
             Gtk.StyleContext.remove_provider_for_display(display, this.css);
         });
-        const toolbar = new Adw.ToolbarView();
+        const toolbar = new Adw.ToolbarView({css_classes: ['usage-surface'], overflow: Gtk.Overflow.HIDDEN});
         const header = new Adw.HeaderBar();
         this.header = header;
         header.pack_end(button('Preferences', () => preferences(''), 'emblem-system-symbolic'));
@@ -128,9 +135,12 @@ export class DetailsWindow {
         this.window.set_content(toolbar);
         this.window.connect('close-request', () => { this.window.hide(); return true; });
         const keys = new Gtk.EventControllerKey();
-        keys.connect('key-pressed', (_controller, key) => {
+        keys.connect('key-pressed', (_controller, key, _keycode, modifiers) => {
             if (key === Gdk.KEY_Escape) { this.window.hide(); return true; }
             if (key === Gdk.KEY_F5) { model.refresh(); return true; }
+            if ((modifiers & Gdk.ModifierType.CONTROL_MASK) && [Gdk.KEY_Page_Up, Gdk.KEY_Page_Down].includes(key)) {
+                model.cycle(key === Gdk.KEY_Page_Down ? 1 : -1, false); return true;
+            }
             return false;
         });
         this.window.add_controller(keys);
@@ -319,7 +329,7 @@ export function preferencesWindow(app, settings, provider, {traySettings = null,
     const window = new Adw.PreferencesWindow({application: app, title: 'UsageStat Preferences'});
     const trayPage = traySettings ? new TrayPage(traySettings, providers) : null;
     fillPreferencesWindow(window, settings, {desktopPlacement: true, desktopActions: desktopActions(window, desktopChanged),
-        trayOnly: !!trayPage && trayDesktop(), extraPages: trayPage ? [trayPage] : []});
+        trayOnly: !!trayPage && trayDesktop(), extraPages: [...(trayPage ? [trayPage] : []), new ShortcutsPage()]});
     window.trayPage = trayPage;
     if (trayPage && (page === 'tray' || (!page && !provider && trayDesktop()))) window.set_visible_page(trayPage);
     window.connect('close-request', () => { Gio.Settings.sync(); return false; });

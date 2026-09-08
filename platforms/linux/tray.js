@@ -2,7 +2,7 @@ import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import Adw from 'gi://Adw?version=1';
 import {traySvg, svgPixels} from './render.js';
-import {safeColor} from './model.js';
+import {safeColor, panelPins, panelProviders} from './model.js';
 import {desktopName} from './desktop.js';
 
 const ITEM = `<node><interface name="org.kde.StatusNotifierItem">
@@ -119,12 +119,14 @@ class Item {
         if (status !== this.Status) this.object.emit_signal('NewStatus', new GLib.Variant('(s)', [this.Status]));
         this.menu.object.emit_signal('LayoutUpdated', new GLib.Variant('(ui)', [this.tray.state.revision, 0]));
     }
-    Activate() { this.tray.actions.details(this.provider?.key || ''); }
+    Activate(x, y) { this.tray.actions.details(this.provider?.key || '', {point: {x, y}, host: 'tray'}); }
     SecondaryActivate() { this.tray.actions.refresh(); }
     ContextMenu() { this.tray.actions.trayPreferences(); }
     Scroll(delta) {
         if (delta && ['active', 'count'].includes(this.tray.settings.get_string('provider-mode'))
-            && this.tray.settings.get_boolean('scroll-to-switch-provider')) this.tray.actions.cycle(delta > 0 ? -1 : 1);
+            && this.tray.settings.get_boolean('scroll-to-switch-provider')) this.tray.actions.cycle(delta > 0 ? -1 : 1,
+                this.tray.settings.get_string('provider-mode') === 'count'
+                    ? panelPins(this.tray.state.providers, this.tray.settings.get_strv('pinned-providers'), this.tray.settings.get_int('provider-count')) : []);
     }
     close() { this.object.unexport(); this.menu.object.unexport(); this.connection.close_sync(null); }
 }
@@ -189,9 +191,7 @@ export class Tray {
         const visible = state.providers.filter(provider => !provider.parent);
         let providers;
         if (mode === 'count') {
-            const start = Math.max(0, visible.findIndex(provider => provider.key === state.active));
-            const count = Math.min(this.settings.get_int('provider-count'), visible.length);
-            providers = Array.from({length: count}, (_, index) => visible[(start + index) % visible.length]);
+            providers = panelProviders(visible, state.active, this.settings.get_strv('pinned-providers'), this.settings.get_int('provider-count'));
         } else {
             providers = visible.filter(provider => mode === 'all'
                 || (mode === 'custom' ? selected.has(provider.key) : provider.key === state.active));

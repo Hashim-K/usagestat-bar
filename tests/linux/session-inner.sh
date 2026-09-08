@@ -39,7 +39,7 @@ gsettings set io.github.HashimK.UsageStatBar panel-bar-count 2
 gsettings set io.github.HashimK.UsageStatBar panel-components 'bar,percent,logo,text'
 case "$target" in
     plasma) export XDG_CURRENT_DESKTOP=KDE ;;
-    cinnamon) export XDG_CURRENT_DESKTOP=X-Cinnamon ;;
+    cinnamon) export XDG_CURRENT_DESKTOP=X-Cinnamon XDG_SESSION_DESKTOP=cinnamon DESKTOP_SESSION=cinnamon ;;
     mate) export XDG_CURRENT_DESKTOP=MATE ;;
     xfce) export XDG_CURRENT_DESKTOP=XFCE ;;
     lxqt) export XDG_CURRENT_DESKTOP=LXQt ;;
@@ -89,10 +89,24 @@ case "$target" in
         ;;
     cinnamon)
         export XDG_CURRENT_DESKTOP=X-Cinnamon
-        if [[ "${USAGESTAT_LAB_INTERACTIVE:-0}" == 1 ]]; then /usr/libexec/csd-xsettings > /out/settings.log 2>&1 & fi
         gsettings set org.cinnamon.desktop.input-sources sources "[('xkb', 'us')]"
-        gsettings set org.cinnamon enabled-applets "['panel1:left:0:usagestat-bar@hashimkarim:0']"
-        cinnamon --replace > /out/panel.log 2>&1 &
+        if [[ "${USAGESTAT_LAB_INTERACTIVE:-0}" == 1 ]]; then
+            gsettings set org.cinnamon.desktop.background picture-uri 'file:///usr/share/backgrounds/tiles/default_blue.jpg'
+            gsettings set org.cinnamon.desktop.background picture-options zoom
+            gsettings set org.cinnamon.desktop.default-applications.terminal exec gnome-terminal
+            gsettings set org.cinnamon panels-enabled "['1:0:bottom']"
+            gsettings set org.cinnamon enabled-applets "['panel1:left:0:menu@cinnamon.org:1', 'panel1:left:1:show-desktop@cinnamon.org:2', 'panel1:left:2:grouped-window-list@cinnamon.org:3', 'panel1:right:0:usagestat-bar@hashimkarim:0', 'panel1:right:1:workspace-switcher@cinnamon.org:4', 'panel1:right:2:systray@cinnamon.org:5', 'panel1:right:3:xapp-status@cinnamon.org:6', 'panel1:right:4:notifications@cinnamon.org:7', 'panel1:right:5:calendar@cinnamon.org:8']"
+            gsettings set org.cinnamon next-applet-id 9
+            gsettings set org.cinnamon.desktop.screensaver lock-enabled false
+            gsettings set org.cinnamon.desktop.session idle-delay 0
+            mkdir -p "$HOME/Desktop" "$HOME/Documents" "$HOME/Downloads" "$HOME/.config/autostart" "$XDG_CONFIG_HOME/autostart"
+            cinnamon-session --session cinnamon > /out/panel.log 2>&1 &
+            wm_pid=$!
+            gdbus wait --session --timeout 30 org.Cinnamon
+        else
+            gsettings set org.cinnamon enabled-applets "['panel1:left:0:usagestat-bar@hashimkarim:0']"
+            cinnamon --replace > /out/panel.log 2>&1 &
+        fi
         ;;
     mate)
         export XDG_CURRENT_DESKTOP=MATE
@@ -166,6 +180,7 @@ CONFIG
         fi
         if [[ "$target" == cosmic ]]; then
             parent_display="$WAYLAND_DISPLAY"
+            export USAGESTAT_INPUT_DISPLAY="$parent_display"
             export XDG_CURRENT_DESKTOP=COSMIC
             COSMIC_BACKEND=winit cosmic-comp > /out/wm.log 2>&1 &
             for attempt in $(seq 1 100); do
@@ -174,6 +189,19 @@ CONFIG
                 done
                 sleep 0.2
             done
+            if [[ "${USAGESTAT_LAB_INTERACTIONS:-0}" == 1 ]]; then
+                # Input is delivered through the private parent compositor.
+                # Fullscreen removes its titlebar and keeps child coordinates
+                # identical, so a tray click cannot hit the parent's close button.
+                for attempt in $(seq 1 50); do
+                    if env WAYLAND_DISPLAY="$parent_display" wlrctl toplevel list | grep -q Smithay; then
+                        env WAYLAND_DISPLAY="$parent_display" wlrctl toplevel fullscreen
+                        break
+                    fi
+                    sleep 0.2
+                done
+                sleep 0.5
+            fi
         fi
         if [[ "$target" == hyprland ]]; then
             export XDG_CURRENT_DESKTOP=Hyprland
@@ -189,6 +217,10 @@ CONFIG
                 hyprctl output create headless USAGESTAT-LAB > /out/output-setup.log
             fi
             hyprctl monitors -j > /out/monitors.json
+            if [[ "${USAGESTAT_LAB_INTERACTIVE:-0}" == 1 ]]; then
+                swaybg -i /usr/share/hypr/wall0.png -m fill > /out/background.log 2>&1 &
+                dunst > /out/notifications.log 2>&1 &
+            fi
         fi
         dbus-update-activation-environment WAYLAND_DISPLAY XDG_CURRENT_DESKTOP XDG_SESSION_TYPE
         if [[ "$target" == hyprland ]]; then dbus-update-activation-environment HYPRLAND_INSTANCE_SIGNATURE; fi
@@ -215,14 +247,31 @@ CONFIG
             sleep 1
             dconf dump /com/solus-project/budgie-panel/ > /out/panel-settings.txt
         else
-        python3 - <<'PY'
-import json
+        USAGESTAT_LAB_TARGET="$target" python3 - <<'PY'
+import json, os
 from pathlib import Path
 p=json.loads(Path('/tmp/usagestat-prefix/share/usagestat-bar/platforms/waybar/native.jsonc').read_text())
 p.update({'layer':'top', 'height':36, 'modules-left':['cffi/usagestat']})
+if os.environ['USAGESTAT_LAB_TARGET'] == 'hyprland' and os.environ.get('USAGESTAT_LAB_INTERACTIVE') == '1':
+    p.update({'modules-left': ['custom/apps', 'custom/terminal', 'custom/files', 'hyprland/workspaces'],
+              'modules-right': ['cffi/usagestat', 'tray', 'clock'],
+              'custom/apps': {'format': 'Apps', 'tooltip-format': 'Applications · Super+R', 'on-click': 'wofi --show drun'},
+              'custom/terminal': {'format': 'Terminal', 'tooltip-format': 'Terminal · Super+Return', 'on-click': 'foot'},
+              'custom/files': {'format': 'Files', 'tooltip-format': 'Files · Super+E', 'on-click': 'thunar'},
+              'hyprland/workspaces': {'format': '{name}', 'persistent-workspaces': {'*': [1, 2, 3, 4]}},
+              'clock': {'format': '{:%a %H:%M}', 'tooltip-format': '<big>{:%B %Y}</big>\n<tt>{calendar}</tt>'},
+              'tray': {'spacing': 8}})
 Path('/tmp/waybar.json').write_text(json.dumps(p))
 PY
         cp /src/platforms/waybar/style.css /tmp/waybar.css
+        if [[ "$target" == hyprland && "${USAGESTAT_LAB_INTERACTIVE:-0}" == 1 ]]; then
+            cat >> /tmp/waybar.css <<'CSS'
+#custom-apps, #custom-terminal, #custom-files, #clock, #tray { padding: 0 10px; }
+#custom-apps:hover, #custom-terminal:hover, #custom-files:hover { background: alpha(currentColor, 0.1); border-radius: 6px; }
+#workspaces button { padding: 0 8px; min-width: 20px; }
+#workspaces button.active { background: alpha(currentColor, 0.15); border-radius: 6px; }
+CSS
+        fi
         waybar -c /tmp/waybar.json -s /tmp/waybar.css > /out/panel.log 2>&1 &
         if [[ "$target" == hyprland ]]; then
             # The startup usage window needs the panel's mapped geometry, just
@@ -250,8 +299,10 @@ if [[ "${USAGESTAT_LAB_INTERACTIVE:-0}" == 1 ]]; then
     # Plasma has its own popup. Opening the separate GTK window on startup
     # presents two different surfaces before the reviewer even clicks the bar.
     if [[ "$target" == hyprland ]]; then
-        usagestat-bar toggle >> /out/app.log 2>&1
-    elif [[ "$target" != plasma ]]; then
+        gdbus call --session --dest io.github.HashimK.UsageStatBar \
+            --object-path /io/github/HashimK/UsageStatBar \
+            --method io.github.HashimK.UsageStatBar1.ToggleDetailsAt '' '{"alignment":"right"}' > /dev/null 2>> /out/app.log
+    elif [[ "$target" != plasma && "$target" != cinnamon ]]; then
         usagestat-bar details >> /out/app.log 2>&1
     else
         usagestat-bar snapshot > /dev/null 2>> /out/app.log
@@ -276,11 +327,15 @@ if [[ "${USAGESTAT_LAB_INTERACTIVE:-0}" == 1 ]]; then
         wait -n "$app_pid" "$wm_pid" "$display_pid"
     else
         touch /out/interactive-ready
-        wait "$app_pid"
+        if [[ "$target" == cinnamon ]]; then wait -n "$app_pid" "$wm_pid"; else wait "$app_pid"; fi
     fi
     exit $?
 fi
 result=0
-python3 /src/tests/linux/desktop-check.py "$target" || result=$?
+if [[ "${USAGESTAT_LAB_INTERACTIONS:-0}" == 1 ]]; then
+    python3 /src/tests/linux/interactions.py "$target" || result=$?
+else
+    python3 /src/tests/linux/desktop-check.py "$target" || result=$?
+fi
 if [[ "${USAGESTAT_LAB_HOLD:-0}" != 0 ]]; then sleep "$USAGESTAT_LAB_HOLD"; fi
 exit "$result"

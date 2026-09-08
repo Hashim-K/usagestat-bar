@@ -71,9 +71,15 @@ export function thresholdAt(used, list) {
     return list.filter(value => clamp(used) >= value.percent).at(-1) || null;
 }
 
+export function panelPins(providers, pinned = [], count = 1) {
+    const visible = providers.filter(p => !p.parent);
+    return [...new Set(pinned)].filter(key => visible.some(p => p.key === key))
+        .slice(0, Math.max(0, Math.min(count, visible.length) - 1));
+}
+
 export function panelProviders(providers, active, pinned = [], count = 1) {
     const visible = providers.filter(p => !p.parent);
-    const pins = pinned.map(key => visible.find(p => p.key === key)).filter(Boolean);
+    const pins = panelPins(providers, pinned, count).map(key => visible.find(p => p.key === key));
     const rest = visible.filter(p => !pins.includes(p));
     const start = Math.max(0, rest.findIndex(p => p.key === active));
     return [...pins, ...rest.slice(start), ...rest.slice(0, start)].slice(0, Math.max(1, count));
@@ -230,9 +236,11 @@ export class Model {
         this.emit();
     }
 
-    cycle(direction, requireScrollSetting = true) {
+    cycle(direction, requireScrollSetting = true, excluded = []) {
         if (requireScrollSetting && !this.settings.get_boolean('scroll-to-switch-provider')) return;
-        const visible = this.providers.filter(p => !p.tabParent);
+        const pins = requireScrollSetting ? panelPins(this.providers.map(p => ({key: providerKey(p), parent: p.tabParent})),
+            jsonSetting(this.settings, 'panel-pinned-providers', []), this.settings.get_int('panel-bar-count')) : excluded;
+        const visible = this.providers.filter(p => !p.tabParent && !pins.includes(providerKey(p)));
         if (!visible.length) return;
         const index = Math.max(0, visible.findIndex(p => providerKey(p) === this.active));
         this.select(providerKey(visible[(index + (direction > 0 ? 1 : -1) + visible.length) % visible.length]));
@@ -289,6 +297,7 @@ export class Model {
             updatedAt: this.updatedAt || '', mode, providers,
             interaction: {panelScroll: settings.get_boolean('scroll-to-switch-provider'),
                 popupScroll: settings.get_boolean('scroll-popup-to-switch-provider')},
+            popupAlignment: settings.get_string('popup-alignment'),
             panel: panelProviders(providers, this.active, jsonSetting(settings, 'panel-pinned-providers', []), settings.get_int('panel-bar-count')).map(p => p.key),
             appearance: {components: settings.get_string('panel-components').split(','),
                 bars: Math.min(3, Math.max(1, settings.get_int('panel-usage-bar-count'))),

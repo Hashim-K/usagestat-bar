@@ -57,7 +57,11 @@ export USAGESTAT_FIXTURE_LOG="$output_dir/backend-commands.jsonl"
 unset USAGESTAT_FIXTURE_SCENARIO
 mkdir -p "$XDG_CONFIG_HOME/usagestat" "$XDG_CACHE_HOME" "$XDG_DATA_HOME" "$XDG_STATE_HOME" "$XDG_RUNTIME_DIR"
 chmod 700 "$XDG_RUNTIME_DIR"
-cp "$source_dir/tests/fixtures/config.toml" "$XDG_CONFIG_HOME/usagestat/config.toml"
+if [[ "${USAGESTAT_TEST_INTERACTIONS:-0}" == 1 ]]; then
+    cp "$source_dir/tests/linux/interactions.toml" "$XDG_CONFIG_HOME/usagestat/config.toml"
+else
+    cp "$source_dir/tests/fixtures/config.toml" "$XDG_CONFIG_HOME/usagestat/config.toml"
+fi
 chmod 600 "$XDG_CONFIG_HOME/usagestat/config.toml"
 printf '%s\n' '{"scenario":"normal"}' > "$USAGESTAT_FIXTURE_STATE"
 

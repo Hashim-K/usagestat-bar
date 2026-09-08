@@ -4,6 +4,11 @@ The [Plasma manual review](plasma-manual-review.md) is the visual baseline.
 Its feedback has been carried into the other Linux integrations. All ten
 profiles below remain **pending the user's manual review**.
 
+The subsequent [recorded interaction validation on 2026-09-08](linux-interaction-validation-2026-09-08.md)
+adds native input checks, videos and screenshots for all Linux profiles. Its
+results supersede the earlier statements below about automated checks not yet
+being run. These chronological notes retain the user's manual review status.
+
 ## Open the review queue
 
 From the repository, using the same backend as the host GNOME extension:
@@ -107,8 +112,69 @@ renderer, working Waybar config discovery and a popup growing from 249 to
 573 pixels as Codex loaded, with no application diagnostics. Responsiveness,
 settings changes and switching to shorter providers remain for manual review.
 
-Plasma has a native panel popup. The other ports open the shared application
-from their panel/tray integration. Polybar and the Waybar text fallback still
+The first Cinnamon review found an unanchored popup, an unnecessary scrollbar
+and an almost empty desktop. Its applet now sends its actual rectangle, panel
+edge and workspace work area. X11 placement targets the application's own
+surface and includes GTK's shadow extents when sizing it, so the measured
+provider content has the space it requested.
+
+The manual Cinnamon preview now uses a regular container account and the
+normal `cinnamon-session`, with Nemo, wallpaper, the menu, task list, workspaces,
+tray, clock, settings and terminal. This also fixes Nemo refusing to run as
+root. The Hyprland preview now includes its packaged wallpaper, launcher,
+terminal, file manager, notification daemon, workspaces and clock, with both
+keyboard shortcuts and mouse-accessible Waybar launchers. These additions
+apply to manual previews; the minimal acceptance profiles remain separate.
+Popup interactions and the richer desktops still require the user's visual
+review. No automated interaction scenarios or screenshots were run.
+
+The subsequent alignment/side-panel pass exposes **Popup alignment** in every
+Linux preferences window and includes it in the shared state. Native GNOME
+alignment is retained; Plasma uses an aligned anchor for its native popup.
+Cinnamon, MATE, Xfce and native Waybar send fixed indicator geometry. The
+shared Wayland popup now uses GTK4 Layer Shell on Sway, Hyprland, Budgie and
+COSMIC; X11 uses EWMH placement including GTK shadow extents. Tray/text
+fallbacks align to their panel's edge instead of a pointer position. Left /
+Right maps to Top / Bottom on side panels. Vertical panel images stack the
+enabled components and providers with upright text and logos rather than
+rotating the complete strip. Provider count, scrolling and fill styles remain
+shared with horizontal panels.
+
+Both lab images include gtk4-layer-shell. Syntax checks, native Waybar/Xfce
+builds and runtime packaging passed. Read-only Hyprland startup inspection
+reported a `usagestat-popup` layer at `(520, 44)`, `460 × 572`, beneath the
+36-pixel panel with no application diagnostics. The earlier IPC placement
+observations above describe the superseded implementation. Alignment choices,
+side-panel appearance and provider switching still need manual review.
+
+Outside-click dismissal is included in the shared popup: transparent Wayland
+work-area surfaces dismiss it while leaving panel input available; X11 watches
+button releases without grabbing them. A short guard prevents that same click
+from reopening the popup through the panel's D-Bus toggle. The separate
+application remains open. The Linux Shortcuts page links desktop keyboard
+settings, copies installed commands and supplies Hyprland/Sway/i3/sxhkd
+examples. GNOME gets native opt-in shortcut recording and registration.
+No global bindings were assigned on the host or in the previews. These
+interaction changes remain pending manual review.
+The updated Hyprland startup placed the transparent dismissal surface at
+`(0, 36)`, `1500 × 864`, leaving the bar's 36-pixel strip uncovered; the popup
+was in the layer above it. Cinnamon was reopened with UsageStat on a right
+panel for the next manual review. Package/schema checks and QML lint passed.
+
+The next Cinnamon review exposed an X11 identity check that prevented both
+placement and dismissal: GTK advertises `gjs` as `WM_CLASS`, while UsageStat's
+identity is in `_GTK_APPLICATION_ID`. The helper now checks that application
+ID on the exact popup surface, allowing for its initial property publication.
+Repairing the live right-panel popup moved it from `(38, 90)` to `(992, 286)`
+at `460 × 297`, eight pixels inside the panel at x=1460, using its saved Center
+alignment. These are native geometry observations, not an automated click
+test. The manual launcher also supports `--detach` so the preview and its
+host backend bridge survive the launching terminal closing. The prior
+orphaned preview had lost its bridge and showed connection-refused errors.
+
+Plasma has a native panel popup. The other ports open the shared GTK popup
+from their panel/tray integration, with a separately launchable application.
+Polybar and the Waybar text fallback still
 use initials in place of image logos. Native Waybar supports the graphical
 panel rendering.
 

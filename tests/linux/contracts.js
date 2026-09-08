@@ -89,14 +89,19 @@ test('text bars retain multiple windows and custom threshold colors without acti
     const polybar = panelText(state,true);
     assert(polybar.includes('%{F#123456}') && polybar.includes('%{F#abcdef}'));
     assert(!polybar.includes('%{A:bad:}'));
-    assert((polybar.match(/\[/g) || []).length >= 3);
+    assert(polybar.includes('━'), 'Quota meters should remain visible text');
 });
-test('tray appearance selects logos and multiple quota rings', () => {
+test('tray appearance selects logo fills, meters and percentage labels', () => {
     const provider={name:'Codex',iconId:'codex',percent:30,color:'#123456',windows:[{percent:20,color:'#123456'},{percent:80,color:'#abcdef'}]};
-    const logo=traySvg(provider,{components:['logo'],neutral:'#ffffff',fill:'pie',bars:2});
+    const logo=traySvg(provider,{style:'logo-fill',neutral:'#ffffff',fill:'pie'});
     assert(logo.includes('quotaClip') && !logo.includes('stroke-dasharray'));
-    const rings=traySvg(provider,{components:['bar','percent'],neutral:'#ffffff',fill:'full',bars:2});
-    assert(rings.includes('#abcdef') && (rings.match(/stroke-dasharray/g) || []).length===2);
+    for (const barOrientation of ['horizontal','vertical']) {
+        const meter=traySvg(provider,{style:'logo-meter',accent:'#abcdef',background:'#ffffff',barOrientation,barThickness:7});
+        assert(meter.includes('#abcdef') && !meter.includes('stroke-dasharray'));
+    }
+    const numeric=traySvg({...provider,percent:100},{style:'percentage'});
+    assert(numeric.includes('>100<') && numeric.includes('>%</tspan>'));
+    assert(!traySvg({...provider,percent:null},{style:'percentage'}).includes('>%</tspan>'));
 });
 
 const loop=new GLib.MainLoop(null,false);

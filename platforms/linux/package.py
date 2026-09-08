@@ -10,7 +10,7 @@ import tarfile
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[2]
-RUNTIME = ['main.js', 'client.js', 'model.js', 'render.js', 'protocol.js', 'settings.js', 'tray.js', 'trayPreferences.js', 'desktop.js', 'panelWindow.js', 'waybarPreferences.js', 'waybar_config.py', 'ui.js', 'usagestat-bar', 'install.py']
+RUNTIME = ['main.js', 'client.js', 'model.js', 'render.js', 'protocol.js', 'settings.js', 'tray.js', 'trayPreferences.js', 'shortcuts.js', 'desktop.js', 'panelWindow.js', 'x11Panel.py', 'waybarPreferences.js', 'waybar_config.py', 'ui.js', 'usagestat-bar', 'install.py']
 
 def stage(target):
     for name in ['cli.js', 'config.js', 'preferences.js', 'providerMetadata.js', 'LICENSE']:

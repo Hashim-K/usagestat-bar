@@ -13,6 +13,9 @@ covers the panel, popup, application and tray refinements. Other desktops still
 need their own manual review of the current version. The
 [remaining-desktop review notes](reports/linux-manual-review.md) describe the
 follow-up changes and how to open each preview.
+The [recorded interaction review](reports/linux-interaction-validation-2026-09-08.md)
+covers native clicks, wheel input, provider pins, panel placement and popup
+alignment in twelve Linux profiles, with screenshots, videos and remaining failures.
 
 ## Choose the integration
 
@@ -35,7 +38,10 @@ Tray icons use a large logo and a small usage bar on a transparent background,
 rendered at native tray sizes. **Preferences → Tray** controls them independently
 of the panel: show the current provider as one icon, a fixed number of scrolling
 providers, all providers, or a chosen set. With a fixed count, scrolling over any
-icon advances the group one provider and wraps around at the end.
+icon advances the unpinned slots and wraps around at the end. **Pinned providers**
+keeps selected providers first, in the order they were pinned. One slot remains
+available for scrolling; reducing the count releases pins that no longer fit.
+Tray pins are separate from panel pins.
 Choose a logo with a bar, a quota-filled logo, a logo alone, or a usage percentage.
 Logo fill supports vertical, horizontal and pie shapes. Usage bars have adjustable
 thickness and horizontal or vertical orientation. Empty tracks automatically
@@ -90,11 +96,14 @@ in the report and are not claimed as full graphical parity.
 
 ## Build and install
 
-Runtime dependencies: Bash, GJS, GTK 4, libadwaita, GObject introspection,
+Runtime dependencies: Bash, Python 3, GJS, GTK 4, libadwaita, GObject introspection,
 GdkPixbuf with SVG support, librsvg with its `Rsvg-2.0` introspection bindings,
 the Adwaita icon theme, a session D-Bus and dconf,
 plus the `usagestat` CLI. Standalone GTK windows use `adwaita-icon-theme` so
 their symbolic controls remain visible in both light and dark application themes.
+Wayland panel/tray popups (Sway, Hyprland, Budgie and COSMIC) also need
+`gtk4-layer-shell` with its `Gtk4LayerShell-1.0` introspection bindings. Both
+preview images include it. GNOME and Plasma use their own native shell popups.
 The UI uses GTK 4.12 / libadwaita 1.4 APIs; older library combinations have not
 been verified. Python 3 and `glib-compile-schemas` are needed to build/install.
 MATE additionally needs Python GObject bindings, GTK 3 and the MatePanelApplet
@@ -185,16 +194,58 @@ client connected to D-Bus, so switching and preference changes update the bar
 immediately. Text meters have distinct filled and empty segments, and numeric
 indicators include `%`. Plasma's left click opens
 its native overview, with a **Details** button for the full GTK view. Cinnamon
-has a panel context menu. MATE uses right click for preferences.
+has a panel context menu. MATE's right-click menu contains **Preferences** and
+the native **Move**, **Lock to Panel** and **Remove From Panel** actions.
 
-Cinnamon, MATE, Xfce and native Waybar also toggle the usage window on a second
-left click. On Hyprland, opening from Waybar places it beside the clicked
-panel on that monitor, with room for the panel and screen edges. This uses
-Hyprland's IPC and does not require adding window rules. The application
+Cinnamon, MATE, Xfce, native Waybar and tray icons toggle the popup on a second
+left click. **Appearance → Popup alignment** works across the integrations:
+Left, Center or Right aligns the popup with its indicator. On a side panel,
+these choices mean Top, Center and Bottom, with the popup opening inward.
+Cinnamon, MATE, Xfce and native Waybar pass their actual indicator rectangle,
+panel edge and monitor area. Tray hosts and text modules do not supply icon
+bounds; their fallback is the fixed panel edge, with the same alignment
+setting selecting the start, center or end. Click coordinates only identify
+the tray's monitor/panel and do not move the popup within it.
+
+Side panels stack providers vertically with upright logos, percentages and
+compact names. Component order, provider count, scrolling, logo fill and
+contrast settings still apply. Full provider names remain in the tooltip.
+X11 popup resizing includes GTK's invisible shadow extents, preserving the
+space needed by its content. Short providers shrink; vertical scrolling is
+needed only when the content exceeds the available monitor area.
+Wayland popups use Layer Shell anchors, so tiling/floating window placement
+rules cannot recenter them. X11 popups use the window manager's placement
+protocol; i3/bspwm popups are floated explicitly. The application
 launcher and explicit `details` command continue to show the application.
+Clicking outside the popup dismisses it; Escape and a second indicator click
+also close it. The separately launched application stays open. X11 dismissal
+uses XInput2 button events (`libXi`), without grabbing clicks from other apps.
 Placement controls work with UsageStat directly in a `modules-left`,
 `modules-center` or `modules-right` list. They locate the running Waybar's
 config and stylesheet, including explicit `--config` and `--style` paths.
+
+Global shortcuts are available through **Preferences → Shortcuts** in the Linux
+application. Copy an action's command and assign it in the desktop's keyboard
+settings; the page opens that settings tool when installed. Copied commands
+use the installed absolute path, so they also work without a terminal PATH.
+For Hyprland (Lua or `.conf`), Sway, i3 and bspwm/sxhkd, the page provides
+editable-in-your-config binding examples. No bindings are installed or changed
+automatically. The actions are:
+
+| Action | Command |
+| --- | --- |
+| Show / hide the popup | `usagestat-bar toggle` |
+| Previous / next provider | `usagestat-bar previous` / `usagestat-bar next` |
+| Refresh usage | `usagestat-bar refresh` |
+| Open preferences | `usagestat-bar preferences` |
+
+GNOME's native extension exposes the same actions under **Behaviour → Global
+shortcuts**, with a key recorder and a remove option. They are disabled by
+default and are registered only while the extension is enabled. Install the
+updated extension/schema before using them. In a nested preview, grab the
+viewer's keyboard so the host desktop does not consume Super shortcuts.
+Within the GTK popup/application, Ctrl+Page Up / Page Down switches providers,
+F5 refreshes, and Escape closes the window.
 
 ### Upgrade and remove
 
@@ -255,12 +306,37 @@ Open an interactive Plasma desktop in a window on your current desktop:
 python3 tests/linux/manual.py plasma --backend /usr/bin/usagestat-dev
 ```
 
+Add `--detach` when opening it from a temporary terminal or coding tool.
+This keeps the whole preview, including its host backend bridge, running
+after that terminal closes. The command prints a launcher PID and private
+startup log. Closing the viewer still cleans up its session; sending SIGTERM
+to the launcher also stops it (including a detached `remaining` queue).
+
 The Hyprland preview uses the GPU for GTK and capture, a 60 FPS stream limit,
 512 MiB of shared memory and no container CPU or RAM cap. Preview animations
 and blur are disabled, and VNC input travels independently of frame delivery.
 Use `--fps 30` to lower the stream limit, or `--fps 90` for a higher limit.
 The preview's writable Waybar config/style are disposable, so placement and
 theme changes stay inside that session.
+
+Cinnamon's manual preview starts a normal `cinnamon-session` as a regular
+user, with Nemo desktop icons, wallpaper, menu, window list, workspaces, tray,
+clock, settings and a terminal. UsageStat starts on the right of the bottom
+panel; click its icon to open the popup. The separate application remains
+available from the menu.
+
+Hyprland's manual preview includes its packaged wallpaper, an application
+launcher, terminal, file manager, notifications, four workspaces, tray and
+clock. **Apps**, **Terminal** and **Files** are clickable in Waybar.
+Keyboard shortcuts are Super+R (launcher), Super+Return (terminal), Super+E
+(files), Super+1–4 (workspace), and Super+drag (move/resize). The host may
+capture Super unless the viewer grabs the keyboard, so panel launchers are
+also provided. UsageStat starts on the right; its position index can now be
+reviewed alongside other bar items.
+
+Rebuild both lab images after updating these preview components. These are
+disposable desktop sessions with local applications, not complete virtual
+machines: hardware, login/power management and networking are not provided.
 
 To review the ten remaining desktop profiles one at a time:
 
@@ -398,6 +474,48 @@ cases remain in [#16](https://github.com/Hashim-K/usagestat-bar/issues/16).
 A nested panel session does not certify a whole distro or a full login session.
 Coordinated CI, interactive previews, native distro packages and simultaneous
 release publishing remain in [Phase 2](https://github.com/Hashim-K/usagestat-bar/issues/17).
+
+### Recorded interaction checks
+
+Build the lab images as described above, then run a disposable fixture session:
+
+```bash
+python3 tests/linux/review.py cinnamon --output artifacts/my-interaction-review
+# Replace cinnamon with another target, or all for all eleven port profiles.
+USAGESTAT_TEST_INTERACTIONS=1 ./tests/gnome-session.sh --check
+```
+
+The port runner records native mouse/wheel events to `review.mp4`, saves a PNG
+for each check, and writes `result.json`, package versions and source metadata.
+It exits nonzero when a check or session fails. An existing target output
+directory is never overwritten. GNOME uses an isolated Shell test driver and
+saves numbered frames under its printed `artifacts/gnome.*` directory; encode
+those with `ffmpeg -framerate 5 -i frames/%05d.png -c:v libx264 -pix_fmt yuv420p review.mp4`.
+
+The tests cover ordered pins, count reduction, bidirectional bar and popup
+scrolling, their independent disable settings, opening/toggling/dismissal,
+short and overflowing provider content, panel group/index/edge changes, and
+stable popup alignment. Native GNOME has a fixed top edge; Polybar has no
+vertical panels. The GNOME reference driver has a narrower content-sizing
+matrix than the shared-window driver. Settings are applied through their
+native backends/configuration interfaces, so this does not click through every
+Preferences control or certify keyboard shortcuts and touchpad gestures.
+
+Create a portable local gallery from one or more batches:
+
+```bash
+python3 tests/linux/report.py artifacts/my-interaction-review --output artifacts/my-review-gallery
+```
+
+Later batches replace earlier results for the same target. The generated
+`index.html` includes videos, per-step screenshots and raw observations.
+Open it in a browser rather than an editor. If local file links open as source,
+run `python3 -m http.server 8764 --bind 127.0.0.1 --directory artifacts/my-review-gallery`
+and open `http://127.0.0.1:8764/`.
+Keep environment failures explicit with `--blocked cosmic` and an explanatory
+`--note 'cosmic=Reason for the blocked session'`; raw results are preserved.
+The [September interaction report](reports/linux-interaction-validation-2026-09-08.md)
+documents the scope and findings of the recorded run.
 
 ## Full login, reboot and uninstall checks
 

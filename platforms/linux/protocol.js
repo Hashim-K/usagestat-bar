@@ -11,6 +11,7 @@ export const XML = `<node><interface name="${INTERFACE}">
   <method name="Scroll"><arg name="direction" type="i" direction="in"/></method>
   <method name="Details"><arg name="provider" type="s" direction="in"/></method>
   <method name="ToggleDetails"><arg name="provider" type="s" direction="in"/></method>
+  <method name="ToggleDetailsAt"><arg name="provider" type="s" direction="in"/><arg name="anchor" type="s" direction="in"/></method>
   <method name="Preferences"><arg name="provider" type="s" direction="in"/></method>
   <method name="EnableTray"/>
   <method name="Quit"/>

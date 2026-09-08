@@ -137,6 +137,42 @@ function luminance(color) {
     return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
 }
 
+export function verticalPanelSvg(state) {
+    const {appearance} = state;
+    const width = 40, parts = [];
+    let y = 4;
+    for (const key of state.panel) {
+        const provider = state.providers.find(item => item.key === key);
+        if (!provider) continue;
+        for (const component of appearance.components) {
+            if (component === 'logo') {
+                parts.push(inlineLogo(provider, appearance, 8, y, 24, `vertical${y}_`));
+                y += 28;
+            } else if (component === 'bar') {
+                for (const bar of usageBars(provider, appearance)) {
+                    parts.push(`<rect x="6" y="${y}" width="28" height="6" rx="2" fill="none" stroke="${appearance.neutral}"/>`);
+                    if (!provider.error && provider.percent !== null)
+                        parts.push(`<rect x="7" y="${y + 1}" width="${26 * clamp(bar.percent) / 100}" height="4" rx="1" fill="${bar.color}"/>`);
+                    y += 9;
+                }
+            } else if (component === 'percent' || component === 'text') {
+                let text = component === 'text' ? compactName(provider.name)
+                    : provider.error ? '!' : provider.percent === null ? '—' : `${Math.round(provider.percent)}%`;
+                const size = component === 'text' ? 9 : 11;
+                if (textWidth(text, size) > width - 4) {
+                    while (text && textWidth(text + '…', size) > width - 4) text = text.slice(0, -1);
+                    text += '…';
+                }
+                parts.push(`<text x="20" y="${y + size}" text-anchor="middle" font-family="sans-serif" font-size="${size}" fill="${provider.error ? '#ff5f57' : appearance.neutral}">${escapeXml(text)}</text>`);
+                y += size + 5;
+            }
+        }
+        y += Math.max(6, appearance.spacing);
+    }
+    const height = Math.max(28, y);
+    return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">${parts.join('')}</svg>`;
+}
+
 function trayTrackColor(fill, background) {
     const fillLight = luminance(fill), backgroundLight = luminance(background);
     const contrast = (a, b) => (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
@@ -209,10 +245,10 @@ export function svgPixels(svg, width, height = width) {
     return Rsvg.Handle.new_from_data(new TextEncoder().encode(sized)).get_pixbuf();
 }
 
-function writePanelPng(path, svg, width) {
+function writePanelPng(path, svg, width, height = 28) {
     // QtSvg does not implement clipPath. Rasterize through librsvg, as the
     // GTK/tray adapters do, at 3x resolution for sharp scaled Plasma panels.
-    const [, bytes] = svgPixels(svg, width * 3, 84).save_to_bufferv('png', [], []);
+    const [, bytes] = svgPixels(svg, width * 3, height * 3).save_to_bufferv('png', [], []);
     Gio.File.new_for_path(path).replace_contents(bytes, null, false,
         Gio.FileCreateFlags.PRIVATE | Gio.FileCreateFlags.REPLACE_DESTINATION, null);
 }
@@ -236,7 +272,20 @@ export function renderFiles(state) {
         writePanelPng(state.panelImagePng, panel, state.panelWidth);
     if (lightChanged || !Gio.File.new_for_path(state.panelImageLightPng).query_exists(null))
         writePanelPng(state.panelImageLightPng, light, state.panelWidth);
-    state.panelImageKey = GLib.compute_checksum_for_string(GLib.ChecksumType.SHA256, panel + light, -1).slice(0, 16);
+    const vertical = verticalPanelSvg(state);
+    const verticalLight = verticalPanelSvg({...state, appearance: {...state.appearance,
+        neutral: state.appearance.neutral === '#e6edf3' ? '#23262e' : state.appearance.neutral}});
+    state.panelVerticalWidth = 40;
+    state.panelVerticalHeight = Number(vertical.match(/height="([\d.]+)"/)[1]);
+    for (const [key, svg, suffix] of [['panelImageVertical', vertical, 'vertical'], ['panelImageVerticalLight', verticalLight, 'vertical-light']]) {
+        state[key] = `${directory}/panel-${suffix}.svg`;
+        state[key + 'Png'] = `${directory}/panel-${suffix}.png`;
+        if (read(state[key]) !== svg || !Gio.File.new_for_path(state[key + 'Png']).query_exists(null)) {
+            writePrivate(state[key], svg);
+            writePanelPng(state[key + 'Png'], svg, state.panelVerticalWidth, state.panelVerticalHeight);
+        }
+    }
+    state.panelImageKey = GLib.compute_checksum_for_string(GLib.ChecksumType.SHA256, panel + light + vertical + verticalLight, -1).slice(0, 16);
     state.providers.forEach((provider, i) => {
         provider.logo = `${directory}/provider-${i}.svg`;
         const svg = logoSvg(provider, {...state.appearance, fill: 'full'});

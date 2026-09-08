@@ -1,5 +1,6 @@
 const Applet = imports.ui.applet;
 const PopupMenu = imports.ui.popupMenu;
+const Main = imports.ui.main;
 const Gio = imports.gi.Gio;
 const GLib = imports.gi.GLib;
 const St = imports.gi.St;
@@ -60,7 +61,7 @@ class UsageStatApplet extends Applet.Applet {
             () => { if (!this._closed) this.set_applet_tooltip('UsageStat is stopped. Click to start it.'); });
     }
     _call(method, signature = null, value = null, done = null) {
-        Gio.DBus.session.call(BUS, PATH, IFACE, method, signature ? new GLib.Variant(signature, [value]) : null,
+        Gio.DBus.session.call(BUS, PATH, IFACE, method, signature ? new GLib.Variant(signature, Array.isArray(value) ? value : [value]) : null,
             null, Gio.DBusCallFlags.NONE, 5000, this._cancellable, (bus, result) => {
                 try { const response = bus.call_finish(result).deep_unpack(); if (!this._closed && done) done(response); }
                 catch (error) { if (!this._closed) this.set_applet_tooltip('UsageStat: ' + error.message); }
@@ -72,13 +73,14 @@ class UsageStatApplet extends Applet.Applet {
         this.set_applet_tooltip(state.providers.filter(p => !p.parent).map(p => p.name + ': ' + (p.error || p.text)).join('\n') || 'UsageStat — set up providers');
         try {
             const foreground = this.actor.get_theme_node().get_foreground_color();
-            const path = foreground.red + foreground.green + foreground.blue < 382
-                ? state.panelImageLightPng || state.panelImageLight : state.panelImagePng || state.panelImage;
+            const vertical = [St.Side.LEFT, St.Side.RIGHT].includes(this._orientation);
+            const light = foreground.red + foreground.green + foreground.blue < 382;
+            const key = vertical ? light ? 'panelImageVerticalLight' : 'panelImageVertical' : light ? 'panelImageLight' : 'panelImage';
+            const path = state[key + 'Png'] || state[key];
             const scale = this._theme.scale_factor;
-            const height = Math.max(16, Math.min(28, this.panel.height / scale - 4));
-            let pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale(path, -1, Math.round(height * scale), true);
-            if ([St.Side.LEFT, St.Side.RIGHT].includes(this._orientation))
-                pixbuf = pixbuf.rotate_simple(GdkPixbuf.PixbufRotation.CLOCKWISE);
+            const thickness = vertical ? this.panel.actor.width : this.panel.actor.height;
+            const size = Math.round(Math.max(16, Math.min(vertical ? 40 : 28, thickness / scale - 4)) * scale);
+            const pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale(path, vertical ? size : -1, vertical ? -1 : size, true);
             const content = new Clutter.Image();
             content.set_data(pixbuf.get_pixels(), pixbuf.get_has_alpha() ? Cogl.PixelFormat.RGBA_8888 : Cogl.PixelFormat.RGB_888,
                 pixbuf.width, pixbuf.height, pixbuf.rowstride);
@@ -87,7 +89,14 @@ class UsageStatApplet extends Applet.Applet {
         } catch (error) { this.set_applet_tooltip('UsageStat: ' + error.message); }
     }
     on_applet_clicked() {
-        this._call('ToggleDetails', '(s)', '');
+        const [x, y] = this.actor.get_transformed_position();
+        const [w, h] = this.actor.get_transformed_size();
+        const monitor = Main.layoutManager.findMonitorForActor(this.actor);
+        const workspace = (global.workspace_manager || global.screen).get_active_workspace();
+        const area = workspace.get_work_area_for_monitor(monitor.index);
+        const edge = { [St.Side.TOP]: 'top', [St.Side.BOTTOM]: 'bottom', [St.Side.LEFT]: 'left', [St.Side.RIGHT]: 'right' }[this._orientation];
+        this._call('ToggleDetailsAt', '(ss)', ['', JSON.stringify({edge, rect: {x, y, w, h},
+            work: {x: area.x, y: area.y, w: area.width, h: area.height}})]);
     }
     on_orientation_changed(orientation) {
         this._orientation = orientation;

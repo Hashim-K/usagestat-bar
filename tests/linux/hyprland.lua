@@ -34,3 +34,19 @@ hl.window_rule({
     match = { class = [[io\.github\.HashimK\.UsageStatBar]], title = "UsageStat Preferences" },
     center = true,
 })
+
+-- Mouse-accessible launchers also live in Waybar: host shortcuts may consume
+-- Super while the review window is not grabbing the keyboard.
+if os.getenv("USAGESTAT_LAB_INTERACTIVE") == "1" then
+    hl.bind("SUPER + Return", hl.dsp.exec_cmd("foot"))
+    hl.bind("SUPER + R", hl.dsp.exec_cmd("wofi --show drun"))
+    hl.bind("SUPER + E", hl.dsp.exec_cmd("thunar"))
+    hl.bind("SUPER + Q", hl.dsp.window.close())
+    hl.bind("SUPER + V", hl.dsp.window.float({ action = "toggle" }))
+    hl.bind("SUPER + mouse:272", hl.dsp.window.drag(), { mouse = true })
+    hl.bind("SUPER + mouse:273", hl.dsp.window.resize(), { mouse = true })
+    for i = 1, 4 do
+        hl.bind("SUPER + " .. i, hl.dsp.focus({ workspace = i }))
+        hl.bind("SUPER + SHIFT + " .. i, hl.dsp.window.move({ workspace = i }))
+    end
+end

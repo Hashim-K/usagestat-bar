@@ -108,12 +108,29 @@ def main():
     parser.add_argument('--size', default='1500x900', help='Desktop size (default: 1500x900)')
     parser.add_argument('--fps', type=int, default=60, help='Hyprland stream frame-rate limit (default: 60)')
     parser.add_argument('--timezone', default=local_timezone(), help='Timezone for usage/reset times (default: host timezone)')
+    parser.add_argument('--detach', action='store_true',
+                        help='Keep the preview and backend bridge running after the launching terminal closes')
     args = parser.parse_args()
     if not re.fullmatch(r'[1-9][0-9]{2,3}x[1-9][0-9]{2,3}', args.size):
         parser.error('--size must be WIDTHxHEIGHT, such as 1500x900')
     if not 1 <= args.fps <= 120: parser.error('--fps must be between 1 and 120')
     if not args.backend.is_absolute() or not os.access(args.backend, os.X_OK):
         parser.error('--backend must be an absolute executable path')
+
+    if args.detach:
+        # The bridge lives in the launcher. Detach that whole supervisor, not
+        # just its viewer/container, so closing a tool terminal cannot leave a
+        # visible desktop connected to a dead backend socket.
+        descriptor, log = tempfile.mkstemp(prefix='usagestat-review-', suffix='.log',
+                                         dir=os.environ.get('XDG_RUNTIME_DIR'))
+        with os.fdopen(descriptor, 'wb') as stream:
+            process = subprocess.Popen([sys.executable, str(Path(__file__).resolve()), args.target,
+                '--backend', str(args.backend), '--config-home', str(args.config_home),
+                '--size', args.size, '--fps', str(args.fps), '--timezone', args.timezone],
+                stdin=subprocess.DEVNULL, stdout=stream, stderr=subprocess.STDOUT, start_new_session=True)
+        print(f'Review launcher started (PID {process.pid}). Startup log: {log}', flush=True)
+        print('Close the viewer to stop the session and its private backend bridge.', flush=True)
+        return
 
     def stop_signal(_signum, _frame):
         raise KeyboardInterrupt
@@ -232,7 +249,9 @@ def main():
             display_args = ['-e', f'USAGESTAT_LAB_DISPLAY={display}', '-e', 'XAUTHORITY=/display.auth',
                             '-v', f'{authority}:/display.auth:ro', '-v', f'{x_socket}:{x_socket}:rw']
         command = [*podman, 'run', '--rm', '--name', name, '--network', 'none', '--security-opt', 'label=disable']
-        if args.target in ('sway', 'hyprland'):
+        if args.target in ('hyprland', 'cinnamon'):
+            command += ['--userns=keep-id:uid=1000,gid=1000']
+        elif args.target == 'sway':
             command += ['--userns=keep-id']
         if args.target in ('cosmic', 'hyprland'):
             command += ['--device', render_node]

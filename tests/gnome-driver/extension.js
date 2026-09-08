@@ -69,6 +69,10 @@ export default class BaselineDriver extends Extension {
     }
 
     async _run() {
+        if (GLib.getenv('USAGESTAT_TEST_INTERACTIONS') === '1') {
+            const {runInteractions} = await import('./interactions.js');
+            return runInteractions(this);
+        }
         let app = await this._ready();
         Main.overview.hide();
         await delay(700);

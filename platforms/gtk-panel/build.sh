@@ -3,7 +3,7 @@ set -euo pipefail
 directory="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 target="${1:?Choose waybar or xfce}"
 output="${2:?Output shared library path required}"
-packages=(gtk+-3.0 json-glib-1.0)
+packages=(gtk+-3.0 json-glib-1.0 gmodule-2.0)
 case "$target" in
     waybar) source_file="$directory/../waybar/module.c" ;;
     xfce) source_file="$directory/../xfce/plugin.c"; packages+=(libxfce4panel-2.0) ;;

@@ -3,7 +3,7 @@ import Gtk from 'gi://Gtk?version=4.0';
 import Gdk from 'gi://Gdk?version=4.0';
 import Gio from 'gi://Gio';
 import GObject from 'gi://GObject';
-import {safeColor} from './model.js';
+import {safeColor, panelPins} from './model.js';
 
 export const TrayPage = GObject.registerClass(
 class TrayPage extends Adw.PreferencesPage {
@@ -12,6 +12,7 @@ class TrayPage extends Adw.PreferencesPage {
         this.settings = settings;
         this._externalSignals = [];
         this.providerRows = [];
+        this.pinRows = [];
 
         const visibility = new Adw.PreferencesGroup({title: 'Tray icons',
             description: 'Manage the small icons in your desktop’s system tray separately from the panel widget.'});
@@ -32,6 +33,10 @@ class TrayPage extends Adw.PreferencesPage {
         settings.bind('scroll-to-switch-provider', this.scrollRow, 'active', Gio.SettingsBindFlags.DEFAULT);
         visibility.add(this.scrollRow);
         this.add(visibility);
+
+        this.pinsGroup = new Adw.PreferencesGroup({title: 'Pinned providers',
+            description: 'Keep selected providers first while scrolling through the rest. One slot stays available for scrolling.'});
+        this.add(this.pinsGroup);
 
         this.providersGroup = new Adw.PreferencesGroup({title: 'Visible providers',
             description: 'Each selected provider gets its own icon. Your desktop controls icon placement and order.'});
@@ -99,11 +104,14 @@ class TrayPage extends Adw.PreferencesPage {
     updateProviders(providers) {
         if (this._closed) return;
         const visible = providers.filter(provider => !provider.parent);
+        this.visibleProviders = visible;
         const signature = JSON.stringify(visible.map(provider => [provider.key, provider.name]));
         if (signature === this._providers) return;
         this._providers = signature;
         for (const row of this.providerRows) this.providersGroup.remove(row);
         this.providerRows = [];
+        for (const row of this.pinRows) this.pinsGroup.remove(row);
+        this.pinRows = [];
         const selected = new Set(this.settings.get_strv('providers'));
         for (const provider of visible) {
             const row = new Adw.SwitchRow({title: provider.name, use_markup: false, active: selected.has(provider.key)});
@@ -117,12 +125,23 @@ class TrayPage extends Adw.PreferencesPage {
             });
             this.providerRows.push(row);
             this.providersGroup.add(row);
+            const pin = new Adw.SwitchRow({title: provider.name, use_markup: false});
+            pin.providerKey = provider.key;
+            pin.connect('notify::active', () => {
+                if (this._syncingPins) return;
+                const keys = panelPins(this.visibleProviders, this.settings.get_strv('pinned-providers'), this.settings.get_int('provider-count'));
+                if (keys.includes(provider.key) === pin.active) return;
+                this.settings.set_strv('pinned-providers', pin.active ? [...keys, provider.key] : keys.filter(key => key !== provider.key));
+            });
+            this.pinRows.push(pin);
+            this.pinsGroup.add(pin);
         }
         if (!visible.length) {
             const empty = new Adw.ActionRow({title: 'No enabled providers', subtitle: 'Enable providers on the Providers page.', sensitive: false});
             this.providerRows.push(empty);
             this.providersGroup.add(empty);
         }
+        this.syncSettings();
     }
 
     syncSettings() {
@@ -130,6 +149,7 @@ class TrayPage extends Adw.PreferencesPage {
         const mode = this.settings.get_string('provider-mode');
         const style = this.settings.get_string('icon-style');
         this.providersGroup.visible = mode === 'custom';
+        this.pinsGroup.visible = mode === 'count';
         this.countRow.visible = mode === 'count';
         this.scrollRow.sensitive = mode === 'active' || mode === 'count';
         this.logoRow.sensitive = style !== 'percentage';
@@ -137,6 +157,14 @@ class TrayPage extends Adw.PreferencesPage {
         this.orientationRow.visible = this.thicknessRow.visible = this.colorRow.visible = style === 'logo-meter';
         const selected = new Set(this.settings.get_strv('providers'));
         for (const row of this.providerRows) if (row.providerKey) row.active = selected.has(row.providerKey);
+        const pins = panelPins(this.visibleProviders || [], this.settings.get_strv('pinned-providers'), this.settings.get_int('provider-count'));
+        this._syncingPins = true;
+        for (const row of this.pinRows) {
+            row.active = pins.includes(row.providerKey);
+            row.sensitive = row.active || pins.length < Math.min(this.settings.get_int('provider-count'), this.pinRows.length) - 1;
+            row.subtitle = row.active ? `Pinned position ${pins.indexOf(row.providerKey) + 1}` : '';
+        }
+        this._syncingPins = false;
         const rgba = new Gdk.RGBA();
         rgba.parse(safeColor(this.settings.get_string('accent-color')));
         if (!this.colorButton.rgba.equal(rgba)) this.colorButton.rgba = rgba;

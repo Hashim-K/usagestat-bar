@@ -4,7 +4,16 @@ set -euo pipefail
 export GSK_RENDERER="${GSK_RENDERER:-cairo}"
 app_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 case "${1:-tray}" in
-    service) exec gjs -m "$app_dir/main.js" ;;
+    service)
+        # Layer Shell must load before GTK/libwayland in interpreted clients.
+        if [[ -n "${WAYLAND_DISPLAY:-}" ]]; then
+            layer_library="$(python3 -c 'import ctypes.util; print(ctypes.util.find_library("gtk4-layer-shell") or "")')"
+            if [[ -n "$layer_library" ]]; then
+                export USAGESTAT_PARENT_LD_PRELOAD="${LD_PRELOAD:-}"
+                export LD_PRELOAD="$layer_library${LD_PRELOAD:+:$LD_PRELOAD}"
+            fi
+        fi
+        exec gjs -m "$app_dir/main.js" ;;
     --help|-h)
         printf '%s\n' 'Usage: usagestat-bar [tray|details|toggle [ID]|preferences|refresh|next|previous|scroll-next|scroll-previous|select ID|snapshot|waybar [--watch]|polybar [--watch]|image|quit]' ;;
     *) exec gjs -m "$app_dir/client.js" "$@" ;;

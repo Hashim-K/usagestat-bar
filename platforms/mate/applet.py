@@ -28,10 +28,15 @@ class Indicator:
                            b'#usagestat-panel:hover { background: alpha(currentColor, 0.08); border-radius: 6px; }')
         self.button.get_style_context().add_provider(css, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
         self.button.add(self.image)
-        self.button.connect('clicked', lambda *_: self.call('ToggleDetails', '(s)', ('',)))
+        self.button.connect('clicked', self.clicked)
         self.button.add_events(Gdk.EventMask.SCROLL_MASK | Gdk.EventMask.SMOOTH_SCROLL_MASK | Gdk.EventMask.BUTTON_PRESS_MASK)
         self.button.connect('scroll-event', self.scroll)
         self.button.connect('button-press-event', self.press)
+        self.actions = Gtk.ActionGroup(name='UsageStatActions')
+        preferences = Gtk.Action(name='UsageStatPreferences', label='UsageStat preferences', tooltip='Configure UsageStat', stock_id=None)
+        preferences.connect('activate', lambda *_: self.call('Preferences', '(s)', ('',)))
+        self.actions.add_action(preferences)
+        applet.setup_menu('<menuitem name="UsageStatPreferences" action="UsageStatPreferences"/>', self.actions)
         self.button.connect('style-updated', lambda *_: self.redraw())
         self.image.connect('notify::scale-factor', lambda *_: self.redraw())
         applet.add(self.button)
@@ -58,6 +63,26 @@ class Indicator:
     def request(self):
         self.call('GetSnapshot', done=lambda value: self.render(json.loads(value[0])))
 
+    def clicked(self, *_):
+        top = self.button.get_toplevel()
+        window = top.get_window()
+        _, x, y = window.get_origin()
+        coordinates = self.button.translate_coordinates(top, 0, 0)
+        # PyGObject's GTK override returns (x, y), or None on failure. Older
+        # unoverridden bindings also include the success boolean.
+        if coordinates is None or (len(coordinates) == 3 and not coordinates[0]):
+            return self.call('ToggleDetails', '(s)', ('',))
+        dx, dy = coordinates[-2:]
+        monitor = self.button.get_display().get_monitor_at_window(window)
+        area, screen = monitor.get_workarea(), monitor.get_geometry()
+        vertical = self.applet.get_orient() in [MatePanelApplet.AppletOrient.LEFT, MatePanelApplet.AppletOrient.RIGHT]
+        edge = ('left' if x < screen.x + screen.width/2 else 'right') if vertical else ('top' if y < screen.y + screen.height/2 else 'bottom')
+        scale = window.get_scale_factor()
+        rect = lambda x, y, w, h: dict(x=x*scale, y=y*scale, w=w*scale, h=h*scale)
+        anchor = dict(edge=edge, rect=rect(x+dx, y+dy, self.button.get_allocated_width(), self.button.get_allocated_height()),
+                      work=rect(area.x, area.y, area.width, area.height))
+        self.call('ToggleDetailsAt', '(ss)', ('', json.dumps(anchor)))
+
     def render(self, state):
         if self.cancellable.is_cancelled(): return
         self.state = state
@@ -67,14 +92,14 @@ class Indicator:
     def redraw(self):
         if not self.state or self.cancellable.is_cancelled(): return
         foreground = self.button.get_style_context().get_color(Gtk.StateFlags.NORMAL)
-        key = 'panelImageLight' if (foreground.red + foreground.green + foreground.blue) < 1.5 else 'panelImage'
+        vertical = self.applet.get_orient() in [MatePanelApplet.AppletOrient.LEFT, MatePanelApplet.AppletOrient.RIGHT]
+        light = (foreground.red + foreground.green + foreground.blue) < 1.5
+        key = ('panelImageVerticalLight' if light else 'panelImageVertical') if vertical else ('panelImageLight' if light else 'panelImage')
         path = self.state.get(key + 'Png', self.state[key])
-        height = max(16, min(28, self.applet.get_size() - 4))
+        height = max(16, min(40 if vertical else 28, self.applet.get_size() - 4))
         scale = self.image.get_scale_factor()
         try:
-            pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale(path, -1, height * scale, True)
-            if self.applet.get_orient() in [MatePanelApplet.AppletOrient.LEFT, MatePanelApplet.AppletOrient.RIGHT]:
-                pixbuf = pixbuf.rotate_simple(GdkPixbuf.PixbufRotation.CLOCKWISE)
+            pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale(path, height * scale if vertical else -1, -1 if vertical else height * scale, True)
             self.image.set_from_surface(Gdk.cairo_surface_create_from_pixbuf(pixbuf, scale, None))
         except GLib.Error as error:
             self.button.set_tooltip_text(error.message)
@@ -100,9 +125,8 @@ class Indicator:
         return False
 
     def press(self, _button, event):
-        if event.button == 3:
-            self.call('Preferences', '(s)', ('',))
-            return True
+        # Let MATE provide its native Move / Lock / Remove context menu.
+        # UsageStat preferences are added to that menu above.
         if event.button == 2:
             self.call('Refresh')
             return True

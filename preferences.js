@@ -206,7 +206,47 @@ class BehaviourPage extends Adw.PreferencesPage {
         this.add(this._buildRefreshGroup());
         this.add(this._buildInteractionGroup());
         this.add(this._buildPopupGroup());
+        if (!desktopPlacement && settings.settings_schema.has_key('usagestat-shortcut-toggle'))
+            this.add(this._buildShortcutsGroup());
         this.add(this._buildCliGroup());
+    }
+
+    _buildShortcutsGroup() {
+        const group = new Adw.PreferencesGroup({title: _('Global shortcuts'),
+            description: _('Choose shortcuts that work while another app is focused. Shortcuts are disabled until assigned.')});
+        for (const [action, title] of [['toggle', _('Show / hide usage')], ['previous', _('Previous provider')],
+            ['next', _('Next provider')], ['refresh', _('Refresh usage')], ['preferences', _('Open preferences')]]) {
+            const key = `usagestat-shortcut-${action}`;
+            const row = new Adw.ActionRow({title});
+            const button = new Gtk.Button({valign: Gtk.Align.CENTER});
+            const update = () => {
+                const value = this._settings.get_strv(key)[0];
+                const [valid, keyval, modifiers] = Gtk.accelerator_parse(value || '');
+                button.label = valid ? Gtk.accelerator_get_label(keyval, modifiers) : _('Disabled');
+            };
+            listen(this, this._settings, `changed::${key}`, update); update();
+            button.connect('clicked', () => {
+                const dialog = new Adw.MessageDialog({transient_for: this.get_root(), modal: true,
+                    heading: title, body: _('Press a modifier and a key, or a function key. Escape cancels; Backspace removes the shortcut.')});
+                dialog.add_response('cancel', _('Cancel'));
+                dialog.add_response('clear', _('Remove shortcut'));
+                dialog.set_close_response('cancel');
+                dialog.connect('response', (_dialog, response) => { if (response === 'clear') this._settings.set_strv(key, []); });
+                const keys = new Gtk.EventControllerKey({propagation_phase: Gtk.PropagationPhase.CAPTURE});
+                keys.connect('key-pressed', (_controller, keyval, _keycode, state) => {
+                    if (keyval === Gdk.KEY_Escape) { dialog.close(); return true; }
+                    if (keyval === Gdk.KEY_BackSpace) { this._settings.set_strv(key, []); dialog.close(); return true; }
+                    const modifiers = state & Gtk.accelerator_get_default_mod_mask();
+                    const modified = modifiers & (Gdk.ModifierType.CONTROL_MASK | Gdk.ModifierType.ALT_MASK | Gdk.ModifierType.SUPER_MASK);
+                    if (!Gtk.accelerator_valid(keyval, modifiers) || (!modified && (keyval < Gdk.KEY_F1 || keyval > Gdk.KEY_F35))) return true;
+                    this._settings.set_strv(key, [Gtk.accelerator_name(Gdk.keyval_to_lower(keyval), modifiers)]);
+                    dialog.close(); return true;
+                });
+                dialog.add_controller(keys); dialog.present();
+            });
+            row.add_suffix(button); row.activatable_widget = button; group.add(row);
+        }
+        return group;
     }
 
     _setEntryRowPlaceholder(row, text) {
@@ -637,12 +677,14 @@ class AppearancePage extends Adw.PreferencesPage {
             left: _('Left'), center: _('Center'), right: _('Right'),
         }[this._settings.get_string('popup-alignment')] || _('Center'));
         alignmentRow.title = _('Popup alignment');
-        alignmentRow.subtitle = _('How the popup menu aligns to the panel indicator.');
+        alignmentRow.subtitle = _('Keep the popup aligned to the indicator. On side panels, Left / Right means Top / Bottom.');
         alignmentRow.connect('notify::selected', () => {
             this._settings.set_string('popup-alignment', ['left', 'center', 'right'][alignmentRow.selected] || 'center');
         });
-        if (!this._desktopPlacement)
-            group.add(alignmentRow);
+        group.add(alignmentRow);
+        listen(this, this._settings, 'changed::popup-alignment', () => {
+            alignmentRow.selected = Math.max(0, ['left', 'center', 'right'].indexOf(this._settings.get_string('popup-alignment')));
+        });
 
         const indexRow = new Adw.SpinRow({
             title: _('Position index'),

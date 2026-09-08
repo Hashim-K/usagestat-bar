@@ -80,7 +80,7 @@ async function main() {
                 'org.freedesktop.DBus.Error.UnknownMethod', 'org.freedesktop.DBus.Error.UnknownObject'].includes(remote)) throw error;
             if (!started) {
                 const launcher = new Gio.SubprocessLauncher({flags: Gio.SubprocessFlags.STDOUT_SILENCE});
-                launcher.spawnv(['gjs', '-m', `${ROOT}/platforms/linux/main.js`]);
+                launcher.spawnv([`${ROOT}/platforms/linux/usagestat-bar`, 'service']);
                 started = true;
             }
             await delay(100);

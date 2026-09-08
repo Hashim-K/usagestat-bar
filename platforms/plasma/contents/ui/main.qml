@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls as QQC2
 import QtQuick.Layouts
+import QtQuick.Window
 import org.kde.kirigami as Kirigami
 import org.kde.plasma.plasmoid
 import org.kde.plasma.core as PlasmaCore
@@ -18,6 +19,9 @@ PlasmoidItem {
     property double lastWheel: 0
     readonly property bool vertical: Plasmoid.formFactor === PlasmaCore.Types.Vertical
     readonly property bool lightPanel: Kirigami.Theme.textColor.hslLightness < 0.5
+    readonly property real popupAlignment: ({left: 0, center: 0.5, right: 1})[snapshot.popupAlignment || "center"] ?? 0.5
+    readonly property var representationWindow: fullRepresentationItem ? fullRepresentationItem.Window.window : null
+    readonly property var popupWindow: representationWindow && representationWindow.visualParent !== undefined ? representationWindow : null
     readonly property var activeProvider: snapshot.providers.find(p => p.key === snapshot.active) || null
     readonly property var sections: activeProvider
         ? [activeProvider].concat(snapshot.providers.filter(p => p.parent === snapshot.active)) : []
@@ -121,9 +125,35 @@ PlasmoidItem {
     }
     Component.onCompleted: call("GetSnapshot", "()", [], acceptSnapshot)
 
+    // Plasma centers its native popup on visualParent. Offset that invisible
+    // anchor to implement the same indicator alignment as GNOME on either axis.
+    Binding {
+        target: root.popupWindow
+        property: "visualParent"
+        value: root.compactRepresentationItem ? root.compactRepresentationItem.popupAnchor : null
+        when: root.expanded && root.popupWindow !== null && root.compactRepresentationItem !== null
+        restoreMode: Binding.RestoreBindingOrValue
+    }
+
     compactRepresentation: MouseArea {
-        implicitWidth: root.vertical ? 32 : (root.snapshot.panelWidth || 160)
-        implicitHeight: root.vertical ? (root.snapshot.panelWidth || 160) : 28
+        property alias popupAnchor: popupAnchor
+        Item {
+            id: popupAnchor
+            width: parent.width
+            height: parent.height
+            x: !root.vertical && root.popupWindow ? (root.popupWindow.width - width) * (0.5 - root.popupAlignment) : 0
+            y: root.vertical && root.popupWindow ? (root.popupWindow.height - height) * (0.5 - root.popupAlignment) : 0
+            function reposition() {
+                if (root.expanded && root.popupWindow && typeof root.popupWindow.queuePositionUpdate === "function") {
+                    root.popupWindow.queuePositionUpdate()
+                    root.popupWindow.update()
+                }
+            }
+            onXChanged: reposition()
+            onYChanged: reposition()
+        }
+        implicitWidth: root.vertical ? 40 : (root.snapshot.panelWidth || 160)
+        implicitHeight: root.vertical ? (root.snapshot.panelVerticalHeight || 80) * width / (root.snapshot.panelVerticalWidth || 40) : 28
         Layout.minimumWidth: implicitWidth
         Layout.minimumHeight: root.vertical ? implicitHeight : 20
         acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
@@ -140,10 +170,11 @@ PlasmoidItem {
         Keys.onSpacePressed: root.expanded = !root.expanded
         Image {
             anchors.centerIn: parent
-            width: root.vertical ? parent.height : parent.width
-            height: root.vertical ? parent.width : parent.height
-            rotation: root.vertical ? 90 : 0
-            source: root.snapshot.panelImagePng ? "file://" + (root.lightPanel ? root.snapshot.panelImageLightPng : root.snapshot.panelImagePng)
+            width: parent.width
+            height: parent.height
+            source: root.snapshot.panelImagePng ? "file://" + (root.vertical
+                ? root.lightPanel ? root.snapshot.panelImageVerticalLightPng : root.snapshot.panelImageVerticalPng
+                : root.lightPanel ? root.snapshot.panelImageLightPng : root.snapshot.panelImagePng)
                 + "?v=" + root.snapshot.panelImageKey : ""
             fillMode: Image.PreserveAspectFit
             visible: !root.failure
