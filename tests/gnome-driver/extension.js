@@ -92,8 +92,11 @@ export default class BaselineDriver extends Extension {
             equal(app._childProviders('codex').map(p => p.instanceId), ['codex:fixture-work']);
             equal(app._usage.get('codex').usage.primary.usedPercent, 25);
         });
-        await check('auto usage averages visible standard windows', () => {
+        await check('default session and explicit automatic meter selection', () => {
+            equal(app._snapshotUsedPercent(app._usage.get('codex'), 'codex'), 25);
+            app._settings.set_string('provider-usage-settings', JSON.stringify({codex: {panelUsageTier: 'auto'}}));
             equal(app._snapshotUsedPercent(app._usage.get('codex'), 'codex'), 52.5);
+            app._settings.set_string('provider-usage-settings', '{}');
         });
         await check('used/remaining modes affect meter meaning and text', () => {
             app._settings.set_string('display-mode', 'used');

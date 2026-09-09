@@ -1,9 +1,9 @@
 import Gio from 'gi://Gio';
-import GLib from 'gi://GLib';
 import Gdk from 'gi://Gdk?version=4.0';
 import Gtk from 'gi://Gtk?version=4.0';
 import {runAsync} from '../../cli.js';
 import {desktopName} from './desktop.js';
+import {cosmicPanel} from './cosmic.js';
 import {ROOT} from './settings.js';
 
 let GdkX11, LayerShell;
@@ -78,11 +78,6 @@ export function dismissOutside(window, dismiss) {
     return () => backdrops.forEach(backdrop => backdrop.destroy());
 }
 
-function read(path) {
-    try { return new TextDecoder().decode(Gio.File.new_for_path(path).load_contents(null)[1]).trim(); }
-    catch { return ''; }
-}
-
 async function configuredPanel(cancellable) {
     const names = desktopName();
     if (names.some(name => ['sway', 'hyprland'].includes(name))) {
@@ -102,10 +97,7 @@ async function configuredPanel(cancellable) {
         return {edge: panel?.get_string('location') || 'bottom'};
     }
     if (names.includes('cosmic')) {
-        const config = (name, key) => [GLib.get_user_config_dir(), ...GLib.get_system_data_dirs()]
-            .map(base => read(`${base}/cosmic/com.system76.CosmicPanel.${name}/v1/${key}`)).find(Boolean) || '';
-        const name = ['Panel', 'Dock'].find(name => /StatusArea/.test(config(name, 'plugins_wings') + config(name, 'plugins_center'))) || 'Panel';
-        return {edge: config(name, 'anchor').toLowerCase(), output: config(name, 'output').match(/Name\("([^"]+)"\)/)?.[1]};
+        return cosmicPanel();
     }
     return {edge: 'top'};
 }

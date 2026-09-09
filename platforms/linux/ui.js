@@ -238,7 +238,11 @@ export class DetailsWindow {
             tab.item.tooltip_text = `${provider.name}: ${provider.error ? 'Error' : provider.text}`;
             tab.item.update_property([Gtk.AccessibleProperty.LABEL], [tab.item.tooltip_text]);
             tab.name.label = provider.name;
-            const path = active || this.style.dark ? provider.logo : provider.logoLight;
+            // Desktop-generated GTK palettes (notably COSMIC) can override
+            // colors independently of Adwaita's light/dark preference.
+            const foreground = tab.name.get_style_context().get_color();
+            const lightForeground = foreground.red * 0.2126 + foreground.green * 0.7152 + foreground.blue * 0.0722 > 0.5;
+            const path = active || lightForeground ? provider.logo : provider.logoLight;
             if (path) tab.icon.set_from_file(path);
             else tab.icon.set_from_icon_name('application-x-executable-symbolic');
             const color = safeColor(provider.error ? '#ff5f57' : provider.color);

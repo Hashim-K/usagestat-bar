@@ -60,6 +60,7 @@ function resizeDetails(force = false) {
 
 function showDetails(provider = '', fromPanel = false, anchorRect = null) {
     if (!fromPanel) {
+        cancelDetailsPosition();
         details?.window.hide();
         if (provider) model.select(provider);
         applicationDetails ||= new DetailsWindow(app, model, showPreferences);
@@ -72,7 +73,7 @@ function showDetails(provider = '', fromPanel = false, anchorRect = null) {
     if (provider) model.select(provider);
     if (!details) {
         details = new DetailsWindow(app, model, showPreferences, resizeDetails);
-        if (fromPanel) preparePanelWindow(details.window);
+        details.layerShell = preparePanelWindow(details.window);
         details.window.connect('hide', () => { cancelDetailsPosition(); stopOutside(); });
     }
     details.panelMode = fromPanel;
@@ -83,6 +84,26 @@ function showDetails(provider = '', fromPanel = false, anchorRect = null) {
     details.window.opacity = anchor ? 0.01 : 1;
     if (anchor) { details.window.unmaximize(); details.window.unfullscreen(); }
     if (fromPanel) details.window.set_default_size(...details.preferredSize());
+    if (details.layerShell && !details.window.visible) {
+        // Select the output and anchors before mapping. Changing the output
+        // during the first configure destroys/recreates the Wayland surface;
+        // COSMIC can still be sending keyboard events to that old surface.
+        const pending = detailsPosition = new Gio.Cancellable();
+        const alignment = model.settings.get_string('popup-alignment');
+        anchorToPanel(details.window, details.preferredSize(), pending, detailsAnchor, alignment).then(value => {
+            if (detailsPosition === pending) detailsAnchor = lastPanelAnchor = value;
+        }).catch(error => {
+            if (!pending.is_cancelled()) console.warn(`UsageStat panel placement: ${error.message}`);
+        }).finally(() => {
+            if (detailsPosition !== pending) return;
+            detailsPosition = null;
+            details.window.opacity = 1;
+            details.window.present();
+            stopDismissal = dismissOutside(details.window, dismissDetails);
+            resizeDetails(true);
+        });
+        return;
+    }
     details.window.present();
     if (fromPanel) {
         stopDismissal = dismissOutside(details.window, dismissDetails);
@@ -95,7 +116,8 @@ function toggleDetails(provider = '', anchor = null) {
     if (GLib.get_monotonic_time() - dismissedAt < 250000) return;
     // Panel clicks can take focus before the D-Bus call arrives. Visibility,
     // rather than keyboard focus, determines whether the next click closes it.
-    if (details?.window.visible && (!provider || provider === model.active)) {
+    if ((details?.window.visible || detailsPosition) && (!provider || provider === model.active)) {
+        cancelDetailsPosition();
         details.window.hide();
     } else {
         showDetails(provider, true, anchor);
@@ -103,6 +125,7 @@ function toggleDetails(provider = '', anchor = null) {
 }
 
 function showPreferences(provider = '', page = '') {
+    cancelDetailsPosition();
     if (details?.panelMode) details.window.hide();
     prefs?.close();
     prefs = preferencesWindow(app, model.settings, provider, {traySettings: trayConfig, providers: state.providers, page,

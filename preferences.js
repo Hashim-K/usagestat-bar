@@ -2014,13 +2014,14 @@ class ProvidersPage extends Adw.PreferencesPage {
         const options = this._usageTierOptions(provider);
         const values = options.map(([value]) => value);
         const labels = options.map(([, label]) => label);
-        const selectedValue = values.includes(this._providerUsageSetting(provider, 'panelUsageTier')) ? this._providerUsageSetting(provider, 'panelUsageTier') : 'auto';
+        const configured = this._providerUsageSetting(provider, 'panelUsageTier') || 'primary';
+        const selectedValue = values.includes(configured) ? configured : 'auto';
         const row = combo(labels, labels[values.indexOf(selectedValue)]);
         row.title = _('Top bar usage window');
         row.subtitle = _('Usage measure shown when this provider is active.');
         row.connect('notify::selected', () => {
             const value = values[row.selected] || 'auto';
-            this._setProviderUsageSetting(provider, 'panelUsageTier', value === 'auto' ? null : value);
+            this._setProviderUsageSetting(provider, 'panelUsageTier', value === 'primary' ? null : value);
         });
         return row;
     }

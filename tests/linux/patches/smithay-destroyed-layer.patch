@@ -1,0 +1,15 @@
+--- a/src/wayland/shell/wlr_layer/mod.rs
++++ b/src/wayland/shell/wlr_layer/mod.rs
+@@ -485,6 +485,12 @@
+         compositor::with_states(surface, |states| {
+             let mut role = states.data_map.get::<LayerSurfaceData>().unwrap().lock().unwrap();
+ 
++            // The hook outlives the layer role. GTK can commit a null buffer
++            // after destroying that role; its reset state is no longer a
++            // layer-shell size request and must not trigger a protocol error.
++            if !role.surface.is_alive() {
++                return;
++            }
+             let mut guard_layer = states.cached_state.get::<LayerSurfaceCachedState>();
+             let pending = guard_layer.pending();
+ 

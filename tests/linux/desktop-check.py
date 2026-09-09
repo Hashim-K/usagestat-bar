@@ -46,7 +46,7 @@ def screenshot(name):
     # These clients poll every two seconds. Capture after their next update,
     # otherwise a correct model can leave the screenshot on the previous state.
     time.sleep(3 if TARGET in ['plasma', 'i3', 'bspwm'] else .7)
-    if TARGET in ['sway','budgie','cosmic','hyprland']:
+    if TARGET in ['sway','budgie','cosmic','hyprland'] and os.environ.get('USAGESTAT_LAB_INPUT') != 'x11':
         subprocess.run(['grim', str(OUT / name)], check=True, timeout=10)
     else:
         subprocess.run(['magick', 'import', '-window', 'root', str(OUT / name)], check=True, timeout=10)
@@ -87,11 +87,11 @@ try:
     initial = wait_for(lambda: s if not (s := state())['loading'] and len(s['providers']) == 3 else None)
     def initial_check():
         assert len(initial['panel']) == 2
-        assert initial['providers'][0]['used'] == 52.5
-        assert initial['providers'][0]['percent'] == 47.5
+        assert initial['providers'][0]['used'] == 25
+        assert initial['providers'][0]['percent'] == 75
         assert initial['providers'][2]['parent'] == 'codex'
         assert len(initial['providers'][0]['cost']['lines']) == 3
-    check('fixture accounts, grouping, automatic mean and costs', initial_check)
+    check('fixture accounts, grouping, default session meter and costs', initial_check)
 
     if TARGET in ['lxqt', 'budgie', 'cosmic']:
         def tray_check():
@@ -146,7 +146,7 @@ try:
     def display():
         setting('display-mode', 'used')
         wait_for(lambda: state()['mode'] == 'used')
-        assert state()['providers'][0]['percent'] == 52.5
+        assert state()['providers'][0]['percent'] == 25
         setting('provider-usage-settings', '{"codex":{"panelUsageTier":"secondary"}}')
         wait_for(lambda: state()['providers'][0]['used'] == 80)
     check('settings update panel selection and used/remaining mode', display)

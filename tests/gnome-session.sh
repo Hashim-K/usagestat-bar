@@ -115,11 +115,10 @@ gsettings set "$schema" usagestat-cli-path "$source_dir/tests/fixtures/usagestat
 gsettings set "$schema" refresh-interval 0
 gsettings set org.gnome.shell disable-user-extensions false
 gsettings set org.gnome.desktop.interface enable-animations false
-gsettings set org.gnome.desktop.background picture-uri "''"
-gsettings set org.gnome.desktop.background picture-uri-dark "''"
-gsettings set org.gnome.desktop.background primary-color '#20242b'
-gsettings set org.gnome.desktop.background color-shading-type 'solid'
-gsettings set org.gnome.desktop.background picture-options 'none'
+wallpaper="$(python3 "$source_dir/tests/linux/background.py" gnome --output "$USAGESTAT_TEST_OUTPUT_DIR")"
+gsettings set org.gnome.desktop.background picture-uri "file://$wallpaper"
+gsettings set org.gnome.desktop.background picture-uri-dark "file://$wallpaper"
+gsettings set org.gnome.desktop.background picture-options zoom
 gsettings set org.gnome.shell welcome-dialog-last-shown-version '999'
 if [[ "$mode" == --check ]]; then
     # Load the driver first so disabling the tested extension does not rebase it.

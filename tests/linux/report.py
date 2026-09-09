@@ -27,7 +27,7 @@ def collect(batches, output, blocked, notes):
         destination = output / target
         destination.mkdir()
         for path in source.iterdir():
-            if path.is_file() and not path.name.startswith('.') and path.suffix in ['.json', '.png', '.mp4', '.log', '.txt']:
+            if path.is_file() and not path.name.startswith('.') and path.suffix in ['.json', '.jsonl', '.png', '.mp4', '.log', '.txt']:
                 shutil.copy2(path, destination / path.name)
         raw = json.loads((source / 'result.json').read_text())
         checks = raw.get('checks', raw.get('results', []))
@@ -90,7 +90,7 @@ Settings were applied through their native settings/configuration interfaces; th
 Videos contain unedited desktop frames at 5 FPS. Step links are approximate. Raw logs and environment metadata are included beside each video.</p>
 </header><div class="table-wrap"><table><thead><tr><th>Platform</th><th>Assessment</th><th>Raw checks</th><th>Notes</th></tr></thead><tbody>''' + ''.join(rows) + '''</tbody></table></div>
 <label><input id="problems" type="checkbox"> Show only failed or unsupported screenshot steps</label>''' + ''.join(sections) + '''
-<footer>All account data in these captures is synthetic. COSMIC's raw passing checks do not establish working native input when its session is marked blocked.
+<footer>All account data in these captures is synthetic. A blocked session does not establish working native input.
 Unsupported cases are not counted as passes. <a href="summary.json">Download the result matrix</a>.</footer></main>
 <script>
 document.getElementById('problems').addEventListener('change', e => document.body.classList.toggle('only-problems',e.target.checked));

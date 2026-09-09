@@ -6,6 +6,7 @@ export XDG_CONFIG_HOME=/tmp/usagestat-config XDG_DATA_HOME=/tmp/usagestat-prefix
 export XDG_CACHE_HOME=/tmp/usagestat-cache XDG_STATE_HOME=/tmp/usagestat-state XDG_RUNTIME_DIR=/tmp/usagestat-runtime
 export GSETTINGS_BACKEND=dconf GIO_USE_VFS=local GTK_A11Y=none NO_AT_BRIDGE=1
 export LC_ALL=C.UTF-8 TZ="${USAGESTAT_LAB_TIMEZONE:-UTC}" LIBGL_ALWAYS_SOFTWARE=1
+if [[ "$target" == cosmic ]]; then export LC_ALL=en_US.UTF-8; fi
 mkdir -p "$XDG_CONFIG_HOME/usagestat" "$XDG_RUNTIME_DIR" /out
 if [[ "$(id -u)" == 0 ]]; then
     mkdir -p /run/dbus
@@ -38,6 +39,9 @@ if command -v rpm >/dev/null; then
     rpm -qa --qf '%{NAME} %{VERSION}-%{RELEASE}.%{ARCH}\n' | sort > /out/packages.txt
 else
     pacman -Q > /out/packages.txt
+fi
+if [[ -d /usr/share/usagestat-lab ]]; then
+    cp /usr/share/usagestat-lab/*-build.txt /out/
 fi
 if [[ "${USAGESTAT_LAB_BUS:-}" != yes ]]; then
     export USAGESTAT_LAB_BUS=yes

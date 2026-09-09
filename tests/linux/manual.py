@@ -105,7 +105,7 @@ def main():
     parser.add_argument('--backend', required=True, type=Path, help='Absolute host usagestat or usagestat-dev path')
     parser.add_argument('--config-home', type=Path, default=Path.home() / '.config',
                         help='Host config directory (default: ~/.config)')
-    parser.add_argument('--size', default='1500x900', help='Desktop size (default: 1500x900)')
+    parser.add_argument('--size', default='1500x900', help='Desktop size (default: 1500x900; COSMIC preview: fixed 1280x800)')
     parser.add_argument('--fps', type=int, default=60, help='Hyprland stream frame-rate limit (default: 60)')
     parser.add_argument('--timezone', default=local_timezone(), help='Timezone for usage/reset times (default: host timezone)')
     parser.add_argument('--detach', action='store_true',
@@ -158,6 +158,9 @@ def main():
                 raise RuntimeError(f'{target} could not open. Restart with that desktop name after checking its logs.')
         return
     direct_wayland = args.target == 'hyprland'
+    if args.target == 'cosmic':
+        # Match COSMIC's nested Winit output without a second EGL resize.
+        args.size = '1280x800'
     programs = ('podman', 'remote-viewer') if direct_wayland else ('podman', 'Xvnc', 'vncpasswd', 'remote-viewer')
     for program in programs:
         if not shutil.which(program):
@@ -176,7 +179,7 @@ def main():
     if subprocess.run([*podman, 'image', 'exists', image]).returncode:
         parser.error('Build the desktop image first: bash tests/linux/build-lab.sh ' + ('hyprland' if args.target == 'hyprland' else 'fedora'))
     render_node = os.environ.get('USAGESTAT_LAB_RENDER_NODE', '/dev/dri/renderD128')
-    if args.target in ('cosmic', 'hyprland') and not os.access(render_node, os.R_OK | os.W_OK):
+    if args.target == 'hyprland' and not os.access(render_node, os.R_OK | os.W_OK):
         parser.error(f'{args.target} needs a readable/writable render node; set USAGESTAT_LAB_RENDER_NODE (currently {render_node}).')
     runtime = Path(tempfile.mkdtemp(prefix=f'usagestat-{args.target}-', dir=os.environ.get('XDG_RUNTIME_DIR')))
     os.chmod(runtime, 0o700)
@@ -253,7 +256,7 @@ def main():
             command += ['--userns=keep-id:uid=1000,gid=1000']
         elif args.target == 'sway':
             command += ['--userns=keep-id']
-        if args.target in ('cosmic', 'hyprland'):
+        if args.target == 'hyprland':
             command += ['--device', render_node]
         if direct_wayland:
             command += ['--shm-size=512m', '-e', f'USAGESTAT_LAB_FPS={args.fps}']

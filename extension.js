@@ -1604,7 +1604,7 @@ export default class AIUsageBarExtension extends Extension {
     }
 
     _panelUsageTier(providerId) {
-        return this._providerUsageSettings(providerId).panelUsageTier || 'auto';
+        return this._providerUsageSettings(providerId).panelUsageTier || 'primary';
     }
 
     _usageWindowVisible(providerId, windowId) {

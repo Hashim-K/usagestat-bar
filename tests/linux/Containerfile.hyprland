@@ -8,3 +8,10 @@ RUN pacman -S --noconfirm --needed gcc pkgconf gtk3 json-glib wayvnc && pacman -
 RUN pacman -S --noconfirm --needed foot wofi thunar swaybg dunst adwaita-icon-theme && pacman -Scc --noconfirm
 RUN useradd --uid 1000 --create-home reviewer
 RUN pacman -S --noconfirm --needed gtk4-layer-shell && pacman -Scc --noconfirm
+RUN pacman -S --noconfirm --needed git cmake ninja cpio meson glslang glaze \
+    hyprwayland-scanner hyprland-protocols wayland-protocols libxcb xcb-util-wm xcb-util-errors && pacman -Scc --noconfirm
+COPY patches/hyprland-layer-focus.patch /tmp/hyprland-layer-focus.patch
+COPY build-hyprland.sh /tmp/build-hyprland.sh
+RUN bash /tmp/build-hyprland.sh
+COPY backgrounds.json fetch-backgrounds.py /usr/share/usagestat-lab/
+RUN python3 /usr/share/usagestat-lab/fetch-backgrounds.py --target hyprland

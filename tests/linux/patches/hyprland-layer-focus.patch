@@ -1,0 +1,17 @@
+--- a/src/desktop/view/LayerSurface.cpp
++++ b/src/desktop/view/LayerSurface.cpp
+@@ -200,10 +200,10 @@
+         g_pInputManager->releaseAllMouseButtons();
+         Desktop::focusState()->rawSurfaceFocus(m_wlSurface->resource());
+ 
+-        const auto LOCAL = g_pInputManager->getMouseCoordsInternal() - Vector2D(m_geometry.x + PMONITOR->m_position.x, m_geometry.y + PMONITOR->m_position.y);
+-        g_pSeatManager->setPointerFocus(m_wlSurface->resource(), LOCAL);
+-        g_pInputManager->m_emptyFocusCursorSet = false;
+-    }
++    }
++
++    // Keyboard focus must not redirect pointer input away from the panel.
++    g_pInputManager->simulateMouseMovement();
+ 
+     m_position = Vector2D(m_geometry.x, m_geometry.y);
+ 

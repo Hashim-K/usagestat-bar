@@ -2,6 +2,9 @@
 set -euo pipefail
 target="$1"
 desktop_size="${USAGESTAT_LAB_SIZE:-1500x900}"
+# COSMIC's nested backend starts at 1280x800. Capture the parent X11 display
+# at that size: resizing/screencopy in the software EGL backend is unreliable.
+if [[ "$target" == cosmic ]]; then desktop_size=1280x800; fi
 direct_wayland=0
 if [[ "$target" == hyprland && -n "${USAGESTAT_LAB_WAYVNC_SOCKET:-}" ]]; then
     direct_wayland=1
@@ -9,7 +12,9 @@ if [[ "$target" == hyprland && -n "${USAGESTAT_LAB_WAYVNC_SOCKET:-}" ]]; then
 elif [[ -n "${USAGESTAT_LAB_DISPLAY:-}" ]]; then
     export DISPLAY="$USAGESTAT_LAB_DISPLAY"
 else
-    Xvfb :99 -screen 0 1600x1000x24 -nolisten tcp -ac > /out/display.log 2>&1 &
+    x11_size=1600x1000
+    if [[ "$target" == cosmic ]]; then x11_size="$desktop_size"; fi
+    Xvfb :99 -screen 0 "${x11_size}x24" -nolisten tcp -ac > /out/display.log 2>&1 &
     export DISPLAY=:99
 fi
 export XDG_SESSION_TYPE=x11 GSK_RENDERER=cairo
@@ -36,7 +41,8 @@ fi
 gsettings set io.github.HashimK.UsageStatBar usagestat-cli-path "$USAGESTAT_CLI"
 gsettings set io.github.HashimK.UsageStatBar refresh-interval "${USAGESTAT_LAB_INTERACTIVE:-0}"
 gsettings set io.github.HashimK.UsageStatBar panel-bar-count 2
-gsettings set io.github.HashimK.UsageStatBar panel-components 'bar,percent,logo,text'
+gsettings reset io.github.HashimK.UsageStatBar panel-components
+wallpaper="$(python3 /src/tests/linux/background.py "$target")"
 case "$target" in
     plasma) export XDG_CURRENT_DESKTOP=KDE ;;
     cinnamon) export XDG_CURRENT_DESKTOP=X-Cinnamon XDG_SESSION_DESKTOP=cinnamon DESKTOP_SESSION=cinnamon ;;
@@ -86,13 +92,16 @@ case "$target" in
             if gdbus call --session --dest org.kde.plasmashell --object-path /PlasmaShell --method org.kde.PlasmaShell.evaluateScript 'var panel = new Panel; panel.location = "top"; panel.height = 38; panel.addWidget("io.github.HashimK.usagestat");' > /out/panel-setup.log 2>&1; then break; fi
             sleep 0.2
         done
+        wallpaper_script="$(python3 -c 'import json,sys; print("desktops().forEach(d => { d.wallpaperPlugin = \"org.kde.image\"; d.currentConfigGroup = [\"Wallpaper\", \"org.kde.image\", \"General\"]; d.writeConfig(\"Image\", " + json.dumps("file://"+sys.argv[1]) + "); });")' "$wallpaper")"
+        gdbus call --session --dest org.kde.plasmashell --object-path /PlasmaShell \
+            --method org.kde.PlasmaShell.evaluateScript "$wallpaper_script" > /out/background.log
         ;;
     cinnamon)
         export XDG_CURRENT_DESKTOP=X-Cinnamon
         gsettings set org.cinnamon.desktop.input-sources sources "[('xkb', 'us')]"
+        gsettings set org.cinnamon.desktop.background picture-uri "file://$wallpaper"
+        gsettings set org.cinnamon.desktop.background picture-options zoom
         if [[ "${USAGESTAT_LAB_INTERACTIVE:-0}" == 1 ]]; then
-            gsettings set org.cinnamon.desktop.background picture-uri 'file:///usr/share/backgrounds/tiles/default_blue.jpg'
-            gsettings set org.cinnamon.desktop.background picture-options zoom
             gsettings set org.cinnamon.desktop.default-applications.terminal exec gnome-terminal
             gsettings set org.cinnamon panels-enabled "['1:0:bottom']"
             gsettings set org.cinnamon enabled-applets "['panel1:left:0:menu@cinnamon.org:1', 'panel1:left:1:show-desktop@cinnamon.org:2', 'panel1:left:2:grouped-window-list@cinnamon.org:3', 'panel1:right:0:usagestat-bar@hashimkarim:0', 'panel1:right:1:workspace-switcher@cinnamon.org:4', 'panel1:right:2:systray@cinnamon.org:5', 'panel1:right:3:xapp-status@cinnamon.org:6', 'panel1:right:4:notifications@cinnamon.org:7', 'panel1:right:5:calendar@cinnamon.org:8']"
@@ -106,10 +115,15 @@ case "$target" in
         else
             gsettings set org.cinnamon enabled-applets "['panel1:left:0:usagestat-bar@hashimkarim:0']"
             cinnamon --replace > /out/panel.log 2>&1 &
+            # csd-background waits for SessionRunning, which this minimal
+            # session does not emit. Paint the same configured image directly.
+            feh --no-fehbg --bg-fill "$wallpaper" > /out/background.log 2>&1
         fi
         ;;
     mate)
         export XDG_CURRENT_DESKTOP=MATE
+        gsettings set org.mate.background picture-filename "$wallpaper"
+        gsettings set org.mate.background picture-options zoom
         if [[ "${USAGESTAT_LAB_INTERACTIVE:-0}" == 1 ]]; then /usr/libexec/mate-settings-daemon > /out/settings.log 2>&1 & fi
         openbox > /out/wm.log 2>&1 &
         export MATE_PANEL_APPLETS_DIR="$XDG_DATA_HOME/mate-panel/applets:/usr/share/mate-panel/applets"
@@ -148,9 +162,20 @@ CONFIG
         polybar -c /tmp/polybar.ini baseline > /out/panel.log 2>&1 &
         ;;
     sway|budgie|cosmic|hyprland)
+        mkdir -p "$XDG_CONFIG_HOME/labwc"
+        printf '%s\n' '#!/bin/sh' '# Background is set explicitly by this lab session.' > "$XDG_CONFIG_HOME/labwc/autostart"
+        chmod +x "$XDG_CONFIG_HOME/labwc/autostart"
         export XDG_CURRENT_DESKTOP=sway WLR_BACKENDS=x11 WLR_RENDERER=pixman WLR_LIBINPUT_NO_DEVICES=1
         export XDG_SESSION_TYPE=wayland
-        if [[ "$target" == sway ]]; then
+        if [[ "$target" == cosmic ]]; then
+            export XDG_CURRENT_DESKTOP=COSMIC USAGESTAT_LAB_INPUT=x11
+            # COSMIC still owns every client, panel and layer surface. Only its
+            # outer preview window/input travels through the private X server.
+            # Avoid a second Wayland compositor and its DMABUF/resize failures.
+            COSMIC_BACKEND=winit WINIT_UNIX_BACKEND=x11 XDG_SESSION_TYPE=x11 \
+                cosmic-comp > /out/wm.log 2>&1 &
+            wm_pid=$!
+        elif [[ "$target" == sway ]]; then
             printf '%s\n' "output * resolution $desktop_size" 'seat * hide_cursor 5000' \
                 'for_window [app_id="io.github.HashimK.UsageStatBar"] floating enable' > /tmp/sway.conf
             # Fedora's file capabilities cannot be granted by a rootless runtime.
@@ -172,6 +197,9 @@ CONFIG
             WLR_BACKENDS="$parent_backend" WLR_RENDERER=gles2 labwc > /out/parent-wm.log 2>&1 &
         fi
         for attempt in $(seq 1 100); do
+            if [[ "$target" == cosmic ]] && ! kill -0 "$wm_pid" 2>/dev/null; then
+                echo 'COSMIC compositor exited; see wm.log.' >&2; exit 1
+            fi
             socket=("$XDG_RUNTIME_DIR"/wayland-*); if [[ -S "${socket[0]}" ]]; then export WAYLAND_DISPLAY="${socket[0]}"; break; fi
             sleep 0.2
         done
@@ -179,29 +207,17 @@ CONFIG
             export SWAYSOCK="$(find "$XDG_RUNTIME_DIR" -maxdepth 1 -name 'sway-ipc.*.sock' -print -quit)"
         fi
         if [[ "$target" == cosmic ]]; then
-            parent_display="$WAYLAND_DISPLAY"
-            export USAGESTAT_INPUT_DISPLAY="$parent_display"
-            export XDG_CURRENT_DESKTOP=COSMIC
-            COSMIC_BACKEND=winit cosmic-comp > /out/wm.log 2>&1 &
+            cosmic_window=''
             for attempt in $(seq 1 100); do
-                for socket in "$XDG_RUNTIME_DIR"/wayland-*; do
-                    if [[ -S "$socket" && "$socket" != "$parent_display" ]]; then export WAYLAND_DISPLAY="$socket"; break 2; fi
-                done
+                kill -0 "$wm_pid" 2>/dev/null || { echo 'COSMIC compositor exited; see wm.log.' >&2; exit 1; }
+                cosmic_window="$(xdotool search --onlyvisible --class '^cosmic-comp$' 2>/dev/null | head -1)" || true
+                if [[ -n "$cosmic_window" ]]; then break; fi
                 sleep 0.2
             done
-            if [[ "${USAGESTAT_LAB_INTERACTIONS:-0}" == 1 ]]; then
-                # Input is delivered through the private parent compositor.
-                # Fullscreen removes its titlebar and keeps child coordinates
-                # identical, so a tray click cannot hit the parent's close button.
-                for attempt in $(seq 1 50); do
-                    if env WAYLAND_DISPLAY="$parent_display" wlrctl toplevel list | grep -q Smithay; then
-                        env WAYLAND_DISPLAY="$parent_display" wlrctl toplevel fullscreen
-                        break
-                    fi
-                    sleep 0.2
-                done
-                sleep 0.5
-            fi
+            [[ -n "$cosmic_window" ]] || { echo 'COSMIC preview did not map; see wm.log.' >&2; exit 1; }
+            xdotool windowmove "$cosmic_window" 0 0 windowfocus "$cosmic_window"
+            xdotool getwindowgeometry --shell "$cosmic_window" > /out/preview-geometry.txt
+            export GDK_BACKEND=wayland
         fi
         if [[ "$target" == hyprland ]]; then
             export XDG_CURRENT_DESKTOP=Hyprland
@@ -218,15 +234,15 @@ CONFIG
             fi
             hyprctl monitors -j > /out/monitors.json
             if [[ "${USAGESTAT_LAB_INTERACTIVE:-0}" == 1 ]]; then
-                swaybg -i /usr/share/hypr/wall0.png -m fill > /out/background.log 2>&1 &
                 dunst > /out/notifications.log 2>&1 &
             fi
         fi
+        swaybg -i "$wallpaper" -m fill > /out/background.log 2>&1 &
         dbus-update-activation-environment WAYLAND_DISPLAY XDG_CURRENT_DESKTOP XDG_SESSION_TYPE
         if [[ "$target" == hyprland ]]; then dbus-update-activation-environment HYPRLAND_INSTANCE_SIGNATURE; fi
+        if [[ "$target" == cosmic ]]; then cosmic-settings-daemon > /out/settings.log 2>&1 & fi
         start_service
         if [[ "$target" == cosmic ]]; then
-            if [[ "${USAGESTAT_LAB_INTERACTIVE:-0}" == 1 ]]; then cosmic-settings-daemon > /out/settings.log 2>&1 & fi
             mkdir -p "$XDG_CONFIG_HOME/cosmic/com.system76.CosmicPanel/v1" "$XDG_CONFIG_HOME/cosmic/com.system76.CosmicPanel.Panel/v1"
             printf '%s' '["Panel"]' > "$XDG_CONFIG_HOME/cosmic/com.system76.CosmicPanel/v1/entries"
             # Keep the default clock so an initially empty tray cannot collapse
@@ -288,6 +304,9 @@ CSS
         fi
         ;;
     *) echo "Unknown target: $target" >&2; exit 2 ;;
+esac
+case "$target" in
+    mate|xfce|lxqt|i3|bspwm) feh --no-fehbg --bg-fill "$wallpaper" > /out/background.log 2>&1 ;;
 esac
 if [[ "${USAGESTAT_LAB_INTERACTIVE:-0}" == 1 ]]; then
     if [[ "$target" == lxqt || "$target" == budgie || "$target" == cosmic ]]; then

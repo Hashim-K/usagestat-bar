@@ -50,7 +50,7 @@ export function windows(usage = {}) {
 
 export function selectedUsage(usage, options = {}) {
     const visible = windows(usage).filter(window => !(options.hiddenWindows || []).includes(window.id));
-    const tier = options.panelUsageTier || 'auto';
+    const tier = options.panelUsageTier || 'primary';
     const selected = visible.find(window => window.id === tier);
     if (selected) return selected.usedPercent;
     const cost = visible.find(window => window.id === 'extraUsage');

@@ -13,9 +13,9 @@ covers the panel, popup, application and tray refinements. Other desktops still
 need their own manual review of the current version. The
 [remaining-desktop review notes](reports/linux-manual-review.md) describe the
 follow-up changes and how to open each preview.
-The [recorded interaction review](reports/linux-interaction-validation-2026-09-08.md)
+The [recorded interaction review](reports/linux-interaction-validation-2026-09-09.md)
 covers native clicks, wheel input, provider pins, panel placement and popup
-alignment in twelve Linux profiles, with screenshots, videos and remaining failures.
+alignment in twelve Linux profiles, with screenshots, videos and runtime limits.
 
 ## Choose the integration
 
@@ -382,9 +382,12 @@ Live data is visible in the window, so screenshots you take yourself may
 contain your account details or usage.
 
 The launcher accepts `plasma`, `cinnamon`, `mate`, `xfce`, `lxqt`, `budgie`,
-`cosmic`, `sway`, `hyprland`, `i3` and `bspwm`. COSMIC and Hyprland use a
-private Wayland compositor to initialize graphics; they need access to
-`/dev/dri/renderD128` (override with `USAGESTAT_LAB_RENDER_NODE`). Hyprland's
+`cosmic`, `sway`, `hyprland`, `i3` and `bspwm`. COSMIC runs its native Wayland
+compositor in a private 1280 × 800 X11 preview window. This avoids the unstable
+nested Wayland/EGL capture route; its clients and panel still use Wayland.
+This profile keeps that size fixed and does not require a GPU device.
+Hyprland needs access to `/dev/dri/renderD128` (override with
+`USAGESTAT_LAB_RENDER_NODE`). Hyprland's
 viewer captures its own `USAGESTAT-LAB` output directly. Its unused nested
 window is disabled because Aquamarine 0.15 can send a frame before acknowledging
 the parent's initial configuration, leaving the old Xvnc preview black.
@@ -420,12 +423,24 @@ logout, real account or provider credential is needed. Build the lab images:
 
 These recipes install the actual desktop/panel runtimes into disposable Fedora
 44 and Arch containers. The first build downloads several GB. Allow roughly
-15 GB of free disk for both images/build layers and 4 GB of free RAM per active
+25 GB of free disk for both images/build layers and 4 GB of free RAM per active
 session. These are practical starting allocations, not measured minimums.
 Image builds use the network; test sessions run with networking disabled.
 Package repositories move over time: keep the tested image IDs and package
 manifests when reproducing a particular run. The recipes are not bit-for-bit
 package locks.
+
+The Hyprland and COSMIC preview recipes include pinned compositor compatibility
+patches under `tests/linux/patches`: Hyprland's upstream pointer-focus fix and a
+Smithay guard against validating an already-destroyed layer role. Their first
+builds also compile those compositors. `*-build.txt` in each run records this;
+passing a patched preview is not a claim that the unpatched distro package
+handles those cases. Host compositors are never replaced.
+
+Preview wallpapers follow the [requested distro mapping](reports/linux-preview-wallpapers.md).
+Sources and SHA-256 checksums are pinned in `tests/linux/backgrounds.json` and
+downloaded when the image is built. Sessions require no network access. Each
+run records the selected asset in `wallpaper.json`.
 
 Run one target:
 
@@ -441,8 +456,8 @@ and the exact installed package list under `artifacts/linux-TARGET.*`.
 Exit status is nonzero on failure. **Review screenshots too**: process and
 D-Bus checks alone cannot establish a visible panel.
 
-COSMIC and Hyprland's nested graphics backends need access to a DRM render
-node. The runner passes `/dev/dri/renderD128`; override it when necessary:
+Hyprland's nested graphics backend needs access to a DRM render node.
+The runner passes `/dev/dri/renderD128`; override it when necessary:
 
 ```bash
 USAGESTAT_LAB_RENDER_NODE=/dev/dri/renderD129 ./tests/linux/lab.sh hyprland
@@ -495,7 +510,8 @@ those with `ffmpeg -framerate 5 -i frames/%05d.png -c:v libx264 -pix_fmt yuv420p
 The tests cover ordered pins, count reduction, bidirectional bar and popup
 scrolling, their independent disable settings, opening/toggling/dismissal,
 short and overflowing provider content, panel group/index/edge changes, and
-stable popup alignment. Native GNOME has a fixed top edge; Polybar has no
+stable popup alignment. Port profiles also exercise Escape and reopening.
+Native GNOME has a fixed top edge; Polybar has no
 vertical panels. The GNOME reference driver has a narrower content-sizing
 matrix than the shared-window driver. Settings are applied through their
 native backends/configuration interfaces, so this does not click through every
@@ -514,7 +530,7 @@ run `python3 -m http.server 8764 --bind 127.0.0.1 --directory artifacts/my-revie
 and open `http://127.0.0.1:8764/`.
 Keep environment failures explicit with `--blocked cosmic` and an explanatory
 `--note 'cosmic=Reason for the blocked session'`; raw results are preserved.
-The [September interaction report](reports/linux-interaction-validation-2026-09-08.md)
+The [September interaction report](reports/linux-interaction-validation-2026-09-09.md)
 documents the scope and findings of the recorded run.
 
 ## Full login, reboot and uninstall checks

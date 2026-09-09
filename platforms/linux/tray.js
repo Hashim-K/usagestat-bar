@@ -4,6 +4,7 @@ import Adw from 'gi://Adw?version=1';
 import {traySvg, svgPixels} from './render.js';
 import {safeColor, panelPins, panelProviders} from './model.js';
 import {desktopName} from './desktop.js';
+import {cosmicPanel} from './cosmic.js';
 
 const ITEM = `<node><interface name="org.kde.StatusNotifierItem">
   <property name="Category" type="s" access="read"/><property name="Id" type="s" access="read"/>
@@ -36,12 +37,18 @@ const MENU = `<node><interface name="com.canonical.dbusmenu">
   <signal name="ItemsPropertiesUpdated"><arg type="a(ia{sv})"/><arg type="a(ias)"/></signal>
 </interface></node>`;
 
+// Reuse introspection for the lifetime of the service. GJS caches property
+// lookups when wrapping an interface; reparsing/freeing one for every tray
+// restart can leave that native cache pointing at freed property metadata.
+const ITEM_INFO = Gio.DBusInterfaceInfo.new_for_xml(ITEM);
+const MENU_INFO = Gio.DBusInterfaceInfo.new_for_xml(MENU);
+
 class Menu {
     constructor(tray, path, connection, provider) {
         this.tray = tray;
         this.provider = provider;
         this.Version = 3; this.TextDirection = 'ltr'; this.Status = 'normal'; this.IconThemePath = [];
-        this.object = Gio.DBusExportedObject.wrapJSObject(MENU, this);
+        this.object = Gio.DBusExportedObject.wrapJSObject(MENU_INFO, this);
         this.object.export(connection, path);
     }
     entries() {
@@ -95,7 +102,7 @@ class Item {
         this.OverlayIconPixmap = []; this.AttentionIconPixmap = []; this.AttentionMovieName = '';
         this.ItemIsMenu = false; this.Menu = `${this.path}/Menu`;
         this.menu = new Menu(tray, this.Menu, this.connection, () => this.provider);
-        this.object = Gio.DBusExportedObject.wrapJSObject(ITEM, this);
+        this.object = Gio.DBusExportedObject.wrapJSObject(ITEM_INFO, this);
         this.object.export(this.connection, this.path);
     }
     get Title() { return this.provider?.name || 'UsageStat Bar'; }
@@ -138,6 +145,16 @@ export class Tray {
         this.state = {providers: [], panel: [], revision: 0};
         this.style = Adw.StyleManager.get_default();
         this.styleSignal = this.style.connect('notify::dark', () => this.update(this.state));
+        if (desktopName().includes('cosmic')) {
+            this.cosmicDark = cosmicPanel().dark;
+            // User configuration directories may not exist yet. Recheck the
+            // small native config values so newly created overrides also work.
+            this.cosmicThemeTimer = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 2, () => {
+                const dark = cosmicPanel().dark;
+                if (dark !== this.cosmicDark) { this.cosmicDark = dark; this.update(this.state); }
+                return GLib.SOURCE_CONTINUE;
+            });
+        }
         if (desktopName().includes('budgie')) {
             // Budgie's panel has an independent dark-theme preference, often
             // enabled while application windows use the light theme.
@@ -157,7 +174,7 @@ export class Tray {
     }
     appearance() {
         const foreground = this.settings.get_string('foreground');
-        const darkPanel = this.panelTheme ? this.panelTheme.get_boolean('dark-theme') : this.style.dark;
+        const darkPanel = this.cosmicDark ?? (this.panelTheme ? this.panelTheme.get_boolean('dark-theme') : this.style.dark);
         const light = foreground === 'light' || (foreground === 'auto' && darkPanel);
         return {style: this.settings.get_string('icon-style'), logoStyle: this.settings.get_string('logo-style'),
             fill: this.settings.get_string('logo-fill-mode'), barOrientation: this.settings.get_string('bar-orientation'),
@@ -216,6 +233,7 @@ export class Tray {
     close() {
         this.closed = true;
         this.style.disconnect(this.styleSignal);
+        if (this.cosmicThemeTimer) GLib.source_remove(this.cosmicThemeTimer);
         if (this.panelThemeSignal) this.panelTheme.disconnect(this.panelThemeSignal);
         Gio.bus_unwatch_name(this.watch);
         Gio.DBus.session.signal_unsubscribe(this.hostSignal);

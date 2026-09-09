@@ -30,6 +30,7 @@ EDGE='bottom' if TARGET in ['cinnamon','lxqt'] else 'top'
 REGION='left'
 INDEX=0
 pointer=None
+tray_monitor=None
 
 
 class Pointer:
@@ -60,6 +61,22 @@ class Pointer:
     def event(self,mask=0): self.connection.sendall(struct.pack('>BBHH',5,mask,self.x,self.y))
     def move(self,x,y): self.x=max(0,min(self.width-1,x)); self.y=max(0,min(self.height-1,y)); self.event()
     def button(self,mask): self.event(mask); time.sleep(.07); self.event()
+    def key(self,keysym):
+        for down in [1,0]:
+            self.connection.sendall(struct.pack('>BBHI',4,down,0,keysym));time.sleep(.07)
+
+
+class X11PreviewPointer:
+    """Feed the real COSMIC compositor through its private nested window."""
+    def __init__(self):
+        self.width,self.height=map(int,command('xdotool','getdisplaygeometry').split())
+    def move(self,x,y):
+        # Include motion inside the destination surface, as a physical pointer
+        # does. A single warp may only send enter to an embedded Iced applet.
+        command('xdotool','mousemove',str(max(0,x-2)),str(y));time.sleep(.05)
+        command('xdotool','mousemove',str(x),str(y))
+    def button(self,mask): command('xdotool','click',str({1:1,8:4,16:5}[mask]))
+    def key(self,keysym): command('xdotool','key',hex(keysym))
 
 
 def command(*args, check=True):
@@ -110,7 +127,7 @@ def wait(predicate, timeout=8):
 
 def screenshot(name):
     path=OUT/(name+'.png')
-    if WAYLAND: command('grim',str(path))
+    if WAYLAND and os.environ.get('USAGESTAT_LAB_INPUT')!='x11': command('grim',str(path))
     else: command('magick','import','-window','root',str(path))
     return path
 
@@ -123,6 +140,12 @@ def measure(window):
 
 def light_surface():
     # Actual screenshot pixels, for compositors without a layer geometry API.
+    background=None
+    if TARGET=='cosmic':
+        css=Path(os.environ['XDG_CONFIG_HOME'])/'gtk-4.0/gtk.css'
+        if css.exists():
+            match=re.search(r'@define-color window_bg_color rgba\((\d+),\s*(\d+),\s*(\d+),',css.read_text())
+            if match: background=tuple(map(int,match.groups()))
     pix=GdkPixbuf.Pixbuf.new_from_file(str(screenshot('.geometry')))
     data=pix.get_pixels(); width,height=pix.get_width(),pix.get_height()
     channels,stride=pix.get_n_channels(),pix.get_rowstride(); step=4
@@ -130,7 +153,9 @@ def light_surface():
     for y in range(0,height,step):
         for x in range(0,width,step):
             index=y*stride+x*channels
-            if min(data[index:index+3])>230: white.add((x//step,y//step))
+            rgb=data[index:index+3]
+            matches=all(abs(a-b)<=2 for a,b in zip(rgb,background)) if background else min(rgb)>230
+            if matches: white.add((x//step,y//step))
     candidates=[]
     while white:
         point=white.pop(); stack=[point]; component=[point]
@@ -228,7 +253,12 @@ def _point():
                 # size. Match the fixture's actual meter, not blue wallpaper
                 # just outside that panel (notably Budgie's bottom/side edges).
                 meter = abs(r-138)<=2 and abs(g-180)<=2 and abs(b-248)<=2 if TRAY else b>r+30 and b>g+15 and b>150
-                if meter: return x,y
+                if meter:
+                    if TARGET=='cosmic':
+                        # Aim inside the logo button, not the bottom edge of
+                        # its two-pixel meter or a gap between tray buttons.
+                        return (rect['x']+rect['w']/2,y-6) if EDGE in ['left','right'] else (x+4,rect['y']+16)
+                    return x,y
         raise RuntimeError('No usage meter found in the configured panel')
     vertical=rect['h']>rect['w']
     length=rect['h'] if vertical else rect['w']
@@ -364,12 +394,25 @@ def position(edge='top', region='left', index=0):
         with path.open('w') as stream:config.write(stream)
         with (OUT/'panel.log').open('a') as log:subprocess.Popen(['lxqt-panel'],stdout=log,stderr=log)
         time.sleep(1);setting('enabled','true',True);time.sleep(1)
+    elif TARGET=='cosmic':
+        setting('enabled','false',True)
+        command('pkill','-x','cosmic-panel',check=False)
+        wait(lambda:not command('pgrep','-x','cosmic-panel',check=False))
+        folder=Path(os.environ['XDG_CONFIG_HOME'])/'cosmic/com.system76.CosmicPanel.Panel/v1'
+        order=['com.system76.CosmicAppletStatusArea','com.system76.CosmicAppletTime']
+        if index: order.reverse()
+        group=json.dumps(order)
+        (folder/'anchor').write_text(edge.capitalize())
+        (folder/'plugins_center').write_text(f'Some({group})' if region=='center' else 'None')
+        wings=f'Some(({group},[]))' if region=='left' else f'Some(([],{group}))' if region=='right' else 'None'
+        (folder/'plugins_wings').write_text(wings)
+        with (OUT/'panel.log').open('a') as log: subprocess.Popen(['cosmic-panel'],stdout=log,stderr=log)
+        time.sleep(1);setting('enabled','true',True);time.sleep(1)
     else: raise NotImplementedError('Desktop tray placement requires its native panel settings')
     time.sleep(1.1)
 
 
 def placement_checks():
-    if TARGET=='cosmic': return
     positions={}
     def at_position(edge,region,index):
         position(edge,region,index)
@@ -436,6 +479,8 @@ def click(x,y):
 
 
 def wheel(direction,x,y):
+    with (OUT/'input-events.jsonl').open('a') as log:
+        log.write(json.dumps({'seconds':round(time.monotonic()-started,3),'event':'wheel','direction':direction,'x':x,'y':y})+'\n')
     move(x,y)
     if pointer: pointer.button(16 if direction>0 else 8)
     elif WAYLAND: command('wlrctl','pointer','scroll',str(direction*15),'0')
@@ -458,18 +503,20 @@ def step(name, action):
 
 
 def main():
-    global pointer, started
+    global pointer, started, tray_monitor
     wait(lambda:len(state()['providers'])==4 and not state()['loading'],30)
     # Keep screenshot geometry detection reproducible across desktop defaults.
     command('gsettings','set','org.gnome.desktop.interface','color-scheme','prefer-light')
     command('gsettings','set','org.gnome.desktop.interface','gtk-theme','Adwaita')
-    if WAYLAND: pointer=Pointer()
+    if WAYLAND: pointer=X11PreviewPointer() if os.environ.get('USAGESTAT_LAB_INPUT')=='x11' else Pointer()
     (OUT/'capture-env.json').write_text(json.dumps({key:value for key,value in os.environ.items() if key in
-        ['DISPLAY','XAUTHORITY','WAYLAND_DISPLAY','XDG_RUNTIME_DIR','XDG_SESSION_TYPE','DBUS_SESSION_BUS_ADDRESS','HYPRLAND_INSTANCE_SIGNATURE','XDG_CURRENT_DESKTOP','XDG_CONFIG_HOME','XDG_DATA_HOME','XDG_CACHE_HOME','XDG_STATE_HOME','GSETTINGS_SCHEMA_DIR','GSETTINGS_BACKEND','PATH','SWAYSOCK','USAGESTAT_FIXTURE_STATE','USAGESTAT_INPUT_DISPLAY']}))
+        ['DISPLAY','XAUTHORITY','WAYLAND_DISPLAY','XDG_RUNTIME_DIR','XDG_SESSION_TYPE','DBUS_SESSION_BUS_ADDRESS','HYPRLAND_INSTANCE_SIGNATURE','XDG_CURRENT_DESKTOP','XDG_CONFIG_HOME','XDG_DATA_HOME','XDG_CACHE_HOME','XDG_STATE_HOME','GSETTINGS_SCHEMA_DIR','GSETTINGS_BACKEND','PATH','SWAYSOCK','USAGESTAT_FIXTURE_STATE','USAGESTAT_INPUT_DISPLAY','USAGESTAT_LAB_INPUT']}))
     wait(lambda:(OUT/'recording.ready').exists(),20)
     started=time.monotonic()
     time.sleep(2)
     if TRAY:
+        with (OUT/'tray-input.log').open('w') as log:
+            tray_monitor=subprocess.Popen(['dbus-monitor',"type='method_call',interface='org.kde.StatusNotifierItem'"],stdout=log,stderr=log)
         setting('provider-mode','count',True); setting('provider-count','2',True)
         call('EnableTray'); time.sleep(2)
         if TARGET=='lxqt':position('bottom','left',0)
@@ -487,6 +534,7 @@ def main():
         for direction in [1,1,1,-1,-1,-1]:
             before=shown()
             wheel(direction,*point())
+            wait(lambda:shown()!=before,2)
             after=state(); seen.append({'active':after['active'],'panel':shown()})
             assert shown()[0]=='codex','Pinned provider moved'
             assert shown()!=before,'A wheel notch did not advance the free provider slot'
@@ -550,6 +598,17 @@ def main():
     def toggle():
         click(*point()); wait(popup); click(*point()); wait(lambda:not popup())
     step('second-click-toggles',toggle)
+    def escape():
+        click(*point());rect=wait(popup)
+        # ON_DEMAND layers take keyboard focus when clicked, without stealing
+        # pointer focus from the panel on map.
+        click(rect['x']+30,rect['y']+30)
+        if pointer: pointer.key(0xff1b)
+        else: command('xdotool','key','Escape')
+        wait(lambda:not popup())
+        click(*point());wait(popup);desktop_click();wait(lambda:not popup())
+        return 'Escape dismisses the focused popup and it reopens normally.'
+    step('keyboard-escape-and-reopen',escape)
     def two_pins():
         # Isolate this check from any failed dismissal/toggle before it.
         if popup():desktop_click();time.sleep(.3)
@@ -584,5 +643,6 @@ except Exception as error:
     (OUT/'result.json').write_text(json.dumps({'target':TARGET,'status':'failed','checks':checks},indent=2))
     print(traceback.format_exc(),flush=True)
 finally:
+    if tray_monitor: tray_monitor.terminate()
     (OUT/'recording.stop').touch()
     time.sleep(2)

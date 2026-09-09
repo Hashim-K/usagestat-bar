@@ -1,4 +1,4 @@
-FROM registry.fedoraproject.org/fedora:44
+FROM registry.fedoraproject.org/fedora:44 AS desktop
 RUN dnf install -y --setopt=install_weak_deps=False \
     gjs libadwaita gtk4 glib2 dconf dbus-daemon python3 python3-gobject \
     xorg-x11-server-Xvfb xorg-x11-xauth openbox xdotool ImageMagick \
@@ -13,3 +13,23 @@ RUN dnf install -y --setopt=install_weak_deps=False cinnamon-control-center gnom
 RUN useradd --uid 1000 --create-home reviewer
 RUN dnf install -y --setopt=install_weak_deps=False gtk4-layer-shell && dnf clean all
 RUN dnf install -y --setopt=install_weak_deps=False wayvnc dejavu-sans-fonts && dnf clean all
+RUN dnf install -y --setopt=install_weak_deps=False \
+    cosmic-bg cosmic-wallpapers cosmic-session mate-backgrounds xfdesktop \
+    lxqt-themes pcmanfm-qt feh glibc-langpack-en && dnf clean all
+
+FROM desktop AS cosmic-build
+RUN dnf install -y --setopt=install_weak_deps=False \
+    cargo rust gcc-c++ git make patch pkgconf-pkg-config clang-devel \
+    libinput-devel libseat-devel libudev-devel libxkbcommon-devel \
+    libdisplay-info-devel mesa-libEGL-devel mesa-libgbm-devel pixman-devel \
+    wayland-devel libX11-devel libXcursor-devel libXi-devel libXrandr-devel \
+    libxcb-devel libei-devel systemd-devel vulkan-loader-devel && dnf clean all
+COPY build-cosmic.sh /tmp/build-cosmic.sh
+COPY patches/smithay-destroyed-layer.patch /tmp/smithay-destroyed-layer.patch
+RUN bash /tmp/build-cosmic.sh
+
+FROM desktop
+COPY --from=cosmic-build /usr/local/bin/cosmic-comp /usr/bin/cosmic-comp
+COPY --from=cosmic-build /usr/share/usagestat-lab/cosmic-build.txt /usr/share/usagestat-lab/cosmic-build.txt
+COPY backgrounds.json fetch-backgrounds.py /usr/share/usagestat-lab/
+RUN python3 /usr/share/usagestat-lab/fetch-backgrounds.py

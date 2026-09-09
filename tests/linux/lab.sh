@@ -12,7 +12,7 @@ lab_image=localhost/usagestat-linux-lab:44
 user_options=()
 device_options=()
 if [[ "$target" == sway || "$target" == hyprland ]]; then user_options=(--userns=keep-id); fi
-if [[ "$target" == hyprland || "$target" == cosmic ]]; then
+if [[ "$target" == hyprland ]]; then
     render_node="${USAGESTAT_LAB_RENDER_NODE:-/dev/dri/renderD128}"
     if [[ ! -r "$render_node" || ! -w "$render_node" ]]; then
         echo "$target nested checks need a readable/writable DRM render node: $render_node" >&2

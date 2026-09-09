@@ -4,10 +4,12 @@ The [Plasma manual review](plasma-manual-review.md) is the visual baseline.
 Its feedback has been carried into the other Linux integrations. All ten
 profiles below remain **pending the user's manual review**.
 
-The subsequent [recorded interaction validation on 2026-09-08](linux-interaction-validation-2026-09-08.md)
+The subsequent [recorded interaction validation on 2026-09-09](linux-interaction-validation-2026-09-09.md)
 adds native input checks, videos and screenshots for all Linux profiles. Its
 results supersede the earlier statements below about automated checks not yet
-being run. These chronological notes retain the user's manual review status.
+being run. It also documents the compositor fixes for Hyprland and COSMIC and
+the [requested distro wallpapers](linux-preview-wallpapers.md). These
+chronological notes retain the user's manual review status.
 
 ## Open the review queue
 

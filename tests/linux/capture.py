@@ -8,7 +8,7 @@ import sys
 import time
 
 os.environ.update(json.loads(Path('/out/capture-env.json').read_text()))
-wayland = os.environ.get('XDG_SESSION_TYPE') == 'wayland'
+wayland = os.environ.get('XDG_SESSION_TYPE') == 'wayland' and os.environ.get('USAGESTAT_LAB_INPUT') != 'x11'
 command = ['grim', '-'] if wayland else ['magick', 'import', '-window', 'root', 'png:-']
 started = time.monotonic()
 emitted = 0
