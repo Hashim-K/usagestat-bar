@@ -13,7 +13,7 @@ covers the panel, popup, application and tray refinements. Other desktops still
 need their own manual review of the current version. The
 [remaining-desktop review notes](reports/linux-manual-review.md) describe the
 follow-up changes and how to open each preview.
-The [recorded interaction review](reports/linux-interaction-validation-2026-09-09.md)
+The [recorded interaction review](reports/linux-behaviour-web-wallpapers-2026-09-09.md)
 covers native clicks, wheel input, provider pins, panel placement and popup
 alignment in twelve Linux profiles, with screenshots, videos and runtime limits.
 
@@ -437,10 +437,12 @@ builds also compile those compositors. `*-build.txt` in each run records this;
 passing a patched preview is not a claim that the unpatched distro package
 handles those cases. Host compositors are never replaced.
 
-Preview wallpapers follow the [requested distro mapping](reports/linux-preview-wallpapers.md).
+Preview wallpapers match the [website's current selections](reports/linux-preview-wallpapers.md).
 Sources and SHA-256 checksums are pinned in `tests/linux/backgrounds.json` and
-downloaded when the image is built. Sessions require no network access. Each
-run records the selected asset in `wallpaper.json`.
+downloaded when the image is built. `bash tests/linux/build-lab.sh backgrounds`
+refreshes only artwork in existing images. Port sessions require no network
+access; GNOME's wrapper caches its selected image before starting the isolated
+session. Each run records the asset and website revision in `wallpaper.json`.
 
 Run one target:
 
@@ -530,8 +532,10 @@ run `python3 -m http.server 8764 --bind 127.0.0.1 --directory artifacts/my-revie
 and open `http://127.0.0.1:8764/`.
 Keep environment failures explicit with `--blocked cosmic` and an explanatory
 `--note 'cosmic=Reason for the blocked session'`; raw results are preserved.
-The [September interaction report](reports/linux-interaction-validation-2026-09-09.md)
-documents the scope and findings of the recorded run.
+The [latest behaviour report](reports/linux-behaviour-web-wallpapers-2026-09-09.md)
+documents the fresh recordings with the website wallpapers. The
+[earlier September report](reports/linux-interaction-validation-2026-09-09.md)
+explains the compositor and tray fixes used by these lab images.
 
 ## Full login, reboot and uninstall checks
 

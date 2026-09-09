@@ -1,85 +1,160 @@
 {
   "hyprland": {
-    "name": "Omarchy 4.0.3 \u2014 Tokyo Night / Winding Road",
-    "url": "https://raw.githubusercontent.com/omacom/omarchy/0534987009061cbe2dacdde4ad564092ab698d12/themes/tokyo-night/backgrounds/0-winding-road.jpg",
-    "sha256": "37746404ae9a4357442e520c34ea105780232ac3d08a9f289f00156e49f37c4e",
-    "path": "/usr/share/backgrounds/omarchy/default.jpg",
-    "source": "https://github.com/omacom/omarchy/blob/v4.0.3/install/user/theme.sh"
+    "name": "Omarchy / Tokyo Night / Sunset Lake deer",
+    "url": "https://raw.githubusercontent.com/omacom/omarchy/acc1e2f75728a8ea9cc594b01697fdadc10dbcce/themes/tokyo-night/backgrounds/1-scenery-pink-lakeside-sunset-lake-landscape-scenic-panorama-7680x3215-144.png",
+    "sha256": "06dfb9fce029ec35adb40ea3939296777c2b140d1232b5a1697b15052d575362",
+    "path": "/usr/share/backgrounds/usagestat-lab/hyprland.png",
+    "source": "https://x.com/dhh/status/1964947296346571014",
+    "author": "Louis Coyle",
+    "license": "Artwork © Louis Coyle; Omarchy repository MIT",
+    "website": {
+      "repository": "hashimkarim/usagestat-web",
+      "revision": "ca2ee110e61b1c97969c4176a5786e2035bc2f5b",
+      "file": "public/desktops/omarchy-sunset-deer.webp"
+    }
   },
   "plasma": {
-    "name": "CachyOS \u2014 north.png",
-    "url": "https://raw.githubusercontent.com/CachyOS/cachyos-wallpapers/91875ae10c410e7e2b81f8af0ef44e7f7aea114d/usr/share/wallpapers/cachyos-wallpapers/north.png",
+    "name": "KDE Plasma 6.7 — Waterfall",
+    "url": "https://raw.githubusercontent.com/KDE/breeze/ca217f12ce16a28e601c78b7f2fdceca586725b2/wallpapers/Next/contents/images/5120x2880.png",
+    "sha256": "535b88c9ace739d14092de5ad02d7cd89c25ab72d5b62e370337320e4cf954bb",
     "path": "/usr/share/backgrounds/usagestat-lab/plasma.png",
-    "source": "https://github.com/CachyOS/cachyos-kde-settings/blob/717481de49f3ca21f7b885b3cf11bac58bd160b8/etc/skel/.config/plasma-org.kde.plasma.desktop-appletsrc",
-    "sha256": "39ad64ee789afda263bbf0ff185245d6a2a981f68d18e5557462c51154c23059"
+    "source": "https://gist.github.com/eyelash/89aa68a065785591035723b04e5f1793",
+    "author": "Krystian Zajdel",
+    "license": "CC-BY-SA-4.0",
+    "website": {
+      "repository": "hashimkarim/usagestat-web",
+      "revision": "ca2ee110e61b1c97969c4176a5786e2035bc2f5b",
+      "file": "public/desktops/plasma-waterfall.webp"
+    }
   },
   "mate": {
-    "name": "Ubuntu MATE \u2014 Green-Wall-Logo.png",
+    "name": "Ubuntu MATE — Green-Wall-Logo.png",
     "url": "https://raw.githubusercontent.com/ubuntu-mate/ubuntu-mate-artwork/93645b3f25d37c28ea71cd628547cd8ed88295ec/usr/share/backgrounds/ubuntu-mate-common/Green-Wall-Logo.png",
     "path": "/usr/share/backgrounds/usagestat-lab/mate.png",
     "source": "https://github.com/ubuntu-mate/ubuntu-mate-settings/blob/20334b09c7737241bfca4e0bee219414331398b2/usr/share/glib-2.0/schemas/30_ubuntu-mate.gschema.override",
-    "sha256": "b0e00c5406c378881f1c9bdded8dce8e3a23719312d33c81dbfdebe896f42c1f"
+    "sha256": "b0e00c5406c378881f1c9bdded8dce8e3a23719312d33c81dbfdebe896f42c1f",
+    "website": {
+      "repository": "hashimkarim/usagestat-web",
+      "revision": "ca2ee110e61b1c97969c4176a5786e2035bc2f5b",
+      "file": "public/desktops/ubuntu-mate.webp"
+    }
   },
   "xfce": {
-    "name": "Xubuntu 26.04 \u2014 xubuntu-resolute-plucky-remix.png",
+    "name": "Xubuntu 26.04 — xubuntu-resolute-plucky-remix.png",
     "url": "https://raw.githubusercontent.com/Xubuntu/xubuntu-artwork/875a9f3d79df3b4f6e5828b90903786710ef95ee/usr/share/xfce4/backdrops/xubuntu-resolute-plucky-remix.png",
     "path": "/usr/share/backgrounds/usagestat-lab/xfce.png",
     "source": "https://github.com/Xubuntu/xubuntu-artwork/blob/875a9f3d79df3b4f6e5828b90903786710ef95ee/debian/xubuntu-wallpapers.links",
-    "sha256": "b641aea5a1fe73ed7585b9c69f9e8d867f80d5e8d07d122237f5b87d39294f5c"
+    "sha256": "b641aea5a1fe73ed7585b9c69f9e8d867f80d5e8d07d122237f5b87d39294f5c",
+    "website": {
+      "repository": "hashimkarim/usagestat-web",
+      "revision": "ca2ee110e61b1c97969c4176a5786e2035bc2f5b",
+      "file": "public/desktops/xubuntu.webp"
+    }
   },
   "cosmic": {
-    "name": "Pop!_OS \u2014 orion_nebula_nasa_heic0601a.jpg",
+    "name": "Pop!_OS — orion_nebula_nasa_heic0601a.jpg",
     "url": "https://media.githubusercontent.com/media/pop-os/cosmic-wallpapers/d6c60281508ef6b20db712612dad256d0b44b4fb/original/orion_nebula_nasa_heic0601a.jpg",
     "path": "/usr/share/backgrounds/usagestat-lab/cosmic.jpg",
     "source": "https://github.com/pop-os/cosmic-bg/blob/1685f7fc99cbb9cbe981ac672d6451ba6faff7db/data/v1/all",
-    "sha256": "7500f702f0488d4a8df2c5abeb7ca9107a7ca7998e0441727cbaf79465b02388"
+    "sha256": "7500f702f0488d4a8df2c5abeb7ca9107a7ca7998e0441727cbaf79465b02388",
+    "website": {
+      "repository": "hashimkarim/usagestat-web",
+      "revision": "ca2ee110e61b1c97969c4176a5786e2035bc2f5b",
+      "file": "public/desktops/pop-os.webp"
+    }
   },
   "i3": {
-    "name": "EndeavourOS \u2014 endeavouros-wallpaper.png",
-    "url": "https://raw.githubusercontent.com/endeavouros-team/Branding/b0b0b3453216d2e1daacd0dd20ecdbe697ae098a/backgrounds/endeavouros-wallpaper.png",
+    "name": "i3wm-themer — 000.png",
+    "url": "https://raw.githubusercontent.com/stav121/i3wm-themer/eeac0a05e5319530f415ec1015f46419859fab51/wallpapers/000.png",
+    "sha256": "d562a986bffd457a233da1b516c66dc9eca06324d6963bc8e540ce1b46bc12e6",
     "path": "/usr/share/backgrounds/usagestat-lab/i3.png",
-    "source": "https://github.com/endeavouros-team/Branding",
-    "sha256": "046cde03f33a069ab51b0385ffacd1be3d218da45055570d8909f135d226ee1a"
+    "source": "https://github.com/stav121/i3wm-themer",
+    "author": "Stavros Grigoriou (unix121 / stav121)",
+    "license": "MIT",
+    "website": {
+      "repository": "hashimkarim/usagestat-web",
+      "revision": "ca2ee110e61b1c97969c4176a5786e2035bc2f5b",
+      "file": "public/desktops/i3-000.webp"
+    }
   },
   "bspwm": {
-    "name": "Archcraft \u2014 nord.jpg",
+    "name": "Archcraft — nord.jpg",
     "url": "https://raw.githubusercontent.com/archcraft-os/archcraft-wallpapers/637747275b3c945df0de1e3ad39fa002f9c1a138/archcraft-backgrounds/files/nord.jpg",
     "path": "/usr/share/backgrounds/usagestat-lab/bspwm.jpg",
     "source": "https://github.com/archcraft-os/archcraft-bspwm/blob/e20af9b2b0b89aece7ecdf7a6946ba92ed5bc136/files/themes/default/wallpaper",
-    "sha256": "1e3bc518233e974a10cbd3b916cc2b689672d891b44aa979112ff7451017883b"
+    "sha256": "1e3bc518233e974a10cbd3b916cc2b689672d891b44aa979112ff7451017883b",
+    "website": {
+      "repository": "hashimkarim/usagestat-web",
+      "revision": "ca2ee110e61b1c97969c4176a5786e2035bc2f5b",
+      "file": "public/desktops/archcraft-hd.webp"
+    }
   },
   "sway": {
-    "name": "Fedora Sway Spin \u2014 Sway Wallpaper Blue",
+    "name": "Fedora Sway Spin — Sway Wallpaper Blue",
     "url": "https://raw.githubusercontent.com/swaywm/sway/f59b665792fb664d00c3acd91e30977a05dc09f3/assets/Sway_Wallpaper_Blue_1920x1080.png",
     "path": "/usr/share/backgrounds/usagestat-lab/sway.png",
     "source": "https://commons.wikimedia.org/wiki/File:Sway_Wallpaper_Blue_1920x1080.png",
     "author": "Drew DeVault",
     "license": "MIT",
-    "sha256": "5ff3679f5e99db5e05eba21ee6c6b677b0b6cbcc73cc6357a497187e206878e6"
+    "sha256": "5ff3679f5e99db5e05eba21ee6c6b677b0b6cbcc73cc6357a497187e206878e6",
+    "website": {
+      "repository": "hashimkarim/usagestat-web",
+      "revision": "ca2ee110e61b1c97969c4176a5786e2035bc2f5b",
+      "file": "public/desktops/sway-blue.webp"
+    }
   },
   "budgie": {
-    "name": "Ubuntu Budgie \u2014 budgie-codename.png",
+    "name": "Ubuntu Budgie — budgie-codename.png",
     "url": "https://raw.githubusercontent.com/UbuntuBudgie/budgie-desktop-environment/3faf552c6039f769458c2dd2747b181c7b7207bb/codename-wallpapers/budgie-codename.png",
     "path": "/usr/share/backgrounds/usagestat-lab/budgie.png",
     "sha256": "1bfa20d06307ac9d0fed4e3c66a2b581ed8b99b475a4d1dc916452bc9bf61088",
-    "source": "https://github.com/UbuntuBudgie/budgie-desktop-environment/blob/3faf552c6039f769458c2dd2747b181c7b7207bb/schemas/25_budgie-desktop-environment.gschema.override"
+    "source": "https://github.com/UbuntuBudgie/budgie-desktop-environment/blob/3faf552c6039f769458c2dd2747b181c7b7207bb/schemas/25_budgie-desktop-environment.gschema.override",
+    "website": {
+      "repository": "hashimkarim/usagestat-web",
+      "revision": "ca2ee110e61b1c97969c4176a5786e2035bc2f5b",
+      "file": "public/desktops/ubuntu-budgie-hd.webp"
+    }
   },
   "lxqt": {
-    "name": "Lubuntu 26.04 \u2014 2604-raccoon.png",
+    "name": "Lubuntu 26.04 — 2604-raccoon.png",
     "url": "https://raw.githubusercontent.com/lubuntu-team/lubuntu-artwork/78db680b1937e74267960c58c355d84fa142d68e/src/usr/share/lubuntu/wallpapers/2604-raccoon.png",
     "path": "/usr/share/backgrounds/usagestat-lab/lxqt.png",
     "sha256": "48d85c3d02b928b1fb11eccceb9e456fbbd47c5bb98d5850ca7a00a458ed4b98",
-    "source": "https://github.com/lubuntu-team/lubuntu-artwork/blob/78db680b1937e74267960c58c355d84fa142d68e/src/usr/share/lubuntu/wallpapers/lubuntu-default-wallpaper.png"
+    "source": "https://github.com/lubuntu-team/lubuntu-artwork/blob/78db680b1937e74267960c58c355d84fa142d68e/src/usr/share/lubuntu/wallpapers/lubuntu-default-wallpaper.png",
+    "website": {
+      "repository": "hashimkarim/usagestat-web",
+      "revision": "ca2ee110e61b1c97969c4176a5786e2035bc2f5b",
+      "file": "public/desktops/lubuntu.webp"
+    }
   },
   "cinnamon": {
-    "name": "Linux Mint 22.3 \u2014 default_background.jpg (sele_ring.jpg)",
+    "name": "Linux Mint 22.3 — default_background.jpg (sele_ring.jpg)",
     "url": "https://fastly.linuxmint.io/pool/main/m/mint-artwork/mint-artwork_1.9.3.tar.xz",
     "archiveMember": "mint-artwork/usr/share/backgrounds/linuxmint/sele_ring.jpg",
     "archiveSha256": "5c7dd166af65b347bd98cedc66109290d314c0c27205e15375f9f4d3a3daa8d8",
     "sha256": "578f7e1a927f9d22ed4b16b144576969330b237da1fba72394d4d2b7b8f24b4f",
     "path": "/usr/share/backgrounds/usagestat-lab/cinnamon.jpg",
     "source": "https://fastly.linuxmint.io/list.php?release=zena",
-    "defaultSelector": "mint-artwork/usr/share/backgrounds/linuxmint/default_background.jpg \u2192 sele_ring.jpg",
-    "license": "GPL-3.0-or-later (mint-artwork/debian/copyright)"
+    "defaultSelector": "mint-artwork/usr/share/backgrounds/linuxmint/default_background.jpg → sele_ring.jpg",
+    "license": "GPL-3.0-or-later (mint-artwork/debian/copyright)",
+    "website": {
+      "repository": "hashimkarim/usagestat-web",
+      "revision": "ca2ee110e61b1c97969c4176a5786e2035bc2f5b",
+      "file": "public/desktops/linux-mint.webp"
+    }
+  },
+  "gnome": {
+    "name": "GNOME Blobs — dark",
+    "url": "https://zebreus.github.io/all-gnome-backgrounds/images/blobs-d-8667f12ba79dde3bf2fd7c9c468193e813ce613d.webp",
+    "sha256": "a98a13ce23c57af5249df23031525477d1e985e58a049f7aadcaa2cb9e03f1c3",
+    "path": "/usr/share/backgrounds/usagestat-lab/gnome.webp",
+    "source": "https://zebreus.github.io/all-gnome-backgrounds/wallpaper/8667f12ba79dde3bf2fd7c9c468193e813ce613d",
+    "author": "Jakub Steiner",
+    "license": "CC-BY-SA-3.0",
+    "website": {
+      "repository": "hashimkarim/usagestat-web",
+      "revision": "ca2ee110e61b1c97969c4176a5786e2035bc2f5b",
+      "file": "public/desktops/fedora-blobs-dark.webp"
+    }
   }
 }

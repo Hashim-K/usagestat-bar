@@ -16,6 +16,10 @@ if [[ ! -x "$USAGESTAT_GSETTINGS" ]]; then
     echo "Expected the desktop's gsettings at $USAGESTAT_GSETTINGS" >&2
     exit 1
 fi
+# Prepare the selected website artwork outside the disposable desktop session.
+# Cached files are checksum-verified, so later runs also work offline.
+export USAGESTAT_LAB_BACKGROUND_ROOT="${USAGESTAT_LAB_BACKGROUND_ROOT:-${XDG_CACHE_HOME:-$HOME/.cache}/usagestat-lab/wallpapers}"
+python3 "$source_dir/tests/linux/fetch-backgrounds.py" --target gnome --root "$USAGESTAT_LAB_BACKGROUND_ROOT"
 mkdir -p "$source_dir/artifacts"
 output_dir="$(mktemp -d "$source_dir/artifacts/gnome.XXXXXX")"
 test_root="$(mktemp -d -t usagestat-gnome.XXXXXX)"

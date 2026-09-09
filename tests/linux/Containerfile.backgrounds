@@ -1,0 +1,5 @@
+ARG LAB_IMAGE
+FROM ${LAB_IMAGE}
+ARG WALLPAPER_TARGET=all
+COPY backgrounds.json fetch-backgrounds.py /usr/share/usagestat-lab/
+RUN python3 /usr/share/usagestat-lab/fetch-backgrounds.py --target "$WALLPAPER_TARGET"

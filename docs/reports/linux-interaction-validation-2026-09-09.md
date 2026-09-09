@@ -1,5 +1,9 @@
 # Linux preview fixes and interaction review — 9 September 2026
 
+For fresh recordings using the website's updated wallpapers, see the
+[later behaviour review](linux-behaviour-web-wallpapers-2026-09-09.md).
+This report preserves the original run and its earlier wallpaper selections.
+
 The Hyprland and COSMIC preview failures from the [previous recording](linux-interaction-validation-2026-09-08.md) are fixed in the lab images. Both previews retain keyboard input, close on a second panel click or an outside click, and reopen at the configured panel edge/alignment. These results use patched compositor builds, as described below; they do not establish that the stock packages handle the same cases.
 
 The new default panel is **logo → usage bar → percentage**, with the **session / primary** meter. Existing explicit appearance and meter overrides remain effective. Every preview uses the [requested distro wallpaper](linux-preview-wallpapers.md), including the exact Sway Blue image, Omarchy's first Tokyo Night wallpaper and EndeavourOS for i3. The wallpaper choice does not change the underlying Fedora/Arch lab runtime into that distro.

@@ -30,18 +30,19 @@ def resolve(target):
 
 def prepare(target, output):
     asset = resolve(target)
-    original = Path(asset['path'])
+    original = Path(os.environ.get('USAGESTAT_LAB_BACKGROUND_ROOT', '/')) / asset['path'].lstrip('/')
     if not original.is_file():
         raise FileNotFoundError(f'{target} default wallpaper is missing: {original}. Rebuild the lab image.')
     digest = hashlib.sha256(original.read_bytes()).hexdigest()
     if 'sha256' in asset and asset['sha256'] != digest:
         raise ValueError(f'{target} wallpaper checksum differs from its pinned source')
     asset['sha256'] = digest
+    asset['originalPath'] = str(original)
     output.mkdir(parents=True, exist_ok=True)
-    # Some panel-only sessions use feh/swaybg, whose image loaders do not all
-    # support Fedora's JPEG XL defaults. Decode the same asset once, losslessly.
+    # Background loaders differ between desktops. Decode these formats to PNG
+    # once without changing the artwork or depending on optional loader plugins.
     display = original
-    if original.suffix.lower() in ['.jxl', '.svg']:
+    if original.suffix.lower() in ['.jxl', '.svg', '.webp']:
         cache = Path(os.environ.get('XDG_CACHE_HOME', '/tmp')) / 'usagestat-lab'
         cache.mkdir(parents=True, exist_ok=True)
         display = cache / f'wallpaper-{digest[:16]}.png'
