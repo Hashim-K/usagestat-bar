@@ -11,6 +11,7 @@ import subprocess
 import sys
 import time
 import traceback
+from placement import assert_section_alignment
 import gi
 gi.require_version('Gio','2.0')
 gi.require_version('GdkPixbuf','2.0')
@@ -32,6 +33,7 @@ INDEX=0
 pointer=None
 tray_monitor=None
 tray_companion=None
+anchor_monitor=None
 
 
 class Pointer:
@@ -305,6 +307,49 @@ def _point():
 
 def point(): return wait(_point)
 
+
+def section_anchor(log_offset=0):
+    """Read widget bounds from native input, or measure the Polybar fixture.
+
+    The colored Polybar format is drawn by the real module formatter. It lets
+    this test measure that module independently of popup-placement code and
+    without including the neighboring module in the expected rectangle.
+    """
+    if TARGET in ['i3', 'bspwm']:
+        bar=panel()
+        pix=GdkPixbuf.Pixbuf.new_from_file(str(screenshot('.section-geometry')))
+        data=pix.get_pixels(); stride=pix.get_rowstride(); channels=pix.get_n_channels()
+        xs=[]
+        y=bar['y']+2
+        for x in range(max(0,bar['x']),min(pix.get_width(),bar['x']+bar['w'])):
+            i=y*stride+x*channels
+            if tuple(data[i:i+3])==(47,62,82): xs.append(x)
+        if xs:
+            rect=dict(x=min(xs),y=bar['y'],w=max(xs)-min(xs)+1,h=bar['h'])
+            width,height=map(int,command('xdotool','getdisplaygeometry').split())
+            work=dict(x=0,y=bar['h'] if EDGE=='top' else 0,w=width,h=height-bar['h'])
+            return dict(rect=rect,work=work,edge=EDGE)
+        return None
+    if TARGET=='plasma':
+        bar=panel()
+        rect=json.loads(plasma_script('var p=panels().find(p=>p.widgets().some(w=>w.type==="io.github.HashimK.usagestat")); print(JSON.stringify(p.widgets("io.github.HashimK.usagestat")[0].geometry));'))
+        width,height=map(int,command('xdotool','getdisplaygeometry').split())
+        return dict(rect=dict(x=bar['x']+rect['x'],y=bar['y']+rect['y'],w=rect['width'],h=rect['height']),
+                    work=dict(x=0,y=bar['h'] if EDGE=='top' else 0,w=width,h=height-bar['h']),edge=EDGE)
+    # Capture the actual adapter's ToggleDetailsAt argument. There is no
+    # screen/panel fallback: an absent section must fail this contract.
+    log=OUT/'section-anchor.log'
+    for line in reversed(log.read_text()[log_offset:].splitlines() if log.exists() else []):
+        text=line.strip()
+        if not text.startswith('string "'): continue
+        value=text[8:-1]
+        try: anchor=json.loads(value)
+        except (ValueError,TypeError):
+            try: anchor=json.loads(ast.literal_eval(text[7:]))
+            except (ValueError,SyntaxError,TypeError): continue
+        if isinstance(anchor,dict) and all(k in anchor for k in ['rect','work','edge']): return anchor
+    return None
+
 def desktop_click():
     rect=popup()
     width,height=(pointer.width,pointer.height) if pointer else (1600,1000)
@@ -390,6 +435,7 @@ def position(edge='top', region='left', index=0):
         config['bar/baseline']['modules-'+region]='neighbor usagestat' if index else 'usagestat neighbor'
         config['bar/baseline']['bottom']='true' if edge=='bottom' else 'false'
         config['module/neighbor']={'type':'custom/text','content':' Neighbor '}
+        config['module/usagestat']['format-background']='#2f3e52'
         with path.open('w') as stream: config.write(stream)
         command('pkill','-x','polybar')
         with (OUT/'panel.log').open('a') as log: subprocess.Popen(['polybar','-c',str(path),'baseline'],stdout=log,stderr=log)
@@ -473,22 +519,25 @@ def placement_checks():
         else: step('panel-edge-'+edge,lambda edge=edge:at_position(edge,'center',0))
     def alignment(value):
         position('top','center',0); setting('popup-alignment',value)
+        log=OUT/'section-anchor.log'; offset=log.stat().st_size if log.exists() else 0
         click(*point()); actual=wait(popup)
+        anchor=section_anchor(offset)
+        assert anchor, 'The integration did not supply measurable UsageStat section bounds; panel bounds are not accepted.'
+        observation=assert_section_alignment(actual,anchor['rect'],anchor['work'],anchor['edge'],value)
         desktop_click(); wait(lambda:not popup())
         click(*point()); repeated=wait(popup)
         assert abs(actual['x']-repeated['x'])<5 and abs(actual['y']-repeated['y'])<5,f'Reopening changed the popup anchor: {actual} → {repeated}'
-        return actual
+        assert_section_alignment(repeated,anchor['rect'],anchor['work'],anchor['edge'],value)
+        return observation
     aligned={}
     for value in ['left','center','right']:
         def check_alignment(value=value):
             aligned[value]=alignment(value); return aligned[value]
         step('popup-alignment-'+value,check_alignment)
-    if len(aligned)==3:
-        def distinct():
-            xs=[aligned[key]['x'] for key in ['left','center','right']]
-            expected=xs[0]<xs[1]<xs[2] if TARGET in ['i3','bspwm','lxqt','budgie','cosmic'] else xs[0]>xs[1]>xs[2]
-            ensure(expected,str(aligned))
-        step('popup-alignment-distinct',distinct)
+    def aligned_to_section():
+        ensure(len(aligned)==3,'All three alignments must match the UsageStat section; differing screen positions are insufficient.')
+        return aligned
+    step('popup-alignment-section',aligned_to_section)
 
 
 def ensure(condition,message):
@@ -538,7 +587,7 @@ def step(name, action):
 
 
 def main():
-    global pointer, started, tray_monitor, tray_companion
+    global pointer, started, tray_monitor, tray_companion, anchor_monitor
     wait(lambda:len(state()['providers'])==4 and not state()['loading'],30)
     # Keep screenshot geometry detection reproducible across desktop defaults.
     command('gsettings','set','org.gnome.desktop.interface','color-scheme','prefer-light')
@@ -549,6 +598,8 @@ def main():
     wait(lambda:(OUT/'recording.ready').exists(),20)
     started=time.monotonic()
     time.sleep(2)
+    with (OUT/'section-anchor.log').open('w') as log:
+        anchor_monitor=subprocess.Popen(['dbus-monitor',"type='method_call',interface='io.github.HashimK.UsageStatBar1',member='ToggleDetailsAt'"],stdout=log,stderr=log)
     if TRAY:
         # The desktop's embedded status-area process can start after its panel
         # window. Wait for the actual native host before adding test clients.
@@ -703,5 +754,6 @@ except Exception as error:
 finally:
     if tray_monitor: tray_monitor.terminate()
     if tray_companion: tray_companion.terminate()
+    if anchor_monitor: anchor_monitor.terminate()
     (OUT/'recording.stop').touch()
     time.sleep(2)

@@ -1,10 +1,18 @@
 # Polybar, COSMIC and bspwm fixes — 11 September 2026
 
+**Correction after manual review:** the popup-alignment pass claims below are
+withdrawn. The old test accepted three distinct, repeatable screen positions
+instead of comparing the popup to the UsageStat section. This missed a real
+implementation gap in Polybar and the generic tray integrations. See the
+[section-alignment audit](linux-section-alignment-2026-09-11.md). The original
+recordings and raw results are preserved, but they do not establish working
+section alignment on i3, bspwm, LXQt, Budgie or COSMIC.
+
 Polybar now displays provider logos instead of initials. COSMIC keeps wheel
 scrolling after the number of tray providers changes. The bspwm popup paints
 normally and applies its configured position on opening, resizing and reopening.
 
-The [video and screenshot gallery](http://127.0.0.1:34985/) contains **six fresh
+The original [video and screenshot gallery](http://127.0.0.1:34985/) reported **six fresh
 suites: 166 passed, zero failed, four unsupported**. The other six recordings
 are retained from 9 September and clearly labelled. The combined gallery has
 **320 passed, zero failed, five unsupported**, 12 playable MP4s and 320 per-step

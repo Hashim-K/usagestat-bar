@@ -18,6 +18,10 @@ covers native clicks, wheel input, provider pins, panel placement and popup
 alignment in twelve Linux profiles, with screenshots, videos and runtime limits.
 Six affected profiles were re-recorded after the Polybar, COSMIC and bspwm fixes;
 the gallery labels the other six recordings retained from 9 September.
+Manual review subsequently found that the fallback alignment tests used the
+wrong reference rectangle. **Section alignment remains broken on i3/bspwm,
+LXQt, Budgie and COSMIC**; the [corrected audit](reports/linux-section-alignment-2026-09-11.md)
+withdraws those pass claims and compares against the UsageStat section itself.
 
 ## Choose the integration
 

@@ -12,3 +12,4 @@ cp "$source_dir/tests/fixtures/config.toml" "$XDG_CONFIG_HOME/usagestat/config.t
 python3 "$source_dir/platforms/linux/package.py" stage "$test_root/app"
 export USAGESTAT_BAR_SCHEMA_DIR="$test_root/app/platforms/linux/schemas"
 gjs -m "$source_dir/tests/linux/contracts.js"
+python3 "$source_dir/tests/linux/placement-test.py"
