@@ -203,6 +203,7 @@ export class Tray {
     update(state) {
         if (this.closed) return;
         this.state = state;
+        if (this.rebuildTimer) return;
         const mode = this.settings.get_string('provider-mode');
         const selected = new Set(this.settings.get_strv('providers'));
         const visible = state.providers.filter(provider => !provider.parent);
@@ -219,6 +220,21 @@ export class Tray {
             : mode === 'active' ? 'active' : `provider:${provider.key}`, provider]);
         if (!state.providers.length && mode !== 'custom') entries.push(['setup', null]);
         const keys = new Set(entries.map(([key]) => key));
+        if (this.cosmicDark !== undefined && this.items.size &&
+            (keys.size !== this.items.size || [...keys].some(key => !this.items.has(key)))) {
+            // COSMIC 1.6 can retain stale hover state when a status-area child
+            // disappears: clicks work, but the host stops sending SNI Scroll.
+            // Let it remove our old children before registering the new layout.
+            // This only runs for a slot-layout change, never while scrolling.
+            for (const item of this.items.values()) item.close();
+            this.items.clear();
+            this.rebuildTimer = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 100, () => {
+                this.rebuildTimer = 0;
+                this.update(this.state);
+                return GLib.SOURCE_REMOVE;
+            });
+            return;
+        }
         for (const [key, item] of this.items) {
             if (!keys.has(key)) { item.close(); this.items.delete(key); }
         }
@@ -232,6 +248,7 @@ export class Tray {
     }
     close() {
         this.closed = true;
+        if (this.rebuildTimer) GLib.source_remove(this.rebuildTimer);
         this.style.disconnect(this.styleSignal);
         if (this.cosmicThemeTimer) GLib.source_remove(this.cosmicThemeTimer);
         if (this.panelThemeSignal) this.panelTheme.disconnect(this.panelThemeSignal);

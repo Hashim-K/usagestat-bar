@@ -7,6 +7,7 @@ import {assert, equal} from '../assert.js';
 import {settings, ROOT} from '../../platforms/linux/settings.js';
 import {Model, selectedUsage, panelProviders, thresholds, thresholdAt, windows, resetText, safeUrl} from '../../platforms/linux/model.js';
 import {escapeXml, escapePolybar, panelSvg, panelText, waybarOutput, logoSvg, traySvg} from '../../platforms/linux/render.js';
+import {providerGlyph} from '../../platforms/polybar/icons.js';
 
 const tests = [];
 const test = (name, fn) => tests.push([name, fn]);
@@ -45,6 +46,16 @@ test('relative reset uses the supplied clock', () => equal(resetText({resetsAt:'
 test('non-web provider links are not executable', () => { equal(safeUrl('file:///etc/passwd'),''); equal(safeUrl('https://example.test'),'https://example.test'); });
 test('XML text cannot introduce elements', () => equal(escapeXml('<b a="x">&'), '&lt;b a=&quot;x&quot;&gt;&amp;'));
 test('Polybar provider text cannot inject click actions', () => { assert(!escapePolybar('%{A:danger:}x\ny').includes('%{')); assert(!escapePolybar('x\ny').includes('\n')); });
+test('Polybar uses provider logo glyphs, including aliases and renamed accounts', () => {
+    const glyph = providerGlyph({iconId:'claude'});
+    assert(glyph.codePointAt(0) >= 0x100000);
+    equal(providerGlyph({iconId:'opencode'}), providerGlyph({iconId:'opencode-go'}));
+    for (const iconId of ['%{A:bad:}', 'constructor', '__proto__', 'toString', undefined])
+        equal(providerGlyph({iconId}), String.fromCodePoint(0x100000));
+    const provider = {key:'work',name:'My renamed account',iconId:'claude',percent:50};
+    equal(panelText({providers:[provider],panel:['work'],appearance:{components:['logo']}},true), glyph);
+    assert(glyph !== providerGlyph({iconId:'codex'}));
+});
 test('SVG provider labels and color settings cannot introduce markup', () => {
     const provider = {key:'a',name:'<script>&',percent:0,used:0,color:'#8ab4f8',windows:[],iconId:'codex'};
     const state={providers:[provider],panel:['a'],appearance:{components:['bar','text'],bars:1,layout:'vertical',spacing:4,neutral:'#e6edf3'}};

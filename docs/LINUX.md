@@ -13,9 +13,11 @@ covers the panel, popup, application and tray refinements. Other desktops still
 need their own manual review of the current version. The
 [remaining-desktop review notes](reports/linux-manual-review.md) describe the
 follow-up changes and how to open each preview.
-The [recorded interaction review](reports/linux-behaviour-web-wallpapers-2026-09-09.md)
+The [recorded interaction review](reports/linux-fixes-2026-09-11.md)
 covers native clicks, wheel input, provider pins, panel placement and popup
 alignment in twelve Linux profiles, with screenshots, videos and runtime limits.
+Six affected profiles were re-recorded after the Polybar, COSMIC and bspwm fixes;
+the gallery labels the other six recordings retained from 9 September.
 
 ## Choose the integration
 
@@ -50,9 +52,10 @@ Logo colors, contrast, bar color
 and scrolling have their own settings. The
 right-click menu also opens **Tray settings**. Tray visibility is remembered;
 turn **Show tray icons** off to use only a panel widget or the application.
-The desktop controls tray size, placement and order. Polybar and the Waybar text fallback
-show multiple text meters with custom colors and provider initials in place
-of image logos. Full names remain in details/tooltips.
+The desktop controls tray size, placement and order. Polybar shows the actual
+provider logos using the bundled **UsageStat Provider Icons** font, alongside
+colored meters and percentages. The Waybar text fallback uses provider initials;
+its native CFFI widget supports image logos. Full names remain in details/tooltips.
 
 Plasma has its own panel popup, with compact provider tiles matching GNOME's
 logo, name, mini meter and status-dot layout. Only the selected provider and
@@ -185,8 +188,25 @@ Merge `platforms/waybar/config.jsonc` into your existing Waybar configuration
 and add `custom/usagestat` to the desired `modules-left`, `modules-center` or
 `modules-right` list. Merge `platforms/waybar/style.css` into your stylesheet.
 For Polybar, merge `platforms/polybar/config.ini` and add `usagestat` to your
-bar's modules list. Installed copies are in
-`~/.local/share/usagestat-bar/platforms/`.
+bar's modules list. Add the logo font to an unused entry in that bar's font list:
+
+```ini
+[bar/main]
+font-0 = DejaVu Sans:size=11;2
+font-1 = UsageStat Provider Icons:pixelsize=20;3
+modules-left = usagestat
+```
+
+Keep your own text font and other modules. The installer registers the bundled
+font under `~/.local/share/fonts/`; restart Polybar after installing or upgrading.
+For a custom installation prefix, include its `share/fonts` directory in your
+Fontconfig configuration (or use that prefix's `share` as `XDG_DATA_HOME`).
+The 155 monochrome logos use Plane 16 private-use glyphs, outside
+[Nerd Fonts' assigned ranges](https://github.com/ryanoasis/nerd-fonts/wiki/Glyph-Sets-and-Code-Points).
+Provider aliases and renamed accounts keep the appropriate logo. Color artwork,
+custom image files and partial logo fills still require a graphical adapter;
+the Polybar font renders complete monochrome logos.
+Installed examples are in `~/.local/share/usagestat-bar/platforms/`.
 
 Both examples use left click to toggle usage, right click for preferences, middle
 click to refresh, and the wheel to switch providers. They keep a `--watch`
@@ -499,6 +519,8 @@ Build the lab images as described above, then run a disposable fixture session:
 ```bash
 python3 tests/linux/review.py cinnamon --output artifacts/my-interaction-review
 # Replace cinnamon with another target, or all for all eleven port profiles.
+# Include an independent tray application when checking COSMIC/LXQt/Budgie:
+USAGESTAT_LAB_TRAY_COMPANION=1 python3 tests/linux/review.py cosmic --output artifacts/my-tray-review
 USAGESTAT_TEST_INTERACTIONS=1 ./tests/gnome-session.sh --check
 ```
 
@@ -532,8 +554,10 @@ run `python3 -m http.server 8764 --bind 127.0.0.1 --directory artifacts/my-revie
 and open `http://127.0.0.1:8764/`.
 Keep environment failures explicit with `--blocked cosmic` and an explanatory
 `--note 'cosmic=Reason for the blocked session'`; raw results are preserved.
-The [latest behaviour report](reports/linux-behaviour-web-wallpapers-2026-09-09.md)
-documents the fresh recordings with the website wallpapers. The
+The [latest behaviour report](reports/linux-fixes-2026-09-11.md)
+documents the fixes and six fresh regression recordings. The
+[wallpaper regeneration report](reports/linux-behaviour-web-wallpapers-2026-09-09.md)
+retains the preceding full batch and its original failures. The
 [earlier September report](reports/linux-interaction-validation-2026-09-09.md)
 explains the compositor and tray fixes used by these lab images.
 

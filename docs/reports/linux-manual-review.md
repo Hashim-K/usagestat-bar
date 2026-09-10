@@ -176,9 +176,10 @@ orphaned preview had lost its bridge and showed connection-refused errors.
 
 Plasma has a native panel popup. The other ports open the shared GTK popup
 from their panel/tray integration, with a separately launchable application.
-Polybar and the Waybar text fallback still
-use initials in place of image logos. Native Waybar supports the graphical
-panel rendering.
+Polybar now uses the bundled provider-logo font; add it to the bar's font list
+as described in [Linux setup](../LINUX.md#waybar-text-fallback-and-polybar).
+The Waybar text fallback still uses initials; native Waybar supports graphical
+panel rendering, including partial logo fills.
 
 Tray placement, slot size and ordering belong to each desktop. Automatic
 tray contrast follows Budgie's independent panel theme when available and

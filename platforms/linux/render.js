@@ -7,6 +7,7 @@ import PangoCairo from 'gi://PangoCairo';
 import {ROOT, writePrivate} from './settings.js';
 import {clamp, safeColor} from './model.js';
 import {PROVIDER_ICON_FILES} from '../../providerMetadata.js';
+import {providerGlyph} from '../polybar/icons.js';
 
 export const escapeXml = value => String(value ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;')
     .replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&apos;');
@@ -315,7 +316,7 @@ export function panelText(state, polybar = false, markup = false) {
         }).join(!polybar && markup && state.appearance.layout === 'vertical' ? '\n' : ' ');
         return state.appearance.components.map(c => c === 'bar' ? meters : c === 'percent'
             ? color(p.error ? '!' : p.percent === null ? '—' : `${Math.round(clamp(p.percent))}%`, safeColor(p.error ? '#ff5f57' : p.color)) : c === 'text' ? clean(compactName(p.name))
-            : c === 'logo' ? clean(`[${initials(p.name)}]`) : '').filter(Boolean).join(' ');
+            : c === 'logo' ? polybar ? providerGlyph(p) : clean(`[${initials(p.name)}]`) : '').filter(Boolean).join(' ');
     }).join(' '.repeat(Math.max(1, Math.min(20, Math.round((state.appearance.spacing ?? 12) / 4))))) || 'UsageStat · Set up providers';
 }
 

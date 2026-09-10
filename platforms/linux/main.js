@@ -54,7 +54,6 @@ function resizeDetails(force = false) {
     }).finally(() => {
         if (detailsPosition !== pending) return;
         detailsPosition = null;
-        details.window.opacity = 1;
     });
 }
 
@@ -80,8 +79,8 @@ function showDetails(provider = '', fromPanel = false, anchorRect = null) {
     detailsAnchor = anchorRect || lastPanelAnchor; detailsSize = null;
     details.update(state);
     const anchor = fromPanel && canAnchorToPanel();
-    // Keep the first frame dim until the fixed panel anchor has been applied.
-    details.window.opacity = anchor ? 0.01 : 1;
+    // Keep GTK at normal opacity. Dimming the widget during X11 placement
+    // paints a black rectangle on desktops without a compositor, such as bspwm.
     if (anchor) { details.window.unmaximize(); details.window.unfullscreen(); }
     if (fromPanel) details.window.set_default_size(...details.preferredSize());
     if (details.layerShell && !details.window.visible) {
@@ -97,7 +96,6 @@ function showDetails(provider = '', fromPanel = false, anchorRect = null) {
         }).finally(() => {
             if (detailsPosition !== pending) return;
             detailsPosition = null;
-            details.window.opacity = 1;
             details.window.present();
             stopDismissal = dismissOutside(details.window, dismissDetails);
             resizeDetails(true);

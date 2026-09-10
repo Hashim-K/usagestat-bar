@@ -75,6 +75,8 @@ def main():
         lib_suffix = libdir.removeprefix('/usr/local/').removeprefix('/usr/')
         if Path(lib_suffix).is_absolute() or '..' in Path(lib_suffix).parts: parser.error('Unrecognized panel library directory')
     xfce_library = prefix / lib_suffix / 'xfce4/panel/plugins/libusagestat.so'
+    icon_font = data / 'fonts/UsageStatProviderIcons.ttf'
+    font_link = {'symlink': str(target / 'platforms/polybar/UsageStatProviderIcons.ttf')}
     if args.uninstall:
         if not manifest.is_file():
             parser.error(f'No UsageStat installation manifest at {target}')
@@ -93,6 +95,8 @@ def main():
             if (path / '.usagestat-linux-bundle').is_file() and not path.is_symlink():
                 shutil.rmtree(path)
         shutil.rmtree(target)
+        if shutil.which('fc-cache'):
+            subprocess.run(['fc-cache', str(icon_font.parent)], check=False, stdout=subprocess.DEVNULL)
         print('Removed UsageStat Bar. Provider and appearance settings were preserved.')
         return
     if not (ROOT / '.usagestat-linux-bundle').is_file():
@@ -110,6 +114,9 @@ def main():
         parser.error(f'An unrelated autostart entry already exists: {autostart}')
     if 'xfce' in native and (xfce_library.exists() or xfce_library.is_symlink()) and previous.get(str(xfce_library)) != {'symlink': str(target / 'platforms/xfce/libusagestat.so')}:
         parser.error(f'An unrelated panel library already exists: {xfce_library}')
+    if (icon_font.exists() or icon_font.is_symlink()) and (previous.get(str(icon_font)) != font_link
+            or not icon_font.is_symlink() or os.readlink(icon_font) != font_link['symlink']):
+        parser.error(f'An unrelated font already exists: {icon_font}')
     with tempfile.TemporaryDirectory(prefix='.usagestat-install.', dir=data) as temp:
         incoming = Path(temp) / 'app'
         shutil.copytree(ROOT, incoming)
@@ -161,6 +168,12 @@ def main():
         xfce_library.symlink_to(target / 'platforms/xfce/libusagestat.so')
         previous[str(xfce_library)] = {'symlink': str(target / 'platforms/xfce/libusagestat.so')}
     install_options.write_text(json.dumps({'native': native}))
+    icon_font.parent.mkdir(parents=True, exist_ok=True)
+    if icon_font.is_symlink(): icon_font.unlink()
+    icon_font.symlink_to(font_link['symlink'])
+    previous[str(icon_font)] = font_link
+    if shutil.which('fc-cache'):
+        subprocess.run(['fc-cache', str(icon_font.parent)], check=False, stdout=subprocess.DEVNULL)
     manifest.write_text(json.dumps({**previous, **{str(path): text for path, text in files.items()}}, indent=2))
     if restart:
         subprocess.Popen([str(launcher), restart], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)

@@ -156,6 +156,7 @@ height = 34
 background = #20242b
 foreground = #e6edf3
 font-0 = DejaVu Sans:size=11;2
+font-1 = UsageStat Provider Icons:pixelsize=20;3
 modules-left = usagestat
 CONFIG
         cat /src/platforms/polybar/config.ini >> /tmp/polybar.ini

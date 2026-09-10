@@ -1,8 +1,13 @@
 # Linux behaviour recordings with website wallpapers — 9 September 2026
 
+**Update, 11 September:** the [follow-up fixes and recordings](linux-fixes-2026-09-11.md)
+resolve COSMIC's count/scroll failure and bspwm's popup painting/placement,
+and add native Polybar logos. The results below describe the original batch;
+its failed recordings are preserved.
+
 All twelve Linux profiles were recorded again using the [wallpapers selected by usagestat-web at ca2ee11](linux-preview-wallpapers.md). The fresh result is **311 passed, one failed, five unsupported**. Eleven profile suites passed; COSMIC's provider-count/scroll case failed in two independent full runs. The failure remains visible in the gallery and is not replaced by an older passing result.
 
-Open the [video and screenshot gallery](http://127.0.0.1:34985/), its [local index](../../artifacts/linux-behaviour-2026-09-09-web-gallery/index.html), or the [desktop overview](../../artifacts/linux-behaviour-2026-09-09-web-gallery/desktop-overview.png).
+Open the [historical video and screenshot gallery](http://127.0.0.1:34985/history/index.html), its [local index](../../artifacts/linux-behaviour-2026-09-09-web-gallery/index.html), or the [desktop overview](../../artifacts/linux-behaviour-2026-09-09-web-gallery/desktop-overview.png).
 
 The gallery contains **12 primary MP4s and 312 per-step screenshots**, plus a second COSMIC recording with 27 screenshots showing the same failure. All 13 videos decode successfully. All local gallery links resolve, and all twelve original wallpaper checksums match the website's `public/desktops/sources.json`. See [media verification](../../artifacts/linux-behaviour-2026-09-09-web-gallery/media-verification.json), [raw results](../../artifacts/linux-behaviour-2026-09-09-web-gallery/summary.json), and each profile's `wallpaper.json` for evidence. Original failed captures and logs are preserved.
 
@@ -27,7 +32,7 @@ The five unsupported cases are GNOME's fixed top-panel edge and vertical Polybar
 
 **COSMIC — scrolling after reducing tray provider count.** Start with three slots, pin Claude and Codex, and select Copilot in the free slot. Scrolling that free slot works. Reduce to one provider, select Claude, then send one downward wheel notch over the remaining icon. The expected result is Copilot; Claude remains selected. `reduce-provider-count` fails in both fresh full runs; the other 26 COSMIC checks pass. The native StatusNotifier trace contains no `Scroll` call for the failed event, although it records the preceding wheel events. This places the observed interruption before UsageStat's D-Bus scroll handler; it does not yet identify a compositor or status-area fix.
 
-Review the [first COSMIC video](http://127.0.0.1:34985/cosmic/review.mp4), [failed screenshot](http://127.0.0.1:34985/cosmic/13-reduce-provider-count.png), and [independent repeat](http://127.0.0.1:34985/cosmic-repeat/review.mp4). The raw input coordinates and native calls are included in `input-events.jsonl` and `tray-input.log`. Additional isolated diagnostics reproduce missing input after changing the count; their files remain under `artifacts/linux-behaviour-2026-09-09-web-diagnostic/cosmic`.
+Review the [first COSMIC video](../../artifacts/linux-behaviour-2026-09-09-web-gallery/cosmic/review.mp4), [failed screenshot](../../artifacts/linux-behaviour-2026-09-09-web-gallery/cosmic/13-reduce-provider-count.png), and [independent repeat](../../artifacts/linux-behaviour-2026-09-09-web-gallery/cosmic-repeat/review.mp4). The raw input coordinates and native calls are included in `input-events.jsonl` and `tray-input.log`. Additional isolated diagnostics reproduce missing input after changing the count; their files remain under `artifacts/linux-behaviour-2026-09-09-web-diagnostic/cosmic`.
 
 **bspwm — popup painting during opening.** Some opening/placement screenshots show a black popup surface; subsequent popup-scrolling screenshots display the content. Input and geometry assertions pass, but they do not assert complete painting at the instant of every capture. The original frames remain available for manual review; the overview uses the later provider-scrolling screenshot. This visual observation is not counted as an additional automated failure.
 

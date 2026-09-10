@@ -205,7 +205,11 @@ def main():
         if 'i3' in desktop_name and shutil.which('i3-msg'):
             subprocess.run(['i3-msg', f'[id="{xid}"] floating enable'], check=True, capture_output=True, timeout=2)
         elif 'bspwm' in desktop_name and shutil.which('bspc'):
-            subprocess.run(['bspc', 'node', hex(xid), '-t', 'floating'], check=True, capture_output=True, timeout=2)
+            # bspc exits 1 when asked to float an already-floating node. That
+            # is normal on reopen/resize, and must not skip popup placement.
+            node = json.loads(subprocess.check_output(['bspc', 'query', '-T', '-n', hex(xid)], text=True, timeout=2))
+            if node.get('client', {}).get('state') != 'floating':
+                subprocess.run(['bspc', 'node', hex(xid), '-t', 'floating'], check=True, capture_output=True, timeout=2)
         anchor = request.get('anchor') or {}
         exact_anchor = bool(anchor.get('rect') and anchor.get('work'))
         if exact_anchor:
@@ -270,11 +274,16 @@ def main():
         if 'bspwm' in desktop_name:
             # bspwm accepts ConfigureRequest for floating windows, but does not
             # implement the EWMH moveresize request used by other managers.
+            attributes = WindowAttributes()
+            get_attributes(display, xid, C.byref(attributes))
+            border = attributes.border_width
+            # ConfigureRequest coordinates include bspwm's window border,
+            # while the measured client origin starts just inside that border.
             function('XMoveResizeWindow', integer, ptr, ulong, integer, integer, C.c_uint, C.c_uint)(
-                display, xid, *desired)
+                display, xid, desired[0]-border, desired[1]-border, desired[2], desired[3])
         sync(display, 0)
-        # The request reaches the server before the manager applies it. Keep
-        # the initial surface dim until its geometry acknowledges the request.
+        # The request reaches the server before the manager applies it. Wait
+        # for its geometry to acknowledge the placement before returning.
         for _ in range(40):
             root_id, child = ulong(), ulong()
             gx, gy, rx, ry = integer(), integer(), integer(), integer()
@@ -285,7 +294,7 @@ def main():
             translate(display, xid, root, 0, 0, C.byref(rx), C.byref(ry), C.byref(child))
             if (rx.value, ry.value, gw.value, gh.value) == desired: break
             time.sleep(0.01)
-        else: raise ValueError('The window manager did not apply the requested popup geometry.')
+        else: raise ValueError(f'The window manager did not apply the requested popup geometry: requested {desired}, received {(rx.value, ry.value, gw.value, gh.value)}.')
         # Native adapters supply a fresh widget rectangle for every activation.
         # A tray/text fallback must rediscover its panel after it moves.
         print(json.dumps({'edge': edge, 'rect': rect, 'work': work} if exact_anchor else

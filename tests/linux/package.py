@@ -37,10 +37,14 @@ with tempfile.TemporaryDirectory(prefix='usagestat-linux-install.') as temp:
     check_desktop.write_text(desktop.read_text().replace(' tray\n', ' --help\n'))
     run('gjs','-c','const Gio=imports.gi.Gio; const GLib=imports.gi.GLib; const app=Gio.DesktopAppInfo.new_from_filename(ARGV[0]); if (!app || !app.launch([],null)) throw new Error("Desktop launcher failed"); GLib.usleep(200000);',check_desktop,env=env)
     assert (prefix/'share/usagestat-bar/platforms/linux/schemas/gschemas.compiled').is_file()
+    font = prefix/'share/fonts/UsageStatProviderIcons.ttf'
+    assert font.is_symlink() and font.resolve().is_file()
+    assert subprocess.check_output(['fc-scan', '--format', '%{family}', str(font)], text=True) == 'UsageStat Provider Icons'
     run('python3',installer,'--prefix',prefix,env=env)
     assert provider.read_text()=='sentinel provider configuration\n'
     run('python3',installer,'--prefix',prefix,'--uninstall',env=env)
     assert not launcher.exists()
+    assert not font.exists() and not font.is_symlink()
     assert not (base/'config/autostart/io.github.HashimK.UsageStatBar.desktop').exists()
     assert provider.read_text()=='sentinel provider configuration\n'
     # Refuse an unrelated file instead of replacing it.
@@ -49,6 +53,10 @@ with tempfile.TemporaryDirectory(prefix='usagestat-linux-install.') as temp:
     failed=subprocess.run(['python3',str(installer),'--prefix',str(prefix)],env=env,capture_output=True)
     assert failed.returncode != 0 and launcher.read_text()=='unrelated launcher'
     launcher.unlink()
+    font.write_bytes(b'unrelated font')
+    failed=subprocess.run(['python3',str(installer),'--prefix',str(prefix)],env=env,capture_output=True)
+    assert failed.returncode != 0 and font.read_bytes()==b'unrelated font'
+    font.unlink()
     destination=prefix/'share/usagestat-bar'
     outside=base/'outside'; outside.mkdir()
     (outside/'sentinel').write_text('preserve')

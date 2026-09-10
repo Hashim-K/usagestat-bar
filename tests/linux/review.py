@@ -20,12 +20,13 @@ def run(target, output):
     args = [*podman, 'run', '--rm', '--name', name, '--network', 'none', '--security-opt', 'label=disable',
             '-e', 'USAGESTAT_LAB_INTERACTIONS=1', '-e', 'USAGESTAT_LAB_HOLD='+os.environ.get('USAGESTAT_LAB_HOLD','0'),
             '-e', 'USAGESTAT_LAB_CORE_ONLY='+os.environ.get('USAGESTAT_LAB_CORE_ONLY','0'),
+            '-e', 'USAGESTAT_LAB_TRAY_COMPANION='+os.environ.get('USAGESTAT_LAB_TRAY_COMPANION','0'),
             '-v', f'{ROOT}:/src:ro', '-v', f'{output}:/out:rw']
     if target in ['cinnamon','sway','hyprland']: args += ['--userns=keep-id:uid=1000,gid=1000']
     if target == 'hyprland': args += ['--device', os.environ.get('USAGESTAT_LAB_RENDER_NODE','/dev/dri/renderD128')]
     args += [image, 'bash', '/src/tests/linux/session.sh', target]
-    sources=sorted(p for folder in ['platforms','tests','schemas'] for p in (ROOT/folder).rglob('*')
-        if p.is_file() and (p.suffix in ['.js','.py','.c','.h','.qml','.xml','.sh','.toml','.json','.patch','.lua'] or p.name.startswith('Containerfile')))
+    sources=sorted(p for folder in ['platforms','tests','schemas','assets'] for p in (ROOT/folder).rglob('*')
+        if p.is_file() and (p.suffix in ['.js','.py','.c','.h','.qml','.xml','.sh','.toml','.json','.jsonc','.patch','.lua','.ini','.css','.ttf','.svg'] or p.name.startswith('Containerfile')))
     sources+=sorted(ROOT.glob('*.js'))
     digest=hashlib.sha256()
     for path in sources: digest.update(str(path.relative_to(ROOT)).encode()+b'\0'+path.read_bytes())
@@ -33,7 +34,8 @@ def run(target, output):
         'sourceSha256':digest.hexdigest(),
         'commit':subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),
         'dirty':bool(subprocess.check_output(['git','status','--porcelain','--untracked-files=no'],cwd=ROOT,text=True)),
-        'backend':'synthetic fixtures', 'input':'native mouse / wheel events', 'capture':'unedited frames at 5 FPS'},indent=2))
+        'backend':'synthetic fixtures', 'input':'native mouse / wheel events', 'capture':'unedited frames at 5 FPS',
+        'trayCompanion':target in ['cosmic','lxqt','budgie'] and os.environ.get('USAGESTAT_LAB_TRAY_COMPANION')=='1'},indent=2))
     capture = encoder = None
     with (output/'session.log').open('wb') as log, (output/'capture.log').open('wb') as capture_log:
         session = subprocess.Popen(args, stdout=log, stderr=subprocess.STDOUT)

@@ -31,6 +31,7 @@ REGION='left'
 INDEX=0
 pointer=None
 tray_monitor=None
+tray_companion=None
 
 
 class Pointer:
@@ -103,6 +104,20 @@ def shown():
             GLib.Variant('(s)',('org.kde.StatusNotifierItem',)),None,Gio.DBusCallFlags.NONE,5000,None).unpack()[0]
         if props['Id'].startswith('usagestat-bar-'): result.append((int(name.split('.')[-1]),props['Title'].lower()))
     return [title for _,title in sorted(result)]
+
+
+def companion_registered():
+    name = (OUT/'companion-bus.txt').read_text().strip()
+    items = bus.call_sync('org.kde.StatusNotifierWatcher','/StatusNotifierWatcher','org.freedesktop.DBus.Properties',
+        'Get',GLib.Variant('(ss)',('org.kde.StatusNotifierWatcher','RegisteredStatusNotifierItems')),None,
+        Gio.DBusCallFlags.NONE,5000,None).unpack()[0]
+    return any(item.partition('/')[0] == name for item in items)
+
+
+def tray_host_ready():
+    return bool(bus.call_sync('org.kde.StatusNotifierWatcher','/StatusNotifierWatcher','org.freedesktop.DBus.Properties',
+        'Get',GLib.Variant('(ss)',('org.kde.StatusNotifierWatcher','IsStatusNotifierHostRegistered')),None,
+        Gio.DBusCallFlags.NONE,5000,None).unpack()[0])
 
 
 def setting(key,value,tray=False):
@@ -182,6 +197,26 @@ def popup():
         if 'Preferences' in command('xdotool','getwindowname',window,check=False): continue
         rect=measure(window)
         if rect and 340<=rect['w']<900 and 180<=rect['h']<=1064: return rect
+    return None
+
+
+def painted_popup():
+    """Geometry alone also accepts the old nearly-black X11 opening frame."""
+    rect = popup()
+    if not rect: return None
+    pix = GdkPixbuf.Pixbuf.new_from_file(str(screenshot('.popup-paint')))
+    data = pix.get_pixels(); stride = pix.get_rowstride(); channels = pix.get_n_channels()
+    light = blue = total = 0
+    for y in range(max(0, rect['y']+24), min(pix.get_height(), rect['y']+rect['h']-12), 4):
+        for x in range(max(0, rect['x']+20), min(pix.get_width(), rect['x']+rect['w']-20), 4):
+            i = y*stride+x*channels; r,g,b = data[i:i+3]
+            light += min(r,g,b) > 210
+            blue += b > r+40 and b > g+15 and b > 150
+            total += 1
+    # Both light surfaces and dark themes have bright labels plus a blue
+    # selected tab. A dim/black GTK frame has neither, regardless of theme.
+    if light > 25 and blue > 25:
+        return {'popup': rect, 'lightPixels': light, 'bluePixels': blue, 'sampledPixels': total}
     return None
 
 
@@ -503,7 +538,7 @@ def step(name, action):
 
 
 def main():
-    global pointer, started, tray_monitor
+    global pointer, started, tray_monitor, tray_companion
     wait(lambda:len(state()['providers'])==4 and not state()['loading'],30)
     # Keep screenshot geometry detection reproducible across desktop defaults.
     command('gsettings','set','org.gnome.desktop.interface','color-scheme','prefer-light')
@@ -515,8 +550,17 @@ def main():
     started=time.monotonic()
     time.sleep(2)
     if TRAY:
+        # The desktop's embedded status-area process can start after its panel
+        # window. Wait for the actual native host before adding test clients.
+        wait(tray_host_ready,30)
         with (OUT/'tray-input.log').open('w') as log:
             tray_monitor=subprocess.Popen(['dbus-monitor',"type='method_call',interface='org.kde.StatusNotifierItem'"],stdout=log,stderr=log)
+        if os.environ.get('USAGESTAT_LAB_TRAY_COMPANION') == '1':
+            with (OUT/'companion.log').open('w') as log:
+                tray_companion = subprocess.Popen(['gjs','-m','/src/tests/linux/tray-companion.js'],
+                    env={**os.environ, 'GSETTINGS_BACKEND':'memory', 'XDG_CURRENT_DESKTOP':'Fixture',
+                         'USAGESTAT_BAR_SCHEMA_DIR':os.environ['GSETTINGS_SCHEMA_DIR']}, stdout=log,stderr=log)
+            wait(companion_registered)
         setting('provider-mode','count',True); setting('provider-count','2',True)
         call('EnableTray'); time.sleep(2)
         if TARGET=='lxqt':position('bottom','left',0)
@@ -551,6 +595,7 @@ def main():
         assert rect['w']>=360
         return rect
     step('click-opens-popup',opening)
+    step('popup-painted',lambda:wait(painted_popup))
     def popup_scroll():
         rect=wait(popup); call('Select','(s)',('claude',)); before=state()['active']
         wheel(-1,rect['x']+100,rect['y']+100)
@@ -622,6 +667,19 @@ def main():
         setting('panel-bar-count','1');call('Select','(s)',('claude',));wait(lambda:shown()==['claude'])
         wheel(1,*point());wait(lambda:shown()==['copilot']);return shown()
     step('reduce-provider-count',reduce_count)
+    if TRAY:
+        def resize_tray():
+            setting('panel-pinned-providers','[]')
+            observations = []
+            for count in [3, 1, 2, 1]:
+                setting('panel-bar-count',str(count)); call('Select','(s)',('codex',))
+                wait(lambda:len(shown())==count and shown()[0]=='codex')
+                wheel(1,*point()); wait(lambda:shown()[0]=='claude')
+                wheel(-1,*point()); wait(lambda:shown()[0]=='codex')
+                if tray_companion: assert companion_registered(), 'An unrelated tray application disappeared'
+                observations.append({'count':count,'providers':shown(),'companion':bool(tray_companion)})
+            return observations
+        step('tray-count-changes-preserve-scrolling',resize_tray)
     setting('panel-bar-count','2'); setting('panel-pinned-providers','[]')
     call('Select','(s)',('codex',))
     step('unpin-provider',lambda:wait(lambda:state()['panel']==['codex','claude']))
@@ -644,5 +702,6 @@ except Exception as error:
     print(traceback.format_exc(),flush=True)
 finally:
     if tray_monitor: tray_monitor.terminate()
+    if tray_companion: tray_companion.terminate()
     (OUT/'recording.stop').touch()
     time.sleep(2)
