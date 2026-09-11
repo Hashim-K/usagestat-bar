@@ -47,7 +47,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--prefix', type=Path, default=Path.home() / '.local')
     parser.add_argument('--autostart', action='store_true', help='Start the tray on login (panel widgets start the service themselves)')
-    parser.add_argument('--native', choices=['waybar', 'xfce'], action='append', default=[], help='Build a graphical panel adapter (requires development packages)')
+    parser.add_argument('--native', choices=['waybar', 'xfce', 'budgie', 'lxqt', 'cosmic', 'polybar'], action='append', default=[], help='Install a native panel adapter (compiled adapters require development packages)')
     parser.add_argument('--uninstall', action='store_true')
     args = parser.parse_args()
     prefix = args.prefix.expanduser().absolute()
@@ -75,6 +75,15 @@ def main():
         lib_suffix = libdir.removeprefix('/usr/local/').removeprefix('/usr/')
         if Path(lib_suffix).is_absolute() or '..' in Path(lib_suffix).parts: parser.error('Unrecognized panel library directory')
     xfce_library = prefix / lib_suffix / 'xfce4/panel/plugins/libusagestat.so'
+    # Both desktops support user plugins; LXQt uses LXQTPANEL_PLUGIN_PATH.
+    budgie_plugin = data / 'budgie-desktop/plugins/usagestat.plugin'
+    budgie_library = data / 'budgie-desktop/plugins/libusagestat.so'
+    lxqt_desktop = data / 'lxqt/lxqt-panel/usagestat.desktop'
+    lxqt_launcher = prefix / 'bin/usagestat-lxqt-panel'
+    cosmic_desktop = data / 'applications/io.github.HashimK.UsageStatApplet.desktop'
+    polybar_launcher = prefix / 'bin/usagestat-polybar'
+    native_files = ([budgie_plugin] if 'budgie' in native else []) + ([lxqt_desktop, lxqt_launcher] if 'lxqt' in native else []) \
+        + ([cosmic_desktop] if 'cosmic' in native else []) + ([polybar_launcher] if 'polybar' in native else [])
     icon_font = data / 'fonts/UsageStatProviderIcons.ttf'
     font_link = {'symlink': str(target / 'platforms/polybar/UsageStatProviderIcons.ttf')}
     if args.uninstall:
@@ -104,7 +113,7 @@ def main():
     data.mkdir(parents=True, exist_ok=True)
     # Refuse ownership collisions before any writes.
     previous = json.loads(manifest.read_text()) if manifest.is_file() else {}
-    for path in [launcher, desktop, service, mate_service, mate_applet, *([xfce_desktop] if 'xfce' in native else [])]:
+    for path in [launcher, desktop, service, mate_service, mate_applet, *native_files, *([xfce_desktop] if 'xfce' in native else [])]:
         if path.is_symlink() or (path.exists() and str(path) not in previous):
             parser.error(f'An unrelated file already exists: {path}')
     for path in [plasma, cinnamon]:
@@ -114,6 +123,8 @@ def main():
         parser.error(f'An unrelated autostart entry already exists: {autostart}')
     if 'xfce' in native and (xfce_library.exists() or xfce_library.is_symlink()) and previous.get(str(xfce_library)) != {'symlink': str(target / 'platforms/xfce/libusagestat.so')}:
         parser.error(f'An unrelated panel library already exists: {xfce_library}')
+    if 'budgie' in native and (budgie_library.exists() or budgie_library.is_symlink()) and previous.get(str(budgie_library)) != {'symlink': str(target / 'platforms/budgie/libusagestat.so')}:
+        parser.error(f'An unrelated panel library already exists: {budgie_library}')
     if (icon_font.exists() or icon_font.is_symlink()) and (previous.get(str(icon_font)) != font_link
             or not icon_font.is_symlink() or os.readlink(icon_font) != font_link['symlink']):
         parser.error(f'An unrelated font already exists: {icon_font}')
@@ -122,7 +133,13 @@ def main():
         shutil.copytree(ROOT, incoming)
         # Compile before touching the current installation or its running service.
         for adapter in native:
-            filename = 'libusagestat.so' if adapter == 'xfce' else 'libusagestat-waybar.so'
+            if adapter == 'cosmic': continue
+            if adapter in ['lxqt', 'polybar']:
+                filename = 'libusagestat.so' if adapter == 'lxqt' else 'usagestat-polybar'
+                subprocess.run(['bash', str(incoming / 'platforms' / adapter / 'build.sh'),
+                                str(incoming / 'platforms' / adapter / filename)], check=True)
+                continue
+            filename = 'libusagestat.so' if adapter in ['xfce', 'budgie'] else 'libusagestat-waybar.so'
             subprocess.run(['bash', str(incoming / 'platforms/gtk-panel/build.sh'), adapter,
                             str(incoming / 'platforms' / adapter / filename)], check=True)
         restart = stop_running(target, launcher) if target.exists() else None
@@ -143,6 +160,18 @@ def main():
     if 'waybar' in native:
         (target / 'platforms/waybar/native.jsonc').write_text(json.dumps({'cffi/usagestat': {
             'module_path': str(target / 'platforms/waybar/libusagestat-waybar.so'), 'height': 28}}, indent=2) + '\n')
+    if 'budgie' in native:
+        files[budgie_plugin] = (target / 'platforms/budgie/usagestat.plugin').read_text()
+    if 'lxqt' in native:
+        files[lxqt_desktop] = (target / 'platforms/lxqt/usagestat.desktop').read_text()
+        files[lxqt_launcher] = '#!/usr/bin/env bash\nexport LXQTPANEL_PLUGIN_PATH=' + shlex.quote(str(target / 'platforms/lxqt')) \
+            + '"${LXQTPANEL_PLUGIN_PATH:+:$LXQTPANEL_PLUGIN_PATH}"\nexec lxqt-panel "$@"\n'
+    if 'cosmic' in native:
+        files[cosmic_desktop] = '[Desktop Entry]\nType=Application\nName=UsageStat Bar\nComment=AI provider quotas and costs\n' \
+            + f'Exec=/usr/bin/env GDK_BACKEND=wayland GSK_RENDERER=cairo gjs -m {desktop_quote(target / "platforms/cosmic/applet.js")}\n' \
+            + 'Icon=office-chart-pie\nNoDisplay=true\nX-CosmicApplet=true\nX-OverflowPriority=10\n'
+    if 'polybar' in native:
+        files[polybar_launcher] = '#!/usr/bin/env bash\nexec ' + shlex.quote(str(target / 'platforms/polybar/usagestat-polybar')) + ' "$@"\n'
     if args.autostart:
         files[autostart] = files[desktop]
     elif str(autostart) in previous:
@@ -153,6 +182,8 @@ def main():
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(contents)
     launcher.chmod(0o755)
+    if 'polybar' in native: polybar_launcher.chmod(0o755)
+    if 'lxqt' in native: lxqt_launcher.chmod(0o755)
     for name, destination in [('plasma', plasma), ('cinnamon', cinnamon)]:
         destination.parent.mkdir(parents=True, exist_ok=True)
         if destination.exists(): shutil.rmtree(destination)
@@ -167,6 +198,11 @@ def main():
         if xfce_library.is_symlink(): xfce_library.unlink()
         xfce_library.symlink_to(target / 'platforms/xfce/libusagestat.so')
         previous[str(xfce_library)] = {'symlink': str(target / 'platforms/xfce/libusagestat.so')}
+    if 'budgie' in native:
+        budgie_library.parent.mkdir(parents=True, exist_ok=True)
+        if budgie_library.is_symlink(): budgie_library.unlink()
+        budgie_library.symlink_to(target / 'platforms/budgie/libusagestat.so')
+        previous[str(budgie_library)] = {'symlink': str(target / 'platforms/budgie/libusagestat.so')}
     install_options.write_text(json.dumps({'native': native}))
     icon_font.parent.mkdir(parents=True, exist_ok=True)
     if icon_font.is_symlink(): icon_font.unlink()
@@ -177,7 +213,11 @@ def main():
     manifest.write_text(json.dumps({**previous, **{str(path): text for path, text in files.items()}}, indent=2))
     if restart:
         subprocess.Popen([str(launcher), restart], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
-    print(f'Installed: {launcher}\nAdd {launcher.parent} to PATH before starting your panel.\nPlasma and Cinnamon: add the UsageStat Bar widget using panel settings.\nOther desktops: run usagestat-bar tray. Waybar/Polybar examples are in {target}/platforms.')
+    print(f'Installed: {launcher}\nAdd {launcher.parent} to PATH before starting your panel.\n'
+          f'Add UsageStat Bar through your desktop panel settings. Adapter instructions: {target}/platforms.\n'
+          'LXQt: launch the panel with usagestat-lxqt-panel so it can load the user plugin.\n'
+          'Polybar: use usagestat-polybar with the supplied module configuration.\n'
+          'The optional generic tray is started with usagestat-bar tray.')
 
 if __name__ == '__main__':
     main()

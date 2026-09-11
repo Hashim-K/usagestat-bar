@@ -38,5 +38,14 @@ class PopupPlacement(unittest.TestCase):
             assert_section_alignment(dict(x=8, y=42, w=460, h=529),
                                      None, self.work, 'top', 'left')
 
+    def test_native_host_clamps_flush_only_when_needed(self):
+        section = dict(x=0, y=0, w=100, h=34)
+        result = assert_section_alignment(dict(x=0, y=42, w=460, h=529),
+                                          section, self.work, 'top', 'right', inset=0)
+        self.assertTrue(result['clamped'])
+        with self.assertRaisesRegex(AssertionError, 'misses the UsageStat section'):
+            assert_section_alignment(dict(x=0, y=42, w=460, h=529),
+                                     self.section, self.work, 'top', 'right', inset=0)
+
 
 unittest.main()

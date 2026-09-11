@@ -19,6 +19,8 @@ class Indicator:
         self.state = None
         self.scroll_amount = 0
         self.scroll_time = 0
+        self.anchor_idle = 0
+        self.last_anchor = None
         self.image = Gtk.Image.new_from_icon_name('office-chart-pie', Gtk.IconSize.MENU)
         self.button = Gtk.Button()
         self.button.set_relief(Gtk.ReliefStyle.NONE)
@@ -29,6 +31,7 @@ class Indicator:
         self.button.get_style_context().add_provider(css, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
         self.button.add(self.image)
         self.button.connect('clicked', self.clicked)
+        self.button.connect('size-allocate', lambda *_: self.queue_anchor())
         self.button.add_events(Gdk.EventMask.SCROLL_MASK | Gdk.EventMask.SMOOTH_SCROLL_MASK | Gdk.EventMask.BUTTON_PRESS_MASK)
         self.button.connect('scroll-event', self.scroll)
         self.button.connect('button-press-event', self.press)
@@ -61,9 +64,28 @@ class Indicator:
             None, Gio.DBusCallFlags.NONE, 5000, self.cancellable, finished)
 
     def request(self):
+        self.last_anchor = None
+        self.queue_anchor()
         self.call('GetSnapshot', done=lambda value: self.render(json.loads(value[0])))
 
     def clicked(self, *_):
+        anchor = self.anchor()
+        if anchor: self.call('ToggleDetailsAt', '(ss)', ('', anchor))
+        else: self.call('ToggleDetails', '(s)', ('',))
+
+    def queue_anchor(self):
+        if self.anchor_idle: return
+        def publish():
+            self.anchor_idle = 0
+            anchor = self.anchor()
+            if anchor and anchor != self.last_anchor:
+                self.last_anchor = anchor
+                self.call('UpdateAnchor', '(s)', (anchor,))
+            return GLib.SOURCE_REMOVE
+        self.anchor_idle = GLib.idle_add(publish)
+
+    def anchor(self):
+        if not self.button.get_mapped(): return None
         top = self.button.get_toplevel()
         window = top.get_window()
         _, x, y = window.get_origin()
@@ -71,7 +93,7 @@ class Indicator:
         # PyGObject's GTK override returns (x, y), or None on failure. Older
         # unoverridden bindings also include the success boolean.
         if coordinates is None or (len(coordinates) == 3 and not coordinates[0]):
-            return self.call('ToggleDetails', '(s)', ('',))
+            return None
         dx, dy = coordinates[-2:]
         monitor = self.button.get_display().get_monitor_at_window(window)
         area, screen = monitor.get_workarea(), monitor.get_geometry()
@@ -81,7 +103,7 @@ class Indicator:
         rect = lambda x, y, w, h: dict(x=x*scale, y=y*scale, w=w*scale, h=h*scale)
         anchor = dict(edge=edge, rect=rect(x+dx, y+dy, self.button.get_allocated_width(), self.button.get_allocated_height()),
                       work=rect(area.x, area.y, area.width, area.height))
-        self.call('ToggleDetailsAt', '(ss)', ('', json.dumps(anchor)))
+        return json.dumps(anchor)
 
     def render(self, state):
         if self.cancellable.is_cancelled(): return
@@ -133,6 +155,7 @@ class Indicator:
         return False
 
     def close(self, *_):
+        if self.anchor_idle: GLib.source_remove(self.anchor_idle)
         self.cancellable.cancel()
         self.bus.signal_unsubscribe(self.signal)
         Gio.bus_unwatch_name(self.watch)

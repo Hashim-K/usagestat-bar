@@ -13,15 +13,9 @@ covers the panel, popup, application and tray refinements. Other desktops still
 need their own manual review of the current version. The
 [remaining-desktop review notes](reports/linux-manual-review.md) describe the
 follow-up changes and how to open each preview.
-The [recorded interaction review](reports/linux-fixes-2026-09-11.md)
-covers native clicks, wheel input, provider pins, panel placement and popup
-alignment in twelve Linux profiles, with screenshots, videos and runtime limits.
-Six affected profiles were re-recorded after the Polybar, COSMIC and bspwm fixes;
-the gallery labels the other six recordings retained from 9 September.
-Manual review subsequently found that the fallback alignment tests used the
-wrong reference rectangle. **Section alignment remains broken on i3/bspwm,
-LXQt, Budgie and COSMIC**; the [corrected audit](reports/linux-section-alignment-2026-09-11.md)
-withdraws those pass claims and compares against the UsageStat section itself.
+The [section-alignment review](reports/linux-section-alignment-fixes-2026-09-11.md)
+records the current native adapters. The [earlier audit](reports/linux-section-alignment-2026-09-11.md)
+explains why the original whole-panel alignment passes were withdrawn.
 
 ## Choose the integration
 
@@ -32,13 +26,13 @@ withdraws those pass claims and compares against the UsageStat section itself.
 | Cinnamon | Native panel applet | Add **UsageStat Bar** in Cinnamon's Applets settings |
 | MATE | Native out-of-process panel applet | Set the applet search path below; add **UsageStat Bar** |
 | Xfce | Native GTK panel plugin, or tray fallback | Install with `--native xfce`; add **UsageStat Bar** in panel settings |
-| LXQt | StatusNotifier tray | Add **Status Notifier** to the panel, run `usagestat-bar tray` |
-| Budgie | StatusNotifier tray | Add **System Tray**, run `usagestat-bar tray` |
-| COSMIC | Status area | Enable the panel's status area, run `usagestat-bar tray` |
+| LXQt (Qt 6) | Native panel plugin | Install with `--native lxqt`; use `usagestat-lxqt-panel`, then add **UsageStat Bar** |
+| Budgie | Native GTK panel applet | Install with `--native budgie`; add **UsageStat Bar** in Desktop Settings |
+| COSMIC | Native hosted panel applet | Install with `--native cosmic`; add **UsageStat Bar** in Panel settings |
 | Sway / Hyprland | Native Waybar CFFI widget, or text fallback | Install with `--native waybar`; merge the generated configuration |
-| i3 / bspwm | Polybar script module | Merge the provided module into your Polybar configuration |
+| i3 / bspwm | Polybar module with native section geometry | Install with `--native polybar`; run `usagestat-polybar` with the supplied module |
 
-Plasma, Cinnamon, MATE, Xfce and the native Waybar widget show ordered bars,
+Plasma, Cinnamon, MATE, Xfce, LXQt, Budgie, COSMIC and the native Waybar widget show ordered bars,
 percentages, logos and names, with multiple windows and vertical panels.
 Tray icons use a large logo and a small usage bar on a transparent background,
 rendered at native tray sizes. **Preferences → Tray** controls them independently
@@ -85,9 +79,10 @@ The index range follows the number of other items in the selected group;
 when UsageStat is its only item, the index is fixed at `0`. Changing groups
 retains the index where possible and clamps it to the new group's last slot.
 
-On LXQt, Budgie and COSMIC, preferences open directly to **Tray**. Controls for
-native panel widgets are hidden on these tray integrations so provider count,
-scrolling and icon appearance have one clear place to change them.
+With a native adapter installed, **Appearance** controls the panel widget.
+The optional generic tray remains separate in **Tray**. Generic SNI activation
+provides no section bounds, so it toggles the application window. Use the native
+adapter for section-aligned popups; a whole tray or monitor is not substituted.
 
 The separate GTK details window is used by the other integrations and remains
 available with `usagestat-bar details`. It follows the popup's provider tiles,
@@ -108,9 +103,10 @@ GdkPixbuf with SVG support, librsvg with its `Rsvg-2.0` introspection bindings,
 the Adwaita icon theme, a session D-Bus and dconf,
 plus the `usagestat` CLI. Standalone GTK windows use `adwaita-icon-theme` so
 their symbolic controls remain visible in both light and dark application themes.
-Wayland panel/tray popups (Sway, Hyprland, Budgie and COSMIC) also need
+Wayland layer popups (Sway, Hyprland and Budgie) also need
 `gtk4-layer-shell` with its `Gtk4LayerShell-1.0` introspection bindings. Both
-preview images include it. GNOME and Plasma use their own native shell popups.
+preview images include it. COSMIC hosts a GTK popover inside its native applet;
+GNOME and Plasma use their own native shell popups.
 The UI uses GTK 4.12 / libadwaita 1.4 APIs; older library combinations have not
 been verified. Python 3 and `glib-compile-schemas` are needed to build/install.
 MATE additionally needs Python GObject bindings, GTK 3 and the MatePanelApplet
@@ -186,12 +182,46 @@ This uses [Waybar's CFFI v2 API](https://github.com/Alexays/Waybar/tree/0.15.0/r
 verified with Waybar 0.15.0. An installation remembers its chosen adapters and
 rebuilds them on upgrade before replacing the running version.
 
+### Native LXQt, Budgie and COSMIC widgets
+
+```bash
+# Choose the adapter matching this desktop.
+python3 artifacts/linux-install/usagestat-bar/platforms/linux/install.py --native lxqt
+python3 artifacts/linux-install/usagestat-bar/platforms/linux/install.py --native budgie
+python3 artifacts/linux-install/usagestat-bar/platforms/linux/install.py --native cosmic
+```
+
+LXQt needs CMake, a C++17 compiler, Qt 6 Widgets/DBus and LXQt panel development
+headers. Fedora packages: `gcc-c++ cmake make qt6-qtbase-devel lxqt-panel-devel`.
+The user plugin is loaded by `usagestat-lxqt-panel`, which adds its library to
+`LXQTPANEL_PLUGIN_PATH` before running the distribution's `lxqt-panel`.
+Use that wrapper in your LXQt session's panel startup command, or export that
+variable to `~/.local/share/usagestat-bar/platforms/lxqt` before starting LXQt.
+Then add **UsageStat Bar** in the panel's widget picker. Its metadata is installed
+under `~/.local/share/lxqt/lxqt-panel`; no system panel binary is replaced.
+
+Budgie needs the GTK/JSON-GLib compiler dependencies above, plus its development
+headers and libpeas (Fedora: `budgie-desktop-devel libpeas-devel`). The installer
+supports libpeas 1 and 2. Restart the panel/session and add **UsageStat Bar** in
+Budgie Desktop Settings. Its plugin lives under your user data directory.
+
+COSMIC needs no compiler beyond the shared GTK runtime. Add **UsageStat Bar**
+to the panel in COSMIC Settings. The compositor hosts the widget and its popup
+on the same Wayland connection, including outside-click dismissal, alignment,
+scaling and screen constraints. Its provider UI is shared with the application.
+
 ### Waybar text fallback and Polybar
 
 Merge `platforms/waybar/config.jsonc` into your existing Waybar configuration
 and add `custom/usagestat` to the desired `modules-left`, `modules-center` or
 `modules-right` list. Merge `platforms/waybar/style.css` into your stylesheet.
-For Polybar, merge `platforms/polybar/config.ini` and add `usagestat` to your
+This text fallback toggles the application; choose CFFI for an anchored popup.
+For Polybar, install with `--native polybar`, then start `usagestat-polybar`
+in place of `polybar` in your own panel launch command (keep its arguments).
+This private build of Polybar 3.7.2 reports UsageStat's actual occupied module
+rectangle after layout. The stock executable remains installed and unchanged.
+Build dependencies and the pinned source are in the [Polybar guide](../platforms/polybar/README.md).
+Then merge `platforms/polybar/config.ini` and add `usagestat` to your
 bar's modules list. Add the logo font to an unused entry in that bar's font list:
 
 ```ini
@@ -221,15 +251,16 @@ its native overview, with a **Details** button for the full GTK view. Cinnamon
 has a panel context menu. MATE's right-click menu contains **Preferences** and
 the native **Move**, **Lock to Panel** and **Remove From Panel** actions.
 
-Cinnamon, MATE, Xfce, native Waybar and tray icons toggle the popup on a second
-left click. **Appearance → Popup alignment** works across the integrations:
-Left, Center or Right aligns the popup with its indicator. On a side panel,
-these choices mean Top, Center and Bottom, with the popup opening inward.
-Cinnamon, MATE, Xfce and native Waybar pass their actual indicator rectangle,
-panel edge and monitor area. Tray hosts and text modules do not supply icon
-bounds; their fallback is the fixed panel edge, with the same alignment
-setting selecting the start, center or end. Click coordinates only identify
-the tray's monitor/panel and do not move the popup within it.
+Native panel widgets toggle the popup on a second left click.
+**Appearance → Popup alignment** selects the matching Left, Center or Right
+edge of the **UsageStat section**, excluding other modules in the panel.
+On a side panel the references are Top, Center and Bottom. The popup opens
+inward and is clamped only when it would exceed the screen/work area.
+Cinnamon, MATE, Xfce, LXQt, Budgie and Waybar publish their actual widget
+geometry; Polybar's private build reports the module bounds after layout.
+GNOME, Plasma and COSMIC align their native popup surfaces to the widget.
+Generic tray hosts and Waybar's text fallback toggle the application window
+because they cannot provide section bounds.
 
 Side panels stack providers vertically with upright logos, percentages and
 compact names. Component order, provider count, scrolling, logo fill and
@@ -237,8 +268,8 @@ contrast settings still apply. Full provider names remain in the tooltip.
 X11 popup resizing includes GTK's invisible shadow extents, preserving the
 space needed by its content. Short providers shrink; vertical scrolling is
 needed only when the content exceeds the available monitor area.
-Wayland popups use Layer Shell anchors, so tiling/floating window placement
-rules cannot recenter them. X11 popups use the window manager's placement
+Shared Wayland popups use Layer Shell anchors; COSMIC hosts an xdg-popup. Tiling/floating window placement
+rules cannot recenter those popup surfaces. X11 popups use the window manager's placement
 protocol; i3/bspwm popups are floated explicitly. The application
 launcher and explicit `details` command continue to show the application.
 Clicking outside the popup dismisses it; Escape and a second indicator click

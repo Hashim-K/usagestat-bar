@@ -31,6 +31,7 @@ fi
 python3 /src/platforms/linux/package.py stage /tmp/usagestat-package
 native_options=()
 if [[ "$target" == xfce ]]; then native_options=(--native xfce); fi
+if [[ "$target" == lxqt || "$target" == budgie || "$target" == cosmic ]]; then native_options=(--native "$target"); fi
 if [[ "$target" == sway || "$target" == hyprland ]]; then native_options=(--native waybar); fi
 python3 /tmp/usagestat-package/platforms/linux/install.py --prefix /tmp/usagestat-prefix "${native_options[@]}" > /out/install.log
 export PATH="/tmp/usagestat-prefix/bin:$PATH"

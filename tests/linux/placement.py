@@ -1,7 +1,7 @@
 """Popup placement assertions against the UsageStat section, never the panel."""
 
 
-def assert_section_alignment(popup, section, work, edge, alignment, tolerance=4):
+def assert_section_alignment(popup, section, work, edge, alignment, tolerance=4, inset=8):
     if not section:
         raise AssertionError('No measured UsageStat section bounds; whole-panel alignment is not a substitute.')
     axis, size = ('y', 'h') if edge in ('left', 'right') else ('x', 'w')
@@ -10,7 +10,7 @@ def assert_section_alignment(popup, section, work, edge, alignment, tolerance=4)
     # that alignment would otherwise put the popup outside the work area.
     target = section[axis] + section[size] * fraction
     desired_start = target - popup[size] * fraction
-    start = max(work[axis] + 8, min(desired_start, work[axis] + work[size] - popup[size] - 8))
+    start = max(work[axis] + inset, min(desired_start, work[axis] + work[size] - popup[size] - inset))
     error = popup[axis] - start
     assert abs(error) <= tolerance, (
         f'{alignment} alignment misses the UsageStat section by {error:.1f}px: '

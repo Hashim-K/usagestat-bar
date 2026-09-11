@@ -1,13 +1,17 @@
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import {waybarRows} from './waybarPreferences.js';
+import {ROOT} from './settings.js';
 
 export function desktopName() {
     return (GLib.getenv('XDG_CURRENT_DESKTOP') || GLib.getenv('XDG_SESSION_DESKTOP') || '').toLowerCase().split(':');
 }
 
 export function trayDesktop() {
-    return desktopName().some(name => ['lxqt', 'budgie', 'cosmic'].includes(name));
+    let native = [];
+    try { native = JSON.parse(new TextDecoder().decode(Gio.File.new_for_path(`${ROOT}/.install-options.json`).load_contents(null)[1])).native || []; }
+    catch { /* An unpacked bundle can still run as a tray application. */ }
+    return desktopName().some(name => ['lxqt', 'budgie', 'cosmic'].includes(name) && !native.includes(name));
 }
 
 function launch(argv) {

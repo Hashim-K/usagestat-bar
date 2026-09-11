@@ -1,8 +1,40 @@
 # Polybar
 
-Install the Linux bundle, add `UsageStat Provider Icons` to your bar's font list,
+Install the Linux bundle with `--native polybar`, add `UsageStat Provider Icons` to your bar's font list,
 then merge [config.ini](config.ini) and add `usagestat` to a modules list. See the
 [Linux setup guide](../../docs/LINUX.md#waybar-text-fallback-and-polybar).
+
+Run **`usagestat-polybar`** with the arguments from your existing panel launch
+command. This private Polybar 3.7.2 build leaves the distribution's executable
+alone. The stock script-module API cannot expose a module rectangle; the small
+[section patch](section-geometry.patch) reports the actual UsageStat click block
+after fonts, padding and neighboring modules have been laid out. Keep
+`click-left = usagestat-bar toggle`, which identifies that block.
+
+The popup aligns its left/center/right edge to that section, not to the entire
+panel or the pointer. It reads `_USAGESTAT_SECTION_V1` again on each open and
+resize, so module movement and width changes are reflected. Stock Polybar
+without the property opens the application as a fallback; it cannot promise
+section alignment. Polybar supports top/bottom bars, not vertical panels.
+
+The installer builds from pinned upstream commit
+`b3af5a33166604c689705d7dc67b69c01482d707`, including its pinned submodules.
+The first build requires network access, Git, CMake, Make, a C++ compiler and
+Polybar development dependencies. On Fedora the lab uses:
+
+```text
+gcc-c++ cmake make git patch pkgconf-pkg-config
+cairo-devel freetype-devel fontconfig-devel libxcb-devel
+xcb-util-devel xcb-util-cursor-devel xcb-util-image-devel xcb-util-wm-devel
+xcb-util-xrm-devel xcb-util-renderutil-devel xcb-util-keysyms-devel
+pulseaudio-libs-devel alsa-lib-devel libcurl-devel libnl3-devel libuv-devel
+xcb-proto jsoncpp-devel i3-devel
+```
+
+`USAGESTAT_BUILD_JOBS` sets build parallelism (default 2). Offline builders can
+set `USAGESTAT_POLYBAR_SOURCE` to a clean checkout of that exact revision with
+its submodules initialized. The patch also supplies explicit standard integer
+headers and FreeType/Fontconfig linkage needed by newer toolchains.
 
 `UsageStatProviderIcons.ttf` contains 155 monochrome logos derived from the
 existing SVGs in `assets/provider-icons`, plus a neutral fallback for unknown

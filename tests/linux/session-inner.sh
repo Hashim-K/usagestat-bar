@@ -43,6 +43,12 @@ gsettings set io.github.HashimK.UsageStatBar refresh-interval "${USAGESTAT_LAB_I
 gsettings set io.github.HashimK.UsageStatBar panel-bar-count 2
 gsettings reset io.github.HashimK.UsageStatBar panel-components
 wallpaper="$(python3 /src/tests/linux/background.py "$target")"
+if [[ "${USAGESTAT_LAB_INTERACTIONS:-0}" == 1 ]]; then
+    dbus-monitor "type='method_call',interface='io.github.HashimK.UsageStatBar1',member='ToggleDetailsAt'" \
+        "type='method_call',interface='io.github.HashimK.UsageStatBar1',member='UpdateAnchor'" \
+        > /out/section-anchor.log 2>&1 &
+fi
+
 case "$target" in
     plasma) export XDG_CURRENT_DESKTOP=KDE ;;
     cinnamon) export XDG_CURRENT_DESKTOP=X-Cinnamon XDG_SESSION_DESKTOP=cinnamon DESKTOP_SESSION=cinnamon ;;
@@ -74,7 +80,10 @@ case "$target" in
         export XDG_CURRENT_DESKTOP=LXQt
         dunst -print > /out/notifications.log 2>&1 &
         openbox > /out/wm.log 2>&1 &
-        lxqt-panel > /out/panel.log 2>&1 &
+        mkdir -p "$XDG_CONFIG_HOME/lxqt"
+        printf '%s\n' '[General]' 'theme=light' 'icon_theme=Adwaita' > "$XDG_CONFIG_HOME/lxqt/lxqt.conf"
+        printf '%s\n' '[General]' 'panels=panel1' '__userfile__=true' '[panel1]' 'position=Top' 'plugins=usagestat,worldclock' 'desktop=0' 'lineCount=1' 'panelSize=38' 'iconSize=24' 'length=100' 'lengthInPercents=true' '[usagestat]' 'type=usagestat' '[worldclock]' 'type=worldclock' > "$XDG_CONFIG_HOME/lxqt/panel.conf"
+        usagestat-lxqt-panel > /out/panel.log 2>&1 &
         ;;
     xfce)
         export XDG_CURRENT_DESKTOP=XFCE
@@ -160,7 +169,10 @@ font-1 = UsageStat Provider Icons:pixelsize=20;3
 modules-left = usagestat
 CONFIG
         cat /src/platforms/polybar/config.ini >> /tmp/polybar.ini
-        polybar -c /tmp/polybar.ini baseline > /out/panel.log 2>&1 &
+        if [[ "${USAGESTAT_LAB_INTERACTIONS:-0}" == 1 ]]; then
+            printf '\nformat-background = #2f3e52\n' >> /tmp/polybar.ini
+        fi
+        usagestat-polybar -c /tmp/polybar.ini baseline > /out/panel.log 2>&1 &
         ;;
     sway|budgie|cosmic|hyprland)
         mkdir -p "$XDG_CONFIG_HOME/labwc"
@@ -244,12 +256,18 @@ CONFIG
         if [[ "$target" == cosmic ]]; then cosmic-settings-daemon > /out/settings.log 2>&1 & fi
         start_service
         if [[ "$target" == cosmic ]]; then
+            if [[ "${USAGESTAT_LAB_INTERACTIONS:-0}" == 1 ]]; then
+                # Paint only the real applet allocation, to measure it in
+                # screenshots independently of the popup positioning code.
+                mkdir -p "$XDG_CONFIG_HOME/gtk-4.0"
+                printf '%s\n' '.usagestat-cosmic-button { background: #2f3e52; border-radius: 0; }' >> "$XDG_CONFIG_HOME/gtk-4.0/gtk.css"
+            fi
             mkdir -p "$XDG_CONFIG_HOME/cosmic/com.system76.CosmicPanel/v1" "$XDG_CONFIG_HOME/cosmic/com.system76.CosmicPanel.Panel/v1"
             printf '%s' '["Panel"]' > "$XDG_CONFIG_HOME/cosmic/com.system76.CosmicPanel/v1/entries"
             # Keep the default clock so an initially empty tray cannot collapse
             # the whole panel to one pixel before the first item registers.
             printf '%s' 'Some(["com.system76.CosmicAppletTime"])' > "$XDG_CONFIG_HOME/cosmic/com.system76.CosmicPanel.Panel/v1/plugins_center"
-            printf '%s' 'Some(([],["com.system76.CosmicAppletStatusArea"]))' > "$XDG_CONFIG_HOME/cosmic/com.system76.CosmicPanel.Panel/v1/plugins_wings"
+            printf '%s' 'Some((["io.github.HashimK.UsageStatApplet"],["com.system76.CosmicAppletStatusArea"]))' > "$XDG_CONFIG_HOME/cosmic/com.system76.CosmicPanel.Panel/v1/plugins_wings"
             printf '%s' '0' > "$XDG_CONFIG_HOME/cosmic/com.system76.CosmicPanel.Panel/v1/padding_overlap"
             printf '%s' 'false' > "$XDG_CONFIG_HOME/cosmic/com.system76.CosmicPanel.Panel/v1/keep_style_on_maximize"
             dunst > /out/notifications.log 2>&1 &
@@ -259,7 +277,7 @@ CONFIG
             gsettings set com.solus-project.budgie-panel panels "['00000000-0000-0000-0000-000000000001']"
             gsettings set 'com.solus-project.budgie-panel.panel:/com/solus-project/budgie-panel/panels/{00000000-0000-0000-0000-000000000001}/' location top
             gsettings set 'com.solus-project.budgie-panel.panel:/com/solus-project/budgie-panel/panels/{00000000-0000-0000-0000-000000000001}/' applets "['00000000-0000-0000-0000-000000000002']"
-            gsettings set 'com.solus-project.budgie-panel.applet:/com/solus-project/budgie-panel/applets/{00000000-0000-0000-0000-000000000002}/' name 'System Tray'
+            gsettings set 'com.solus-project.budgie-panel.applet:/com/solus-project/budgie-panel/applets/{00000000-0000-0000-0000-000000000002}/' name 'UsageStat Bar'
             budgie-panel > /out/panel.log 2>&1 &
             sleep 1
             dconf dump /com/solus-project/budgie-panel/ > /out/panel-settings.txt
@@ -310,23 +328,9 @@ case "$target" in
     mate|xfce|lxqt|i3|bspwm) feh --no-fehbg --bg-fill "$wallpaper" > /out/background.log 2>&1 ;;
 esac
 if [[ "${USAGESTAT_LAB_INTERACTIVE:-0}" == 1 ]]; then
-    if [[ "$target" == lxqt || "$target" == budgie || "$target" == cosmic ]]; then
-        gsettings set io.github.HashimK.UsageStatBar.Tray provider-mode count
-        gsettings set io.github.HashimK.UsageStatBar.Tray provider-count 2
-        gsettings set io.github.HashimK.UsageStatBar.Tray bar-orientation vertical
-        usagestat-bar tray >> /out/app.log 2>&1
-    fi
     # Plasma has its own popup. Opening the separate GTK window on startup
     # presents two different surfaces before the reviewer even clicks the bar.
-    if [[ "$target" == hyprland ]]; then
-        gdbus call --session --dest io.github.HashimK.UsageStatBar \
-            --object-path /io/github/HashimK/UsageStatBar \
-            --method io.github.HashimK.UsageStatBar1.ToggleDetailsAt '' '{"alignment":"right"}' > /dev/null 2>> /out/app.log
-    elif [[ "$target" != plasma && "$target" != cinnamon ]]; then
-        usagestat-bar details >> /out/app.log 2>&1
-    else
-        usagestat-bar snapshot > /dev/null 2>> /out/app.log
-    fi
+    usagestat-bar snapshot > /dev/null 2>> /out/app.log
     if [[ "$direct_wayland" == 1 ]]; then
         if ! command -v wayvnc >/dev/null; then
             echo 'Rebuild the Hyprland lab image to include WayVNC: bash tests/linux/build-lab.sh hyprland' >&2

@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Service
+ServiceTypes=LXQtPanel/Plugin
+Name=UsageStat Bar
+Comment=AI provider quotas and costs
+Icon=office-chart-pie
+X-LXQt-Module=usagestat

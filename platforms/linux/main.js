@@ -10,6 +10,7 @@ import {DetailsWindow, preferencesWindow} from './ui.js';
 import {Tray} from './tray.js';
 import {canAnchorToPanel, preparePanelWindow, anchorToPanel, dismissOutside} from './panelWindow.js';
 import {applyDesktopAppearance} from './waybarPreferences.js';
+import {desktopName} from './desktop.js';
 
 // Keep the loaded layer-shell library in this process only. Desktop settings
 // and provider helpers may use GTK3 and must not inherit GTK4 through preload.
@@ -24,6 +25,8 @@ const app = new Adw.Application({application_id: BUS, flags: Gio.ApplicationFlag
 let model, exported, state, details, applicationDetails, prefs, tray, trayConfig, traySettingsId, quitSignal;
 let detailsPosition, detailsAnchor, lastPanelAnchor, detailsSize;
 let stopDismissal, dismissedAt = 0;
+let hostedPopup, hostedPopupWatch;
+let anchorOwner, anchorWatch;
 
 function stopOutside() { stopDismissal?.(); stopDismissal = null; }
 function dismissDetails() {
@@ -50,7 +53,10 @@ function resizeDetails(force = false) {
     anchorToPanel(details.window, size, pending, detailsAnchor, alignment).then(anchor => {
         if (detailsPosition === pending) detailsAnchor = lastPanelAnchor = anchor;
     }).catch(error => {
-        if (!pending.is_cancelled()) console.warn(`UsageStat panel placement: ${error.message}`);
+        if (!pending.is_cancelled()) {
+            console.warn(`UsageStat panel placement: ${error.message}`);
+            showDetails();
+        }
     }).finally(() => {
         if (detailsPosition !== pending) return;
         detailsPosition = null;
@@ -58,6 +64,10 @@ function resizeDetails(force = false) {
 }
 
 function showDetails(provider = '', fromPanel = false, anchorRect = null) {
+    // A generic tray/text host exposes no widget rectangle. Its activation
+    // opens the application; the native adapters supply an anchored popup.
+    if (fromPanel && !anchorRect?.rect && !lastPanelAnchor?.rect &&
+        !desktopName().some(name => ['i3', 'bspwm'].includes(name))) fromPanel = false;
     if (!fromPanel) {
         cancelDetailsPosition();
         details?.window.hide();
@@ -92,7 +102,10 @@ function showDetails(provider = '', fromPanel = false, anchorRect = null) {
         anchorToPanel(details.window, details.preferredSize(), pending, detailsAnchor, alignment).then(value => {
             if (detailsPosition === pending) detailsAnchor = lastPanelAnchor = value;
         }).catch(error => {
-            if (!pending.is_cancelled()) console.warn(`UsageStat panel placement: ${error.message}`);
+            if (!pending.is_cancelled()) {
+                console.warn(`UsageStat panel placement: ${error.message}`);
+                showDetails();
+            }
         }).finally(() => {
             if (detailsPosition !== pending) return;
             detailsPosition = null;
@@ -110,6 +123,19 @@ function showDetails(provider = '', fromPanel = false, anchorRect = null) {
 }
 
 function toggleDetails(provider = '', anchor = null) {
+    if (hostedPopup && !anchor?.rect) {
+        Gio.DBus.session.call(hostedPopup.owner, hostedPopup.path, `${BUS}.Panel1`, 'Toggle',
+            new GLib.Variant('(s)', [provider]), null, Gio.DBusCallFlags.NONE, 3000, null, (connection, result) => {
+                try { connection.call_finish(result); } catch (error) { console.warn(error.message); }
+            });
+        return;
+    }
+    if (anchor?.host === 'tray' || (!anchor?.rect && !lastPanelAnchor?.rect &&
+        !desktopName().some(name => ['i3', 'bspwm'].includes(name)))) {
+        if (applicationDetails?.window.visible && (!provider || provider === model.active)) applicationDetails.window.hide();
+        else showDetails(provider);
+        return;
+    }
     // A panel click can dismiss on release before its D-Bus toggle arrives.
     if (GLib.get_monotonic_time() - dismissedAt < 250000) return;
     // Panel clicks can take focus before the D-Bus call arrives. Visibility,
@@ -124,6 +150,8 @@ function toggleDetails(provider = '', anchor = null) {
 
 function showPreferences(provider = '', page = '') {
     cancelDetailsPosition();
+    if (hostedPopup) Gio.DBus.session.call(hostedPopup.owner, hostedPopup.path, `${BUS}.Panel1`, 'Close',
+        null, null, Gio.DBusCallFlags.NONE, 3000, null, null);
     if (details?.panelMode) details.window.hide();
     prefs?.close();
     prefs = preferencesWindow(app, model.settings, provider, {traySettings: trayConfig, providers: state.providers, page,
@@ -179,6 +207,27 @@ app.connect('startup', () => {
         Select: key => model.select(key), Cycle: direction => model.cycle(direction, false), Scroll: direction => model.cycle(direction),
         Details: showDetails, ToggleDetails: toggleDetails,
         ToggleDetailsAt: (provider, anchor) => toggleDetails(provider, JSON.parse(anchor)),
+        UpdateAnchorAsync: ([text], invocation) => {
+            const anchor = JSON.parse(text);
+            if (!anchor?.rect || !anchor?.work) throw new Error('Missing UsageStat section bounds');
+            const owner = invocation.get_sender();
+            if (owner !== anchorOwner) {
+                if (anchorWatch) Gio.bus_unwatch_name(anchorWatch);
+                anchorOwner = owner;
+                anchorWatch = Gio.bus_watch_name(Gio.BusType.SESSION, owner, Gio.BusNameWatcherFlags.NONE,
+                    () => {}, () => { lastPanelAnchor = null; anchorOwner = null; });
+            }
+            lastPanelAnchor = anchor;
+            if (details?.window.visible) { detailsAnchor = anchor; resizeDetails(true); }
+            invocation.return_value(null);
+        },
+        RegisterPopupAsync: ([path], invocation) => {
+            if (hostedPopupWatch) Gio.bus_unwatch_name(hostedPopupWatch);
+            hostedPopup = {owner: invocation.get_sender(), path};
+            hostedPopupWatch = Gio.bus_watch_name(Gio.BusType.SESSION, hostedPopup.owner, Gio.BusNameWatcherFlags.NONE,
+                () => {}, () => { hostedPopup = null; });
+            invocation.return_value(null);
+        },
         Preferences: provider => showPreferences(provider), EnableTray: enableTray, Quit: () => app.quit(),
     });
     exported.export(app.get_dbus_connection(), OBJECT);
@@ -189,6 +238,8 @@ app.connect('startup', () => {
 });
 app.connect('activate', () => {});
 app.connect('shutdown', () => {
+    if (anchorWatch) Gio.bus_unwatch_name(anchorWatch);
+    if (hostedPopupWatch) Gio.bus_unwatch_name(hostedPopupWatch);
     stopOutside();
     cancelDetailsPosition();
     if (quitSignal) GLib.source_remove(quitSignal);

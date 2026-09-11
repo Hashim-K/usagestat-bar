@@ -1,0 +1,6 @@
+[Plugin]
+Module=usagestat
+Name=UsageStat Bar
+Description=AI provider quotas and costs
+Authors=UsageStat contributors
+Icon=office-chart-pie

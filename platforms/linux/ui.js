@@ -86,27 +86,34 @@ function updatedText(state) {
 }
 
 export class DetailsWindow {
-    constructor(app, model, preferences, onSizeChanged = null) {
+    constructor(app, model, preferences, onSizeChanged = null, popover = null) {
         this.model = model;
         this.preferences = preferences;
         this.onSizeChanged = onSizeChanged;
         this.panelMode = false;
-        this.window = new Adw.ApplicationWindow({application: app, title: 'UsageStat Bar', default_width: 460, default_height: 680});
+        this.window = popover || new Adw.ApplicationWindow({application: app, title: 'UsageStat Bar', default_width: 460, default_height: 680});
+        const hide = () => popover ? popover.popdown() : this.window.hide();
         this.window.add_css_class('usagestat-details');
         this.css = new Gtk.CssProvider();
         const display = this.window.get_display();
         Gtk.StyleContext.add_provider_for_display(display, this.css, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION);
         this.style = Adw.StyleManager.get_default();
         const styleChanged = this.style.connect('notify::dark', () => { if (this._state) this.update(this._state); });
-        this.window.connect('destroy', () => {
+        this.dispose = () => {
             if (this._scrollRestore) GLib.source_remove(this._scrollRestore);
             if (this._resizeIdle) GLib.source_remove(this._resizeIdle);
             this.style.disconnect(styleChanged);
             Gtk.StyleContext.remove_provider_for_display(display, this.css);
-        });
+        };
+        if (!popover) this.window.connect('destroy', this.dispose);
         const toolbar = new Adw.ToolbarView({css_classes: ['usage-surface'], overflow: Gtk.Overflow.HIDDEN});
         const header = new Adw.HeaderBar();
         this.header = header;
+        if (popover) {
+            header.show_start_title_buttons = header.show_end_title_buttons = false;
+            header.title_widget = new Gtk.Label({label: 'UsageStat Bar', css_classes: ['heading']});
+            header.pack_end(button('Close usage', hide, 'window-close-symbolic'));
+        }
         header.pack_end(button('Preferences', () => preferences(''), 'emblem-system-symbolic'));
         this.editButton = button('Edit current provider', () => preferences(this._active), 'document-edit-symbolic');
         header.pack_end(this.editButton);
@@ -132,11 +139,14 @@ export class DetailsWindow {
             overlay_scrolling: true, vexpand: true, child: this.content});
         layout.append(this.scroll);
         toolbar.set_content(layout);
-        this.window.set_content(toolbar);
-        this.window.connect('close-request', () => { this.window.hide(); return true; });
+        if (popover) popover.child = toolbar;
+        else {
+            this.window.set_content(toolbar);
+            this.window.connect('close-request', () => { hide(); return true; });
+        }
         const keys = new Gtk.EventControllerKey();
         keys.connect('key-pressed', (_controller, key, _keycode, modifiers) => {
-            if (key === Gdk.KEY_Escape) { this.window.hide(); return true; }
+            if (key === Gdk.KEY_Escape) { hide(); return true; }
             if (key === Gdk.KEY_F5) { model.refresh(); return true; }
             if ((modifiers & Gdk.ModifierType.CONTROL_MASK) && [Gdk.KEY_Page_Up, Gdk.KEY_Page_Down].includes(key)) {
                 model.cycle(key === Gdk.KEY_Page_Down ? 1 : -1, false); return true;

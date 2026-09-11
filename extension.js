@@ -38,6 +38,16 @@ export default class AIUsageBarExtension extends Extension {
 
         this._indicator = new PanelMenu.Button(0.5, _('UsageStat Bar'), false);
         this._indicator.add_style_class_name('usagestat-panel-button');
+        // Shell aligns the arrow inside rounded-corner margins. Our setting
+        // aligns the popup's actual edges with this entire provider section.
+        // Keep Shell's edge selection and work-area handling, then align the
+        // popup body on its pointing axis. This override belongs to our menu.
+        const pointer = this._indicator.menu._boxPointer;
+        const reposition = pointer._reposition.bind(pointer);
+        pointer._reposition = box => {
+            reposition(box);
+            this._alignPopupSection(pointer, box);
+        };
 
         this._panelBox = new St.BoxLayout({
             style_class: 'usagestat-panel',
@@ -293,6 +303,32 @@ export default class AIUsageBarExtension extends Extension {
         ] ?? 0.5;
         this._indicator.menu._arrowAlignment = value;
         this._indicator.menu._boxPointer.setSourceAlignment(value);
+    }
+
+    _alignPopupSection(pointer, box) {
+        if (!this._settings || !pointer._sourceActor) return;
+        const f = {left: 0, center: 0.5, right: 1}[this._settings.get_string('popup-alignment')] ?? 0.5;
+        const source = pointer._sourceActor;
+        const [sx, sy] = source.get_transformed_position();
+        const [sw, sh] = source.get_transformed_size();
+        const [, , width, height] = pointer.get_preferred_size();
+        const work = Main.layoutManager.getWorkAreaForMonitor(Main.layoutManager.findIndexForActor(source));
+        const horizontal = pointer._arrowSide === St.Side.TOP || pointer._arrowSide === St.Side.BOTTOM;
+        const inset = pointer.get_theme_node().get_length('-arrow-rise');
+        const start = horizontal ? sx : sy, length = horizontal ? sw : sh;
+        const size = horizontal ? width : height;
+        const low = (horizontal ? work.x : work.y) + inset;
+        const high = (horizontal ? work.x + work.width : work.y + work.height) - size - inset;
+        const aligned = Math.max(low, Math.min(start + (length - size) * f, high));
+        const parent = pointer.get_parent();
+        const [ok, x, y] = parent.transform_stage_point(horizontal ? aligned : sx, horizontal ? sy : aligned);
+        if (!ok) return;
+        box.set_origin(horizontal ? Math.round(x) : box.x1, horizontal ? box.y1 : Math.round(y));
+        // Point towards the section's centre while keeping the arrow out of
+        // the rounded corners. Arrow shape never shifts the aligned body.
+        const corner = pointer.get_theme_node().get_length('-arrow-border-radius')
+            + pointer.get_theme_node().get_length('-arrow-base') / 2;
+        pointer.setArrowOrigin(Math.max(corner, Math.min(start + length / 2 - aligned, size - corner)));
     }
 
     _loadProviders() {

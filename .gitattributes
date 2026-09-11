@@ -1,2 +1,3 @@
 # Unified diffs represent empty context lines with a single space.
 tests/linux/patches/*.patch whitespace=-blank-at-eol,-blank-at-eof
+platforms/polybar/*.patch whitespace=-blank-at-eol,-blank-at-eof

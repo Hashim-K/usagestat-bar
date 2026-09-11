@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import json
 import os
+import shutil
 from pathlib import Path
 import subprocess
 import time
@@ -15,21 +16,30 @@ TARGETS = 'cinnamon plasma mate xfce lxqt sway hyprland budgie cosmic i3 bspwm'.
 def run(target, output):
     output.mkdir(parents=True, exist_ok=False)
     podman = ['podman', '--root', os.environ.get('USAGESTAT_PODMAN_ROOT', str(Path.home()/'.local/share/containers/storage'))]
-    image = 'localhost/usagestat-hyprland-lab:arch' if target == 'hyprland' else 'localhost/usagestat-linux-lab:44'
+    image = 'localhost/usagestat-hyprland-lab:arch' if target == 'hyprland' else os.environ.get('USAGESTAT_LAB_IMAGE', 'localhost/usagestat-linux-lab:44')
     name = f'usagestat-review-{target}-{os.getpid()}'
     args = [*podman, 'run', '--rm', '--name', name, '--network', 'none', '--security-opt', 'label=disable',
             '-e', 'USAGESTAT_LAB_INTERACTIONS=1', '-e', 'USAGESTAT_LAB_HOLD='+os.environ.get('USAGESTAT_LAB_HOLD','0'),
             '-e', 'USAGESTAT_LAB_CORE_ONLY='+os.environ.get('USAGESTAT_LAB_CORE_ONLY','0'),
             '-e', 'USAGESTAT_LAB_TRAY_COMPANION='+os.environ.get('USAGESTAT_LAB_TRAY_COMPANION','0'),
-            '-v', f'{ROOT}:/src:ro', '-v', f'{output}:/out:rw']
+            '-v', f'{output / "source"}:/src:ro', '-v', f'{output}:/out:rw']
     if target in ['cinnamon','sway','hyprland']: args += ['--userns=keep-id:uid=1000,gid=1000']
     if target == 'hyprland': args += ['--device', os.environ.get('USAGESTAT_LAB_RENDER_NODE','/dev/dri/renderD128')]
     args += [image, 'bash', '/src/tests/linux/session.sh', target]
     sources=sorted(p for folder in ['platforms','tests','schemas','assets'] for p in (ROOT/folder).rglob('*')
-        if p.is_file() and (p.suffix in ['.js','.py','.c','.h','.qml','.xml','.sh','.toml','.json','.jsonc','.patch','.lua','.ini','.css','.ttf','.svg'] or p.name.startswith('Containerfile')))
-    sources+=sorted(ROOT.glob('*.js'))
+        if p.is_file() and '__pycache__' not in p.parts)
+    sources+=sorted(p for p in ROOT.iterdir() if p.is_file() and (p.suffix in ['.js','.css','.json'] or p.name == 'LICENSE'))
     digest=hashlib.sha256()
-    for path in sources: digest.update(str(path.relative_to(ROOT)).encode()+b'\0'+path.read_bytes())
+    # Freeze the code used by this recording. A read-only bind mount of the
+    # working tree still changes underneath a running shell when we edit it.
+    for path in sources:
+        relative=path.relative_to(ROOT)
+        content=path.read_bytes()
+        destination=output/'source'/relative
+        destination.parent.mkdir(parents=True,exist_ok=True)
+        destination.write_bytes(content)
+        shutil.copymode(path,destination)
+        digest.update(str(relative).encode()+b'\0'+content)
     (output/'environment.json').write_text(json.dumps({'target':target,'image':subprocess.check_output([*podman,'image','inspect',image,'--format','{{.Id}}'],text=True).strip(),
         'sourceSha256':digest.hexdigest(),
         'commit':subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),

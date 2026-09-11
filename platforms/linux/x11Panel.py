@@ -211,21 +211,37 @@ def main():
             if node.get('client', {}).get('state') != 'floating':
                 subprocess.run(['bspc', 'node', hex(xid), '-t', 'floating'], check=True, capture_output=True, timeout=2)
         anchor = request.get('anchor') or {}
-        exact_anchor = bool(anchor.get('rect') and anchor.get('work'))
+        exact_anchor = bool(anchor.get('rect') and anchor.get('work')) and anchor.get('host') != 'polybar'
         if exact_anchor:
             rect, work = rectangle(anchor['rect']), rectangle(anchor['work'])
             edge = anchor.get('edge')
             if edge not in ('top', 'bottom', 'left', 'right'): raise ValueError('Invalid panel edge.')
         else:
-            # Tray activation coordinates only identify a monitor/panel. The
-            # popup aligns to that panel's fixed bounds, never the click point.
+            # Polybar exports the actual UsageStat action block after layout.
+            # Rediscover it on every open/resize, including changed neighbors.
             point = anchor.get('point')
+            if not point:
+                pointer = function('XQueryPointer', integer, ptr, ulong, C.POINTER(ulong), C.POINTER(ulong),
+                    C.POINTER(integer), C.POINTER(integer), C.POINTER(integer), C.POINTER(integer), C.POINTER(C.c_uint))
+                root_id, child, px, py, wx, wy, buttons = ulong(), ulong(), integer(), integer(), integer(), integer(), C.c_uint()
+                if pointer(display, root, C.byref(root_id), C.byref(child), C.byref(px), C.byref(py), C.byref(wx), C.byref(wy), C.byref(buttons)):
+                    point = dict(x=px.value, y=py.value)
             screen = next((s for s in screens if contains(s, point)), screens[0])
-            docks = [bounds(w) for w in panel_windows()]
-            docks = [d for d in docks if d and d['w'] > 0 and d['h'] > 0 and
-                     contains(screen, dict(x=d['x']+d['w']/2, y=d['y']+d['h']/2))]
-            docks.sort(key=lambda d: (d['y'], d['x']))
-            rect = next((d for d in docks if contains(d, point)), docks[0] if docks else None)
+            sections = []
+            for window in panel_windows():
+                dock = bounds(window)
+                values = prop(window, '_USAGESTAT_SECTION_V1')
+                if not dock or not isinstance(values, list) or len(values) % 4: continue
+                for index in range(0, len(values), 4):
+                    x0, y0, w, h = values[index:index+4]
+                    if not (w > 0 and h > 0 and x0 + w <= dock['w'] and y0 + h <= dock['h']): continue
+                    section = dict(x=dock['x']+x0, y=dock['y']+y0, w=w, h=h)
+                    if contains(screen, dict(x=section['x']+w/2, y=section['y']+h/2)):
+                        sections.append((dock, section, window))
+            if not sections:
+                raise ValueError('No UsageStat section geometry. Install the native panel adapter; whole-panel alignment is not supported.')
+            dock, rect, panel_xid = next((item for item in sections if contains(item[1], point)),
+                next((item for item in sections if item[2] == anchor.get('panelXid')), sections[0]))
             work = dict(screen)
             desktop = (prop(root, '_NET_CURRENT_DESKTOP') or [0])[0]
             area = prop(root, '_NET_WORKAREA')[desktop * 4:desktop * 4 + 4]
@@ -234,21 +250,17 @@ def main():
                 right = min(screen['x'] + screen['w'], area[0] + area[2])
                 bottom = min(screen['y'] + screen['h'], area[1] + area[3])
                 if right > left and bottom > top: work = dict(x=left, y=top, w=right-left, h=bottom-top)
-            if rect:
-                edge = ('left' if rect['x'] < screen['x'] + screen['w']/2 else 'right') if rect['h'] > rect['w'] else (
-                    'top' if rect['y'] < screen['y'] + screen['h']/2 else 'bottom')
-                # Some tiling managers leave _NET_WORKAREA equal to the entire
-                # monitor even with a dock. Reserve its edge before capping a
-                # long provider, otherwise the popup grows over the panel.
-                right, bottom = work['x'] + work['w'], work['y'] + work['h']
-                if edge == 'top': work['y'] = max(work['y'], rect['y'] + rect['h'])
-                elif edge == 'bottom': bottom = min(bottom, rect['y'])
-                elif edge == 'left': work['x'] = max(work['x'], rect['x'] + rect['w'])
-                else: right = min(right, rect['x'])
-                work['w'], work['h'] = max(1, right-work['x']), max(1, bottom-work['y'])
-            else:
-                edge = 'top'
-                rect = dict(x=work['x'], y=work['y'], w=work['w'], h=1)
+            edge = ('left' if rect['x'] < screen['x'] + screen['w']/2 else 'right') if dock['h'] > dock['w'] else (
+                'top' if rect['y'] < screen['y'] + screen['h']/2 else 'bottom')
+            # Some tiling managers leave _NET_WORKAREA equal to the entire
+            # monitor even with a dock. Reserve its edge before capping a
+            # long provider, otherwise the popup grows over the panel.
+            right, bottom = work['x'] + work['w'], work['y'] + work['h']
+            if edge == 'top': work['y'] = max(work['y'], rect['y'] + rect['h'])
+            elif edge == 'bottom': bottom = min(bottom, rect['y'])
+            elif edge == 'left': work['x'] = max(work['x'], rect['x'] + rect['w'])
+            else: right = min(right, rect['x'])
+            work['w'], work['h'] = max(1, right-work['x']), max(1, bottom-work['y'])
         gap = 8
         width, height = min(width, max(1, work['w'] - 2*gap)), min(height, max(1, work['h'] - 2*gap))
         fraction = {'left': 0, 'center': 0.5, 'right': 1}.get(request.get('alignment'), 0.5)
@@ -297,8 +309,9 @@ def main():
         else: raise ValueError(f'The window manager did not apply the requested popup geometry: requested {desired}, received {(rx.value, ry.value, gw.value, gh.value)}.')
         # Native adapters supply a fresh widget rectangle for every activation.
         # A tray/text fallback must rediscover its panel after it moves.
-        print(json.dumps({'edge': edge, 'rect': rect, 'work': work} if exact_anchor else
-                         {'edge': edge, 'point': {'x': screen['x'] + screen['w']/2, 'y': screen['y'] + screen['h']/2}}))
+        print(json.dumps({**anchor, 'edge': edge, 'rect': rect, 'work': work} if exact_anchor else
+                         {'host': 'polybar', 'panelXid': panel_xid, 'edge': edge, 'rect': rect, 'work': work,
+                          'point': {'x': screen['x'] + screen['w']/2, 'y': screen['y'] + screen['h']/2}}))
     finally:
         close(display)
 

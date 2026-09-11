@@ -129,10 +129,18 @@ export async function runInteractions(driver) {
                 await barClick();const before=bounds(app._indicator.menu.actor);
                 await barClick();await barClick();const after=bounds(app._indicator.menu.actor);
                 assert(Math.abs(before.x-after.x)<2&&Math.abs(before.y-after.y)<2,'Reopening moved the popup');
-                aligned[alignment]=after;return after;
+                const section=bounds(app._indicator), f={left:0,center:.5,right:1}[alignment];
+                const work=Main.layoutManager.getWorkAreaForMonitor(Main.layoutManager.findIndexForActor(app._indicator));
+                const inset=app._indicator.menu.actor.get_theme_node().get_length('-arrow-rise');
+                const desired=section.x+(section.w-after.w)*f;
+                const expected=Math.max(work.x+inset,Math.min(desired,work.x+work.width-after.w-inset));
+                const error=after.x-expected;
+                assert(Math.abs(error)<=2,`Popup misses the UsageStat section by ${error}px (${alignment}): expected ${expected}, actual ${after.x}`);
+                aligned[alignment]={section,popup:after,expectedStart:expected,errorPixels:error,clamped:expected!==desired};
+                return aligned[alignment];
             });
         }
-        await check('popup-alignment-distinct',()=>assert(aligned.left.x>aligned.center.x&&aligned.center.x>aligned.right.x));
+        await check('popup-alignment-section',()=>{equal(Object.keys(aligned).length,3);return aligned;});
         results.push({name:'panel-edge-bottom-left-right',status:'unsupported',reason:'The native GNOME Shell top panel has a fixed screen edge.'});
         if(app._indicator.menu.isOpen) await barClick();
         await check('preferences-window',async()=>{

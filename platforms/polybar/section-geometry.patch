@@ -1,0 +1,57 @@
+diff --git a/src/components/bar.cpp b/src/components/bar.cpp
+index cacf2fb..ec864ee 100644
+--- a/src/components/bar.cpp
++++ b/src/components/bar.cpp
+@@ -420,6 +420,24 @@ void bar::parse(string&& data, bool force) {
+ 
+   m_renderer->end();
+ 
++  // UsageStat's click block is the actual occupied module section after fonts,
++  // padding, other modules and alignment have all been laid out. Export its
++  // bounds on this bar window; clients must never substitute the whole dock.
++  const auto bounds_atom = m_connection.intern_atom(false, "_USAGESTAT_SECTION_V1")->atom;
++  std::vector<uint32_t> bounds;
++  for (const auto& action : m_action_ctxt->get_blocks()) {
++    if (action.button == mousebtn::LEFT && action.cmd == "usagestat-bar toggle") {
++      const double start = m_renderer->get_alignment_start(action.align) + action.start_x;
++      const double end = m_renderer->get_alignment_start(action.align) + action.end_x;
++      bounds.insert(bounds.end(), {static_cast<uint32_t>(std::floor(start)),
++          static_cast<uint32_t>(rect.y), static_cast<uint32_t>(std::ceil(end) - std::floor(start)),
++          static_cast<uint32_t>(rect.height)});
++    }
++  }
++  m_connection.change_property(XCB_PROP_MODE_REPLACE, m_opts.x_data.window, bounds_atom,
++      XCB_ATOM_CARDINAL, 32, bounds.size(), bounds.data());
++  m_connection.flush();
++
+   m_dblclicks.clear();
+   for (auto&& action : m_opts.actions) {
+     if (static_cast<int>(action.button) >= static_cast<int>(mousebtn::DOUBLE_LEFT)) {
+diff --git a/include/common.hpp b/include/common.hpp
+--- a/include/common.hpp
++++ b/include/common.hpp
+@@ -1,6 +1,7 @@
+ #pragma once
+ 
+ #include <array>
++#include <cstdint>
+ #include <functional>
+ #include <memory>
+ #include <string>
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -156,9 +156,13 @@
+ # Target poly {{{
+ add_library(poly STATIC EXCLUDE_FROM_ALL ${POLY_SOURCES})
+ target_include_directories(poly PUBLIC ${includes_dir})
++find_package(Freetype REQUIRED)
++find_package(Fontconfig REQUIRED)
+ target_link_libraries(poly PUBLIC
+   Threads::Threads
+   Cairo::CairoFC
++  Freetype::Freetype
++  Fontconfig::Fontconfig
+   xpp
+   LibUV::LibUV
+   )

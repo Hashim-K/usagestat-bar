@@ -1,5 +1,9 @@
 # Correction: popup alignment uses the UsageStat section
 
+This is the historical failure audit. The subsequent
+[fixes and native review](linux-section-alignment-fixes-2026-09-11.md) contain
+the replacement adapters, corrected captures and current results.
+
 The earlier alignment pass was incorrect. Left aligns the popup's left edge
 with the left edge of the UsageStat section; center aligns their centers;
 right aligns their right edges. On a side panel, the corresponding references

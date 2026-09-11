@@ -34,7 +34,8 @@ static void load_layer_api(void) {
 struct UsageStatWidget {
     GtkWidget *button, *image;
     GDBusConnection *bus;
-    guint subscription, watch;
+    guint subscription, watch, anchor_idle;
+    char *last_anchor;
     int height;
     gboolean vertical;
     gboolean scroll_enabled;
@@ -54,7 +55,10 @@ static void render(UsageStatWidget *self) {
     if (GTK_IS_WINDOW(top) && layer_window && layer_window(GTK_WINDOW(top))) {
         // Read the live panel orientation, including changes made outside our
         // preferences. A side panel anchors to both top and bottom.
-        self->vertical = layer_anchor(GTK_WINDOW(top), EDGE_TOP) && layer_anchor(GTK_WINDOW(top), EDGE_BOTTOM);
+        // Some hosts (Budgie) centre a side panel with only LEFT/RIGHT
+        // anchored. Its allocated shape is authoritative for both hosts.
+        int width = gtk_widget_get_allocated_width(top), height = gtk_widget_get_allocated_height(top);
+        if (width > 1 && height > 1) self->vertical = height > width;
     }
     GdkRGBA foreground;
     gtk_style_context_get_color(gtk_widget_get_style_context(self->button), GTK_STATE_FLAG_NORMAL, &foreground);
@@ -116,7 +120,12 @@ static void changed(GDBusConnection *bus, const char *sender, const char *path,
     g_object_unref(parser);
 }
 
+static void queue_anchor(UsageStatWidget *self);
+
 static void appeared(GDBusConnection *bus, const char *name, const char *owner, gpointer data) {
+    UsageStatWidget *self = data;
+    g_clear_pointer(&self->last_anchor, g_free);
+    queue_anchor(self);
     call(data, "RequestSnapshot", NULL);
 }
 
@@ -126,18 +135,20 @@ static void vanished(GDBusConnection *bus, const char *name, gpointer data) {
     gtk_widget_set_tooltip_text(self->button, "UsageStat is stopped. Click to start and open usage.");
 }
 
-static void clicked(GtkButton *button, gpointer data) {
-    UsageStatWidget *self = data;
+static void send_anchor(UsageStatWidget *self, gboolean toggle) {
+    GtkWidget *button = self->button;
+    if (!gtk_widget_get_mapped(button)) return;
     GtkWidget *top = gtk_widget_get_toplevel(GTK_WIDGET(button));
     GdkWindow *window = gtk_widget_get_window(top);
     int x = 0, y = 0, dx = 0, dy = 0, scale = 1;
     if (!window || !gtk_widget_translate_coordinates(GTK_WIDGET(button), top, 0, 0, &dx, &dy)) {
-        call(self, "ToggleDetails", g_variant_new("(s)", "")); return;
+        if (toggle) call(self, "ToggleDetails", g_variant_new("(s)", ""));
+        return;
     }
     GdkMonitor *monitor = gdk_display_get_monitor_at_window(gdk_window_get_display(window), window);
     gboolean layered = GTK_IS_WINDOW(top) && layer_window && layer_window(GTK_WINDOW(top));
     if (layered && layer_monitor(GTK_WINDOW(top))) monitor = layer_monitor(GTK_WINDOW(top));
-    if (!monitor) { call(self, "ToggleDetails", g_variant_new("(s)", "")); return; }
+    if (!monitor) { if (toggle) call(self, "ToggleDetails", g_variant_new("(s)", "")); return; }
     GdkRectangle screen, work;
     gdk_monitor_get_geometry(monitor, &screen);
     gdk_monitor_get_workarea(monitor, &work);
@@ -158,7 +169,7 @@ static void clicked(GtkButton *button, gpointer data) {
         }
     } else {
 #ifdef GDK_WINDOWING_X11
-        if (!GDK_IS_X11_WINDOW(window)) { call(self, "ToggleDetails", g_variant_new("(s)", "")); return; }
+        if (!GDK_IS_X11_WINDOW(window)) { if (toggle) call(self, "ToggleDetails", g_variant_new("(s)", "")); return; }
 #endif
         gdk_window_get_origin(window, &x, &y);
         scale = gtk_widget_get_scale_factor(top);
@@ -173,9 +184,22 @@ static void clicked(GtkButton *button, gpointer data) {
         gtk_widget_get_allocated_height(GTK_WIDGET(button)) * scale,
         work.x * scale, work.y * scale, work.width * scale, work.height * scale,
         screen.x * scale, screen.y * scale, screen.width * scale, screen.height * scale);
-    call(self, "ToggleDetailsAt", g_variant_new("(ss)", "", anchor));
+    if (toggle) call(self, "ToggleDetailsAt", g_variant_new("(ss)", "", anchor));
+    else if (g_strcmp0(anchor, self->last_anchor)) {
+        g_free(self->last_anchor); self->last_anchor = g_strdup(anchor);
+        call(self, "UpdateAnchor", g_variant_new("(s)", anchor));
+    }
     g_free(anchor);
 }
+static void clicked(GtkButton *button, gpointer data) { send_anchor(data, TRUE); }
+static gboolean update_anchor(gpointer data) {
+    UsageStatWidget *self = data; self->anchor_idle = 0;
+    send_anchor(self, FALSE); return G_SOURCE_REMOVE;
+}
+static void queue_anchor(UsageStatWidget *self) {
+    if (!self->anchor_idle) self->anchor_idle = g_idle_add(update_anchor, self);
+}
+static void allocated(GtkWidget *widget, GtkAllocation *allocation, gpointer data) { queue_anchor(data); }
 static gboolean press(GtkWidget *widget, GdkEventButton *event, gpointer data) {
     if (event->button == 2) { call(data, "Refresh", NULL); return TRUE; }
     if (event->button == 3) { call(data, "Preferences", g_variant_new("(s)", "")); return TRUE; }
@@ -228,9 +252,11 @@ UsageStatWidget *usagestat_widget_new(GtkContainer *container, int height, gbool
     gtk_container_add(GTK_CONTAINER(self->button), self->image);
     gtk_container_add(container, self->button);
     g_signal_connect(self->button, "clicked", G_CALLBACK(clicked), self);
+    g_signal_connect(self->button, "size-allocate", G_CALLBACK(allocated), self);
     g_signal_connect(self->button, "button-press-event", G_CALLBACK(press), self);
     g_signal_connect(self->button, "scroll-event", G_CALLBACK(scroll), self);
     g_signal_connect(self->button, "style-updated", G_CALLBACK(style), self);
+    g_signal_connect(self->button, "map", G_CALLBACK(style), self);
     g_signal_connect(self->image, "notify::scale-factor", G_CALLBACK(scale), self);
     self->bus = g_bus_get_sync(G_BUS_TYPE_SESSION, NULL, NULL);
     if (self->bus) {
@@ -248,6 +274,8 @@ void usagestat_widget_size(UsageStatWidget *self, int height, gboolean vertical)
 }
 void usagestat_widget_free(UsageStatWidget *self) {
     if (!self) return;
+    if (self->anchor_idle) g_source_remove(self->anchor_idle);
+    g_free(self->last_anchor);
     if (self->watch) g_bus_unwatch_name(self->watch);
     if (self->subscription) g_dbus_connection_signal_unsubscribe(self->bus, self->subscription);
     g_signal_handlers_disconnect_by_data(self->button, self);

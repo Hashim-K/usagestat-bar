@@ -14,7 +14,8 @@ function config(component, key) {
 
 export function cosmicPanel() {
     const entries = config('CosmicPanel', 'entries').match(/"([^"\\]+)"/g)?.map(name => name.slice(1, -1)) || ['Panel', 'Dock'];
-    const name = entries.find(name => /StatusArea/.test(config(`CosmicPanel.${name}`, 'plugins_wings')
+    const name = entries.find(name => /UsageStatApplet/.test(config(`CosmicPanel.${name}`, 'plugins_wings')
+        + config(`CosmicPanel.${name}`, 'plugins_center'))) || entries.find(name => /StatusArea/.test(config(`CosmicPanel.${name}`, 'plugins_wings')
         + config(`CosmicPanel.${name}`, 'plugins_center'))) || entries[0] || 'Panel';
     const value = key => config(`CosmicPanel.${name}`, key);
     const background = value('background');

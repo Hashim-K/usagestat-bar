@@ -54,10 +54,12 @@ class UsageStatApplet extends Applet.Applet {
         this._subscription = Gio.DBus.session.signal_subscribe(BUS, IFACE, 'Changed', PATH, null, Gio.DBusSignalFlags.NONE,
             (_bus, _sender, _path, _iface, _signal, params) => this._render(JSON.parse(params.deep_unpack()[0])));
         this.actor.connect('style-changed', () => { if (this._state) this._render(this._state); });
+        this.actor.connect('notify::allocation', () => this._publishAnchor());
         this._theme = St.ThemeContext.get_for_stage(global.stage);
         this._scaleSignal = this._theme.connect('notify::scale-factor', () => { if (this._state) this._render(this._state); });
         this._watch = Gio.bus_watch_name(Gio.BusType.SESSION, BUS, Gio.BusNameWatcherFlags.AUTO_START,
-            () => this._call('GetSnapshot', null, null, value => this._render(JSON.parse(value[0]))),
+            () => { this._lastAnchor = null; this._publishAnchor();
+                this._call('GetSnapshot', null, null, value => this._render(JSON.parse(value[0]))); },
             () => { if (!this._closed) this.set_applet_tooltip('UsageStat is stopped. Click to start it.'); });
     }
     _call(method, signature = null, value = null, done = null) {
@@ -89,14 +91,25 @@ class UsageStatApplet extends Applet.Applet {
         } catch (error) { this.set_applet_tooltip('UsageStat: ' + error.message); }
     }
     on_applet_clicked() {
+        this._call('ToggleDetailsAt', '(ss)', ['', this._anchor()]);
+    }
+    _publishAnchor() {
+        if (this._closed || !this.actor.mapped) return;
+        const anchor = this._anchor();
+        if (anchor !== this._lastAnchor) {
+            this._lastAnchor = anchor;
+            this._call('UpdateAnchor', '(s)', anchor);
+        }
+    }
+    _anchor() {
         const [x, y] = this.actor.get_transformed_position();
         const [w, h] = this.actor.get_transformed_size();
         const monitor = Main.layoutManager.findMonitorForActor(this.actor);
         const workspace = (global.workspace_manager || global.screen).get_active_workspace();
         const area = workspace.get_work_area_for_monitor(monitor.index);
         const edge = { [St.Side.TOP]: 'top', [St.Side.BOTTOM]: 'bottom', [St.Side.LEFT]: 'left', [St.Side.RIGHT]: 'right' }[this._orientation];
-        this._call('ToggleDetailsAt', '(ss)', ['', JSON.stringify({edge, rect: {x, y, w, h},
-            work: {x: area.x, y: area.y, w: area.width, h: area.height}})]);
+        return JSON.stringify({edge, rect: {x, y, w, h},
+            work: {x: area.x, y: area.y, w: area.width, h: area.height}});
     }
     on_orientation_changed(orientation) {
         this._orientation = orientation;

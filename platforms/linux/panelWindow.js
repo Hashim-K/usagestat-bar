@@ -2,8 +2,6 @@ import Gio from 'gi://Gio';
 import Gdk from 'gi://Gdk?version=4.0';
 import Gtk from 'gi://Gtk?version=4.0';
 import {runAsync} from '../../cli.js';
-import {desktopName} from './desktop.js';
-import {cosmicPanel} from './cosmic.js';
 import {ROOT} from './settings.js';
 
 let GdkX11, LayerShell;
@@ -78,30 +76,6 @@ export function dismissOutside(window, dismiss) {
     return () => backdrops.forEach(backdrop => backdrop.destroy());
 }
 
-async function configuredPanel(cancellable) {
-    const names = desktopName();
-    if (names.some(name => ['sway', 'hyprland'].includes(name))) {
-        const result = await runAsync(['python3', `${ROOT}/platforms/linux/waybar_config.py`, 'get'], cancellable, 3000);
-        if (result.status) throw new Error(result.stderr.trim());
-        return JSON.parse(result.stdout);
-    }
-    if (names.includes('budgie')) {
-        const root = new Gio.Settings({schema_id: 'com.solus-project.budgie-panel'});
-        const panels = root.get_strv('panels').map(id => new Gio.Settings({
-            schema_id: 'com.solus-project.budgie-panel.panel', path: `/com/solus-project/budgie-panel/panels/{${id}}/`}));
-        const panel = panels.find(panel => panel.get_strv('applets').some(id => {
-            const applet = new Gio.Settings({schema_id: 'com.solus-project.budgie-panel.applet',
-                path: `/com/solus-project/budgie-panel/applets/{${id}}/`});
-            return /status|tray/i.test(applet.get_string('name'));
-        })) || panels[0];
-        return {edge: panel?.get_string('location') || 'bottom'};
-    }
-    if (names.includes('cosmic')) {
-        return cosmicPanel();
-    }
-    return {edge: 'top'};
-}
-
 export async function anchorToPanel(window, preferredSize, cancellable, previous = null, alignment = 'center') {
     if (isX11()) {
         cancellable.set_error_if_cancelled();
@@ -123,8 +97,9 @@ export async function anchorToPanel(window, preferredSize, cancellable, previous
     if (!hasLayerShell() || !LayerShell.is_layer_window(window))
         throw new Error('Panel popups on this Wayland desktop require gtk4-layer-shell.');
 
-    const exact = rectangle(previous?.rect) && rectangle(previous?.work);
-    const source = exact ? previous : {...previous, ...await configuredPanel(cancellable)};
+    if (!rectangle(previous?.rect) || !rectangle(previous?.work))
+        throw new Error('The native panel adapter must supply its UsageStat section bounds.');
+    const source = previous;
     cancellable.set_error_if_cancelled();
     const list = window.get_display().get_monitors();
     const monitors = Array.from({length: list.get_n_items()}, (_, i) => list.get_item(i));
@@ -135,13 +110,12 @@ export async function anchorToPanel(window, preferredSize, cancellable, previous
     if (!monitor) throw new Error('No active monitor.');
     const screen = geometry(monitor), gap = 8;
     const edge = ['top', 'bottom', 'left', 'right'].includes(source.edge) ? source.edge : 'top';
-    const vertical = edge === 'left' || edge === 'right';
     LayerShell.set_monitor(window, monitor);
     for (const side of ['LEFT', 'RIGHT', 'TOP', 'BOTTOM']) {
         LayerShell.set_anchor(window, LayerShell.Edge[side], false);
         LayerShell.set_margin(window, LayerShell.Edge[side], gap);
     }
-    if (exact) {
+    {
         const work = {x: Math.max(screen.x, source.work.x), y: Math.max(screen.y, source.work.y)};
         work.w = Math.min(screen.x + screen.w, source.work.x + source.work.w) - work.x;
         work.h = Math.min(screen.y + screen.h, source.work.y + source.work.h) - work.y;
@@ -161,15 +135,6 @@ export async function anchorToPanel(window, preferredSize, cancellable, previous
         LayerShell.set_margin(window, LayerShell.Edge.LEFT, x - screen.x);
         LayerShell.set_margin(window, LayerShell.Edge.TOP, y - screen.y);
         window.set_default_size(width, height);
-    } else {
-        // SNI/text modules cannot expose their icon rectangle. Pin to their
-        // configured panel edge, letting the compositor exclude all panels.
-        // Activation coordinates select the output only, never the position.
-        LayerShell.set_exclusive_zone(window, 0);
-        LayerShell.set_anchor(window, LayerShell.Edge[edge.toUpperCase()], true);
-        if (alignment !== 'center') LayerShell.set_anchor(window,
-            LayerShell.Edge[vertical ? alignment === 'left' ? 'TOP' : 'BOTTOM' : alignment === 'left' ? 'LEFT' : 'RIGHT'], true);
-        window.set_default_size(Math.min(preferredSize[0], screen.w - gap * 2), Math.min(preferredSize[1], screen.h - 96));
     }
     return {...source, point: undefined, edge, monitorName: monitor.get_connector()};
 }

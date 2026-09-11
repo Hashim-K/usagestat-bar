@@ -23,11 +23,11 @@ BUS='io.github.HashimK.UsageStatBar'
 OBJECT='/io/github/HashimK/UsageStatBar'
 bus=Gio.bus_get_sync(Gio.BusType.SESSION,None)
 WAYLAND=os.environ.get('XDG_SESSION_TYPE')=='wayland'
-TRAY=TARGET in ['lxqt','budgie','cosmic']
+TRAY=TARGET in ['lxqt','budgie','cosmic'] and os.environ.get('USAGESTAT_REVIEW_TRAY') == '1'
 if TARGET=='hyprland': os.environ['PATH']='/out:'+os.environ['PATH']
 checks=[]
 started=time.monotonic()
-EDGE='bottom' if TARGET in ['cinnamon','lxqt'] else 'top'
+EDGE='bottom' if TARGET == 'cinnamon' else 'top'
 REGION='left'
 INDEX=0
 pointer=None
@@ -157,7 +157,10 @@ def measure(window):
 
 def light_surface():
     # Actual screenshot pixels, for compositors without a layer geometry API.
-    background=None
+    # The lab requests libadwaita's light theme. Match its flat window color,
+    # not arbitrary white pixels: Sway's white wallpaper logo can otherwise
+    # join the popup's component and inflate its measured rectangle.
+    background=(250,250,251)
     if TARGET=='cosmic':
         css=Path(os.environ['XDG_CONFIG_HOME'])/'gtk-4.0/gtk.css'
         if css.exists():
@@ -171,7 +174,7 @@ def light_surface():
         for x in range(0,width,step):
             index=y*stride+x*channels
             rgb=data[index:index+3]
-            matches=all(abs(a-b)<=2 for a,b in zip(rgb,background)) if background else min(rgb)>230
+            matches=all(abs(a-b)<=2 for a,b in zip(rgb,background))
             if matches: white.add((x//step,y//step))
     candidates=[]
     while white:
@@ -212,7 +215,7 @@ def painted_popup():
     for y in range(max(0, rect['y']+24), min(pix.get_height(), rect['y']+rect['h']-12), 4):
         for x in range(max(0, rect['x']+20), min(pix.get_width(), rect['x']+rect['w']-20), 4):
             i = y*stride+x*channels; r,g,b = data[i:i+3]
-            light += min(r,g,b) > 210
+            light += min(r,g,b) > 140 and max(r,g,b)-min(r,g,b) < 40
             blue += b > r+40 and b > g+15 and b > 150
             total += 1
     # Both light surfaces and dark themes have bright labels plus a blue
@@ -289,7 +292,7 @@ def _point():
                 # Tray hosts can make their panel thinner than its configured
                 # size. Match the fixture's actual meter, not blue wallpaper
                 # just outside that panel (notably Budgie's bottom/side edges).
-                meter = abs(r-138)<=2 and abs(g-180)<=2 and abs(b-248)<=2 if TRAY else b>r+30 and b>g+15 and b>150
+                meter = abs(r-138)<=2 and abs(g-180)<=2 and abs(b-248)<=2
                 if meter:
                     if TARGET=='cosmic':
                         # Aim inside the logo button, not the bottom edge of
@@ -315,6 +318,24 @@ def section_anchor(log_offset=0):
     this test measure that module independently of popup-placement code and
     without including the neighboring module in the expected rectangle.
     """
+    if TARGET == 'cosmic' and not TRAY:
+        bar=panel()
+        pix=GdkPixbuf.Pixbuf.new_from_file(str(screenshot('.section-geometry')))
+        data=pix.get_pixels(); stride=pix.get_rowstride(); channels=pix.get_n_channels()
+        points=[]
+        for y in range(max(0,bar['y']),min(pix.get_height(),bar['y']+bar['h'])):
+            for x in range(max(0,bar['x']),min(pix.get_width(),bar['x']+bar['w'])):
+                i=y*stride+x*channels
+                if tuple(data[i:i+3]) == (47,62,82): points.append((x,y))
+        if not points: return None
+        x,y=min(p[0] for p in points),min(p[1] for p in points)
+        rect=dict(x=x,y=y,w=max(p[0] for p in points)-x+1,h=max(p[1] for p in points)-y+1)
+        width,height=pointer.width,pointer.height
+        work={'top':dict(x=0,y=bar['h'],w=width,h=height-bar['h']),
+              'bottom':dict(x=0,y=0,w=width,h=bar['y']),
+              'left':dict(x=bar['w'],y=0,w=width-bar['w'],h=height),
+              'right':dict(x=0,y=0,w=bar['x'],h=height)}[EDGE]
+        return dict(rect=rect,work=work,edge=EDGE)
     if TARGET in ['i3', 'bspwm']:
         bar=panel()
         pix=GdkPixbuf.Pixbuf.new_from_file(str(screenshot('.section-geometry')))
@@ -334,8 +355,12 @@ def section_anchor(log_offset=0):
         bar=panel()
         rect=json.loads(plasma_script('var p=panels().find(p=>p.widgets().some(w=>w.type==="io.github.HashimK.usagestat")); print(JSON.stringify(p.widgets("io.github.HashimK.usagestat")[0].geometry));'))
         width,height=map(int,command('xdotool','getdisplaygeometry').split())
+        work={'top':dict(x=0,y=bar['y']+bar['h'],w=width,h=height-bar['y']-bar['h']),
+              'bottom':dict(x=0,y=0,w=width,h=bar['y']),
+              'left':dict(x=bar['x']+bar['w'],y=0,w=width-bar['x']-bar['w'],h=height),
+              'right':dict(x=0,y=0,w=bar['x'],h=height)}[EDGE]
         return dict(rect=dict(x=bar['x']+rect['x'],y=bar['y']+rect['y'],w=rect['width'],h=rect['height']),
-                    work=dict(x=0,y=bar['h'] if EDGE=='top' else 0,w=width,h=height-bar['h']),edge=EDGE)
+                    work=work,edge=EDGE)
     # Capture the actual adapter's ToggleDetailsAt argument. There is no
     # screen/panel fallback: an absent section must fail this contract.
     log=OUT/'section-anchor.log'
@@ -437,8 +462,10 @@ def position(edge='top', region='left', index=0):
         config['module/neighbor']={'type':'custom/text','content':' Neighbor '}
         config['module/usagestat']['format-background']='#2f3e52'
         with path.open('w') as stream: config.write(stream)
-        command('pkill','-x','polybar')
-        with (OUT/'panel.log').open('a') as log: subprocess.Popen(['polybar','-c',str(path),'baseline'],stdout=log,stderr=log)
+        command('pkill','-x','usagestat-polyb',check=False)
+        command('pkill','-x','usagestat-poly',check=False)
+        command('pkill','-x','polybar',check=False)
+        with (OUT/'panel.log').open('a') as log: subprocess.Popen(['usagestat-polybar','-c',str(path),'baseline'],stdout=log,stderr=log)
     elif TARGET=='budgie':
         setting('enabled','false',True)
         command('pkill','-x','budgie-panel')
@@ -454,7 +481,8 @@ def position(edge='top', region='left', index=0):
             command('gsettings','set',schema,'alignment',{'left':'start','center':'center','right':'end'}[region])
             command('gsettings','set',schema,'position',str(i))
         with (OUT/'panel.log').open('a') as log:subprocess.Popen(['budgie-panel'],stdout=log,stderr=log)
-        time.sleep(1);setting('enabled','true',True);time.sleep(1)
+        time.sleep(1)
+        if TRAY: setting('enabled','true',True);time.sleep(1)
     elif TARGET=='lxqt':
         import configparser
         setting('enabled','false',True)
@@ -462,25 +490,27 @@ def position(edge='top', region='left', index=0):
         path=Path(os.environ['XDG_CONFIG_HOME'])/'lxqt/panel.conf'
         config=configparser.RawConfigParser();config.optionxform=str
         config['General']={'panels':'panel1','__userfile__':'true'}
-        plugins=['worldclock','statusnotifier'] if index else ['statusnotifier','worldclock']
+        module='statusnotifier' if TRAY else 'usagestat'
+        plugins=['worldclock',module] if index else [module,'worldclock']
         if region=='center': plugins=['spacer-before',*plugins,'spacer-after']
         config['panel1']={'position':edge.capitalize(),'plugins':','.join(plugins),
             'desktop':'0','lineCount':'1','panelSize':'38','iconSize':'24','length':'100','lengthInPercents':'true'}
         # LXQt has left/right groups; symmetric expanding spacers center a group.
-        for plugin in ['worldclock','statusnotifier']:
+        for plugin in ['worldclock',module]:
             config[plugin]={'type':plugin,'alignment':'Right' if region=='right' else 'Left'}
         for plugin in ['spacer-before','spacer-after']:
             config[plugin]={'type':'spacer','alignment':'Left','expandable':'true'}
         path.parent.mkdir(parents=True,exist_ok=True)
         with path.open('w') as stream:config.write(stream)
-        with (OUT/'panel.log').open('a') as log:subprocess.Popen(['lxqt-panel'],stdout=log,stderr=log)
-        time.sleep(1);setting('enabled','true',True);time.sleep(1)
+        with (OUT/'panel.log').open('a') as log:subprocess.Popen(['usagestat-lxqt-panel'],stdout=log,stderr=log)
+        time.sleep(1)
+        if TRAY: setting('enabled','true',True);time.sleep(1)
     elif TARGET=='cosmic':
         setting('enabled','false',True)
         command('pkill','-x','cosmic-panel',check=False)
         wait(lambda:not command('pgrep','-x','cosmic-panel',check=False))
         folder=Path(os.environ['XDG_CONFIG_HOME'])/'cosmic/com.system76.CosmicPanel.Panel/v1'
-        order=['com.system76.CosmicAppletStatusArea','com.system76.CosmicAppletTime']
+        order=['com.system76.CosmicAppletStatusArea' if TRAY else 'io.github.HashimK.UsageStatApplet','com.system76.CosmicAppletTime']
         if index: order.reverse()
         group=json.dumps(order)
         (folder/'anchor').write_text(edge.capitalize())
@@ -488,7 +518,8 @@ def position(edge='top', region='left', index=0):
         wings=f'Some(({group},[]))' if region=='left' else f'Some(([],{group}))' if region=='right' else 'None'
         (folder/'plugins_wings').write_text(wings)
         with (OUT/'panel.log').open('a') as log: subprocess.Popen(['cosmic-panel'],stdout=log,stderr=log)
-        time.sleep(1);setting('enabled','true',True);time.sleep(1)
+        time.sleep(1)
+        if TRAY: setting('enabled','true',True);time.sleep(1)
     else: raise NotImplementedError('Desktop tray placement requires its native panel settings')
     time.sleep(1.1)
 
@@ -517,17 +548,20 @@ def placement_checks():
         if TARGET in ['i3','bspwm'] and edge in ['left','right']:
             checks.append({'name':'panel-edge-'+edge,'status':'unsupported','reason':'Polybar supports horizontal panels only.'})
         else: step('panel-edge-'+edge,lambda edge=edge:at_position(edge,'center',0))
-    def alignment(value):
-        position('top','center',0); setting('popup-alignment',value)
+    def alignment(value, edge='top'):
+        position(edge,'center',0); setting('popup-alignment',value)
         log=OUT/'section-anchor.log'; offset=log.stat().st_size if log.exists() else 0
         click(*point()); actual=wait(popup)
         anchor=section_anchor(offset)
         assert anchor, 'The integration did not supply measurable UsageStat section bounds; panel bounds are not accepted.'
-        observation=assert_section_alignment(actual,anchor['rect'],anchor['work'],anchor['edge'],value)
+        # Native popup hosts clamp flush to the work-area boundary; the
+        # shared GTK layer/X11 window uses its own eight-pixel inset.
+        inset = 0 if TARGET=='plasma' or (TARGET=='cosmic' and not TRAY) else 8
+        observation=assert_section_alignment(actual,anchor['rect'],anchor['work'],anchor['edge'],value,inset=inset)
         desktop_click(); wait(lambda:not popup())
         click(*point()); repeated=wait(popup)
         assert abs(actual['x']-repeated['x'])<5 and abs(actual['y']-repeated['y'])<5,f'Reopening changed the popup anchor: {actual} → {repeated}'
-        assert_section_alignment(repeated,anchor['rect'],anchor['work'],anchor['edge'],value)
+        assert_section_alignment(repeated,anchor['rect'],anchor['work'],anchor['edge'],value,inset=inset)
         return observation
     aligned={}
     for value in ['left','center','right']:
@@ -538,6 +572,10 @@ def placement_checks():
         ensure(len(aligned)==3,'All three alignments must match the UsageStat section; differing screen positions are insufficient.')
         return aligned
     step('popup-alignment-section',aligned_to_section)
+    if TARGET not in ['i3','bspwm']:
+        for edge in ['left','right']:
+            for value in ['left','center','right']:
+                step(f'popup-{edge}-panel-alignment-{value}',lambda value=value,edge=edge:alignment(value,edge))
 
 
 def ensure(condition,message):
@@ -598,8 +636,6 @@ def main():
     wait(lambda:(OUT/'recording.ready').exists(),20)
     started=time.monotonic()
     time.sleep(2)
-    with (OUT/'section-anchor.log').open('w') as log:
-        anchor_monitor=subprocess.Popen(['dbus-monitor',"type='method_call',interface='io.github.HashimK.UsageStatBar1',member='ToggleDetailsAt'"],stdout=log,stderr=log)
     if TRAY:
         # The desktop's embedded status-area process can start after its panel
         # window. Wait for the actual native host before adding test clients.
@@ -618,6 +654,22 @@ def main():
     setting('scroll-to-switch-provider','true')
     setting('scroll-popup-to-switch-provider','true')
     step('initial-panel',lambda:dict(panel=panel(),providers=state()['panel']))
+    if TARGET != 'plasma' and not TRAY:
+        def keyboard_toggle():
+            # This is the command bound to the global shortcut, before any
+            # pointer activation can seed a remembered popup rectangle.
+            call('ToggleDetails','(s)',('',))
+            try:
+                wait(painted_popup)
+                anchor=wait(section_anchor)
+                # X11 maps the window before the WM acknowledges its position.
+                # A window that stays centred on the screen still fails.
+                return wait(lambda:assert_section_alignment(wait(popup),anchor['rect'],anchor['work'],anchor['edge'],'center',
+                    inset=0 if TARGET=='cosmic' else 8))
+            finally:
+                if popup(): call('ToggleDetails','(s)',('',))
+                wait(lambda:not popup())
+        step('keyboard-toggle-before-panel-click',keyboard_toggle)
     def pins():
         setting('panel-bar-count','2'); setting('panel-pinned-providers','["codex"]')
         call('Select','(s)',('claude',))
@@ -740,7 +792,11 @@ def main():
         if TARGET=='hyprland':
             return wait(lambda:next((dict(x=w['at'][0],y=w['at'][1],w=w['size'][0],h=w['size'][1])
                 for w in json.loads(command('hyprctl','clients','-j')) if 'UsageStat' in w['title']),None))
-        if WAYLAND: return wait(light_surface)
+        if WAYLAND:
+            if TARGET in ['cosmic','budgie']:
+                from toplevels import titles
+                wait(lambda:any('UsageStat Preferences' in title for title in titles()))
+            return wait(light_surface)
         return wait(lambda:next((measure(w) for w in command('xdotool','search','--onlyvisible','--name','UsageStat Preferences',check=False).splitlines()),None))
     step('preferences-window',preferences)
 
